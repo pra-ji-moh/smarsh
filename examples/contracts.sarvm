@@ -1,0 +1,51 @@
+// Functions that state what they promise. Check them with:
+//     node bin/sarvm.mjs prove examples/contracts.sarvm
+//
+// Nothing here is a test. The contracts are the specification; `prove`
+// generates the inputs, throws away the ones the preconditions reject, and
+// reports where a promise did not hold.
+
+// Correct.
+fn abs_(x) ensures result >= 0 {
+  if x < 0 {
+    return -x
+  }
+  return x
+}
+
+// Correct.
+fn clamp01(x) ensures result >= 0 and result <= 1 {
+  if x < 0 {
+    return 0
+  }
+  if x > 1 {
+    return 1
+  }
+  return x
+}
+
+// Wrong, and the wrongness is not obvious by reading: scaling by a positive k
+// only grows a value when k >= 1, or when x is negative.
+fn scale(x, k)
+  requires k > 0
+  ensures result >= x
+{
+  return x * k
+}
+
+// The promise assumes exact arithmetic. Floating point does not provide it.
+fn safe_div(a, b)
+  requires b != 0
+  ensures result * b == a
+{
+  return a / b
+}
+
+// Effectful, so `prove` reports it as skipped rather than calling it.
+fn persist(x)
+  needs fs
+  requires x != nil
+{
+  write("out.txt", str(x))
+  return true
+}

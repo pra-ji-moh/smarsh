@@ -1,0 +1,135 @@
+// Agents, budgets and static race detection.
+//     node bin/sarvm.mjs run examples/agents.sarvm
+//     node bin/sarvm.mjs check examples/agents.sarvm
+print("== agents talk by message, and nothing else ===============")
+
+agent Ledgerkeeper(name) {
+  var seen = 0
+  var total = 0
+
+  on record(amount) {
+    seen = seen + 1
+    total = total + amount
+  }
+
+  on audit() {
+    send(sender, "result", name, seen, total)
+  }
+}
+
+agent Auditor() {
+  var reports = []
+
+  on begin(first, second) {
+    send(first, "audit")
+    send(second, "audit")
+  }
+
+  on result(who, count, sum) {
+    reports.push(who + ": " + str(count) + " entries totalling " + str(sum))
+  }
+}
+
+let books = spawn Ledgerkeeper("london")
+let mirror = spawn Ledgerkeeper("tokyo")
+let auditor = spawn Auditor()
+
+send(books, "record", 1200)
+send(books, "record", 800)
+send(mirror, "record", 1200)
+
+print("   queued messages:", pending())
+print("   delivered:", run_agents())
+
+// The auditor asks; each keeper answers it directly. `sender` is bound on the
+// way in, so a reply needs no address book. (A message sent from the top level
+// has no sender -- only agent-to-agent messages do.)
+send(auditor, "begin", books, mirror)
+run_agents()
+
+print("   audit results:")
+for line in auditor.state("reports") {
+  print("     ", line)
+}
+
+print("")
+print("== an agent cannot reach outside itself ===================")
+
+var shared_counter = 0
+
+agent Rogue() {
+
+  on grab() {
+    shared_counter = shared_counter + 1
+  }
+}
+
+let rogue = spawn Rogue()
+send(rogue, "grab")
+attempt {
+  run_agents()
+} rescue e {
+  print("  ", e["kind"], "->", e["message"])
+}
+print("   the counter outside is untouched:", shared_counter)
+
+print("")
+print("== a budget the code inside cannot argue with =============")
+
+fn runaway() {
+  var n = 0
+  while true {
+    n = n + 1
+  }
+  return n
+}
+
+attempt {
+  budget steps 5000 {
+    // Even this cannot save it: a budget stop is not a catchable failure
+    // from inside the block.
+    attempt {
+      runaway()
+    } rescue e {
+      print("   THIS LINE MUST NEVER PRINT")
+    }
+  }
+} rescue outer {
+  print("  ", outer["kind"], "->", outer["message"])
+}
+print("   the supervisor outside the budget did catch it")
+
+// Budgets nest, and an inner one can only tighten.
+attempt {
+  budget steps 400 {
+    budget steps 999999 {
+      runaway()
+    }
+  }
+} rescue e {
+  print("   nested budget still stopped it:", e["kind"])
+}
+
+// Token budgets bound what a program may put into context windows.
+attempt {
+  budget tokens 40 {
+    let ctx = context(10000)
+    for i in range(50) {
+      ctx.push("another long line of retrieved evidence here")
+    }
+  }
+} rescue e {
+  print("  ", e["kind"], "->", e["message"])
+}
+
+print("")
+print("== races found before the program runs ====================")
+print("   run `sarvm check` on this file: the fork below is reported")
+
+var tally = 0
+// sarvm-allow: race  (deliberate -- this is the finding the section demonstrates)
+let results = fork 4 {
+  tally = tally + 1
+  _ * 2
+}  // every path writes one shared cell -- a real race
+print("   fork returned:", results, " and tally is", tally)

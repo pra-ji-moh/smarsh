@@ -1,0 +1,70 @@
+// Records, pattern matching and string interpolation.
+//     node bin/sarvm.mjs run examples/modern.sarvm
+print("== records are values, not objects ========================")
+
+record Point(x, y)
+record Trade(symbol, side, qty, price)
+
+let a = Point(3, 4)
+let b = Point(3, 4)
+
+print("   ${a}")
+print("   fields: ${a.x}, ${a.y}")
+print("   two points with the same coordinates are equal: ${a == b}")
+
+// Immutable: `with` returns a new record and leaves the original alone.
+let moved = a.with("x", 10)
+print("   moved:    ${moved}")
+print("   original: ${a}")
+
+print("")
+print("== interpolation ==========================================")
+
+let name = "ada"
+let qty = 250
+let px = 12.5
+
+print("   ${name} bought ${qty} at ${px}, costing ${qty * px}")
+print("   expressions work: ${qty > 100}, ${[1, 2, 3].len()}")
+print("   escaped: \${not interpolated}")
+
+print("")
+print("== match ==================================================")
+
+fn describe(shape) {
+  return match shape { Point(0, 0) => "the origin", Point(0, y) => "on the y axis at ${y}", Point(x, 0) => "on the x axis at ${x}", Point(x, y) when x == y => "on the diagonal at ${x}", Point(x, y) => "somewhere at ${x}, ${y}", _ => "not a point at all" }
+}
+
+for p in [Point(0, 0), Point(0, 7), Point(7, 0), Point(4, 4), Point(1, 2)] {
+  print("   ${p} -> ${describe(p)}")
+}
+print("   ${describe("a string")} ")
+
+print("")
+print("== match on values and lists ==============================")
+
+fn classify(order) {
+  return match order { Trade(sym, "buy", n, _) when n > 100 => "large buy of ${sym}", Trade(sym, "buy", n, _) => "buy ${n} ${sym}", Trade(sym, "sell", n, _) => "sell ${n} ${sym}", Trade(sym, side, _, _) => "unknown side ${side} on ${sym}" }
+}
+
+print("   ${classify(Trade("ACME", "buy", 500, 12.5))}")
+print("   ${classify(Trade("ACME", "buy", 10, 12.5))}")
+print("   ${classify(Trade("ACME", "sell", 40, 12.9))}")
+print("   ${classify(Trade("ACME", "hold", 40, 12.9))}")
+
+fn shape_of(xs) {
+  return match xs { [] => "empty", [only] => "one item: ${only}", [first, second] => "a pair: ${first} and ${second}", _ => "${xs.len()} items" }
+}
+
+for xs in [[], [1], [1, 2], [1, 2, 3, 4]] {
+  print("   ${shape_of(xs)}")
+}
+
+print("")
+print("== an unmatched value says so =============================")
+
+attempt {
+  match 99 { 1 => "one", 2 => "two" }
+} rescue e {
+  print("   ${e["kind"]} -> ${e["message"]}")
+}

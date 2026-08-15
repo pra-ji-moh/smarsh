@@ -1,0 +1,125 @@
+// The standard library's own tests.
+//     node bin/sarvm.mjs test std/
+import "std/list" as list
+import "std/str" as text
+import "std/math" as math
+import "std/result" as res
+
+fn test_take_and_drop() {
+  assert(list.take([1, 2, 3, 4], 2) == [1, 2], "take should keep the front")
+  assert(list.take([1], 5) == [1], "take beyond the end is the whole list")
+  assert(list.take([1, 2], 0) == [], "taking none gives nothing")
+  assert(list.drop([1, 2, 3], 1) == [2, 3], "drop should remove the front")
+  assert(list.drop([1, 2], 9) == [], "dropping past the end gives nothing")
+}
+
+fn test_zip_stops_at_the_shorter_side() {
+  assert(list.zip([1, 2, 3], ["a", "b"]) == [[1, "a"], [2, "b"]], "zip should stop early")
+  assert(list.zip([], [1, 2]) == [], "zip with empty is empty")
+}
+
+fn test_chunk_keeps_the_remainder() {
+  assert(list.chunk([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]], "the tail must survive")
+  assert(list.chunk([1, 2], 0) == [], "a zero chunk size yields nothing")
+}
+
+fn test_group_by() {
+  let grouped = list.group_by([1, 2, 3, 4], fn(x) { return x % 2 })
+  assert(grouped["0"] == [2, 4], "evens grouped together")
+  assert(grouped["1"] == [1, 3], "odds grouped together")
+}
+
+fn test_sort_by_is_stable_and_correct() {
+  let sorted = list.sort_by(["ccc", "a", "bb"], fn(s) { return s.len() })
+  assert(sorted == ["a", "bb", "ccc"], "should order by length")
+}
+
+fn test_any_all_and_find() {
+  assert(list.any([1, 2, 3], fn(x) { return x > 2 }), "3 is greater than 2")
+  assert(not list.any([1, 2], fn(x) { return x > 5 }), "nothing is greater than 5")
+  assert(list.all([2, 4], fn(x) { return x % 2 == 0 }), "all even")
+  assert(list.find([1, 2, 3], fn(x) { return x > 1 }) == 2, "find gives the first hit")
+  assert(list.find([1], fn(x) { return x > 9 }) == nil, "no hit gives nil")
+}
+
+fn test_unique_and_flatten() {
+  assert(list.unique([1, 1, 2, 1, 3]) == [1, 2, 3], "duplicates removed in order")
+  assert(list.flatten([[1, 2], [3]]) == [1, 2, 3], "one level flattened")
+}
+
+fn test_windows() {
+  assert(list.windows([1, 2, 3], 2) == [[1, 2], [2, 3]], "overlapping pairs")
+  assert(list.windows([1], 5) == [], "a window larger than the list gives nothing")
+}
+
+fn test_padding_and_truncation() {
+  assert(text.pad_left("7", 3, "0") == "007", "pad on the left")
+  assert(text.pad_right("7", 3, ".") == "7..", "pad on the right")
+  assert(text.pad_left("abcd", 2, "0") == "abcd", "never shortens")
+  assert(text.truncate("abcdefghij", 6) == "abc...", "marks that it cut")
+  assert(text.truncate("abc", 6) == "abc", "leaves short text alone")
+}
+
+fn test_words_and_title() {
+  assert(text.words("  hello   there  ") == ["hello", "there"], "collapses spaces")
+  assert(text.title("hello there") == "Hello There", "capitalises each word")
+}
+
+fn test_reverse_and_palindrome() {
+  assert(text.reverse("abc") == "cba", "reversed")
+  assert(text.is_palindrome("Never odd or even"), "should be a palindrome")
+  assert(not text.is_palindrome("Sarvm"), "should not be a palindrome")
+}
+
+fn test_statistics() {
+  assert(math.mean([1, 2, 3, 4]) == 2.5, "mean of 1..4")
+  assert(math.median([3, 1, 2]) == 2, "median of an odd count")
+  assert(math.median([4, 1, 3, 2]) == 2.5, "median of an even count")
+  assert(math.is_close(math.stdev([2, 4, 4, 4, 5, 5, 7, 9]), 2.138, 0.001), "sample stdev")
+  assert(math.variance([5]) == 0, "one sample has no spread")
+}
+
+fn test_percentiles() {
+  assert(math.percentile([1, 2, 3, 4, 5], 0) == 1, "p0 is the minimum")
+  assert(math.percentile([1, 2, 3, 4, 5], 100) == 5, "p100 is the maximum")
+  assert(math.percentile([1, 2, 3, 4, 5], 50) == 3, "p50 is the median")
+}
+
+fn test_gcd_and_lcm() {
+  assert(math.gcd(12, 18) == 6, "gcd")
+  assert(math.gcd(-12, 18) == 6, "gcd ignores sign")
+  assert(math.lcm(4, 6) == 12, "lcm")
+  assert(math.lcm(0, 5) == 0, "lcm with zero")
+}
+
+fn test_results_carry_their_outcome() {
+  assert(res.is_ok(res.ok(1)), "ok is ok")
+  assert(res.is_err(res.err("x")), "err is err")
+  assert(res.unwrap_or(res.err("x"), 42) == 42, "falls back on error")
+  assert(res.unwrap_or(res.ok(7), 42) == 7, "uses the value when there is one")
+}
+
+fn test_results_compose() {
+  let doubled = res.map_ok(res.ok(5), fn(v) { return v * 2 })
+  assert(res.unwrap_or(doubled, 0) == 10, "map_ok applies to the value")
+
+  let untouched = res.map_ok(res.err("bad"), fn(v) { return v * 2 })
+  assert(res.is_err(untouched), "map_ok leaves an error alone")
+
+  let chained = res.and_then(res.ok(2), fn(v) { return res.ok(v + 1) })
+  assert(res.unwrap_or(chained, 0) == 3, "and_then threads the value through")
+}
+
+fn test_all_ok_reports_the_first_failure() {
+  assert(res.is_ok(res.all_ok([res.ok(1), res.ok(2)])), "all fine")
+  let bad = res.all_ok([res.ok(1), res.err("boom"), res.ok(3)])
+  assert(res.is_err(bad), "one failure fails the set")
+  assert(res.oks([res.ok(1), res.err("x"), res.ok(3)]) == [1, 3], "oks keeps the successes")
+  assert(res.errors([res.ok(1), res.err("x")]) == ["x"], "errors keeps the failures")
+}
+
+fn test_options_bridge_to_nil() {
+  assert(res.is_none(res.from_nil(nil)), "nil becomes None")
+  assert(res.is_some(res.from_nil(5)), "a value becomes Some")
+  assert(res.unwrap_or(res.from_nil(nil), "fallback") == "fallback", "None falls back")
+}

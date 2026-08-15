@@ -1,0 +1,33 @@
+{
+  "name": "sarvm",
+  "version": "0.3.0",
+  "description": "A language for programs that reason under uncertainty: probabilistic control flow, first-class tensors, capability security, provenance tracking, and contracts that generate their own tests.",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "sarvm": "bin/sarvm.mjs" },
+  "engines": { "node": ">=18" },
+  "files": [
+    "bin/", "src/", "std/", "examples/", "docs/",
+    "README.md", "LICENSE", "CHANGELOG.md", "SECURITY.md", "VERSIONING.md", "LIMITATIONS.md"
+  ],
+  "keywords": [
+    "programming-language",
+    "interpreter",
+    "capability-security",
+    "taint-tracking",
+    "probabilistic-programming",
+    "contracts",
+    "property-testing",
+    "homomorphic-encryption",
+    "zero-knowledge",
+    "actors",
+    "tensors"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "tour": "node bin/sarvm.mjs run examples/tour.sarvm",
+    "prove": "node bin/sarvm.mjs prove examples/contracts.sarvm",
+    "check": "node bin/sarvm.mjs check examples/agents.sarvm",
+    "examples": "node bin/sarvm.mjs run examples/quantum.sarvm && node bin/sarvm.mjs run examples/agents.sarvm && node bin/sarvm.mjs run examples/devices.sarvm && node bin/sarvm.mjs run examples/crypto.sarvm --grant crypto"
+  }
+}

@@ -1,0 +1,174 @@
+// A tour of Sarvm. Run it with:
+//     node bin/sarvm.mjs run examples/tour.sarvm
+// Add --trace to see every probabilistic branch the run took.
+// Nothing here needs a capability, so it runs with no --grant at all.
+print("== 1. the ordinary parts ==================================")
+
+let language = "Sarvm"
+var count = 0
+while count < 3 {
+  count = count + 1
+}
+print("  ", language, "counted to", count)
+
+fn fib(n) requires n >= 0 {
+  if n < 2 {
+    return n
+  }
+  return fib(n - 1) + fib(n - 2)
+}
+
+print("   fib(12) =", fib(12))
+
+let nums = [5, 3, 9, 1]
+print("   sorted:", nums.sort(), " doubled:", nums.map(fn(x) { return x * 2 }))
+
+print("")
+print("== 2. tensors are values, not a library ===================")
+
+let w = tensor [[0.2, -0.4, 0.1], [0.7, 0.3, -0.9]]
+let x = tensor [1, 2, 0.5]
+let h = relu(w @ x)
+print("   w has shape", w.shape, " x has shape", x.shape)
+print("   relu(w @ x) =", h)
+print("   softmax     =", softmax(h))
+print("   broadcasting:", w * 2 + 1)
+
+attempt {
+  let bad = w @ w
+} rescue e {
+  print("   shape mistakes are language errors:", e.message)
+}
+
+print("")
+print("== 3. control flow that admits it is uncertain ============")
+
+maybe 0.7 {
+  print("   maybe 0.7 -> took it")
+} else {
+  print("   maybe 0.7 -> skipped it")
+}
+
+let strategy = choose { 0.6 => "exploit", 0.3 => "explore", 0.1 => "ask a human" }
+print("   choose picked:", strategy)
+print("   (same seed, same choice, every time -- try --seed 7)")
+
+print("")
+print("== 4. forking a reasoning path ============================")
+
+// Each path gets its own scope and its own random stream. Paths diverge from
+// each other; the whole fan-out replays identically on the next run.
+let scores = fork 5 {
+  let prior = 0.4 + _ * 0.05
+  let evidence = random()
+  prior * 0.6 + evidence * 0.4
+}
+print("   5 paths scored:", scores)
+print("   best is path", argmax(scores), "at", max(scores))
+
+print("")
+print("== 5. memory measured in tokens ===========================")
+
+let ctx = context(40)
+ctx.pin("system: you verify claims, you do not invent them")
+ctx.push("user: is the Q3 revenue figure in this filing reliable?")
+ctx.push("tool: filing.pdf p14 -> revenue 4.12bn, restated once in 2023")
+ctx.push("tool: auditor note -> no going-concern qualification")
+print("  ", distill(ctx))
+print("   the pinned system line survived eviction:", ctx.text().contains("you verify claims"))
+
+print("")
+print("== 6. where a value came from is part of the value ========")
+
+let reply = ungrounded("the filing says revenue was 9.9bn")
+print("   labels:", labels(reply))
+print("   taint survives being handled:", labels(reply.upper()))
+
+grounded {
+  print("   inside a grounded block, only checked values are readable")
+}
+
+attempt {
+  // sarvm-allow: taint  (deliberate -- this section exists to show the refusal)
+  grounded {
+    print(reply)
+  }
+} rescue e {
+  print("  ", e.kind, "->", e.message)
+}
+
+let checked = trust(reply, "cross-checked against filing.pdf p14 by a human")
+grounded {
+  print("   after an explicit, logged trust():", checked.slice(0, 24), "...")
+}
+
+print("")
+print("== 7. jurisdiction travels with the data ==================")
+
+let record = restrict("customer 4471, Dublin", "eu")
+region "eu" {
+  print("   inside the eu region:", record)
+}
+attempt {
+  // sarvm-allow: taint  (deliberate)
+  region "us" {
+    print(record)
+  }
+} rescue e {
+  print("  ", e.kind, "->", e.message)
+}
+
+print("")
+print("== 8. capabilities are held, not assumed ==================")
+
+fn save_note(text) needs fs {
+  write("note.txt", text)
+  return true
+}
+
+fn sneaky(text) {
+  // declares nothing, so it holds nothing -- even if its caller held fs
+  return write("note.txt", text)
+}
+
+print("   this frame holds:", caps())
+attempt {
+  sneaky("quietly writing to disk")
+} rescue e {
+  print("  ", e.kind, "->", e.message)
+}
+if caps().contains("fs") {
+  save_note("written because you passed --grant fs")
+  print("   save_note wrote note.txt")
+} else {
+  print("   save_note not called: run again with --grant fs to allow it")
+}
+
+print("")
+print("== 9. contracts are checked, not commented ================")
+
+fn share(total, n)
+  requires n > 0
+  ensures result * n == total
+{
+  return total / n
+}
+
+print("   share(10, 4) =", share(10, 4))
+attempt {
+  share(10, 0)
+} rescue e {
+  print("  ", e.kind, "->", e.message)
+}
+
+print("")
+print("== 10. an append-only record ==============================")
+
+let book = ledger("trades")
+book.append("buy 100 ACME @ 12.50")
+book.append("sell 40 ACME @ 12.90")
+print("  ", distill(book))
+print("   chain intact:", book.verify())
+
+print("")
+print("done. every branch above is reproducible: same seed, same run.")

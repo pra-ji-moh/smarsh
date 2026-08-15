@@ -1,0 +1,89 @@
+// Modules, schema evolution, simulation, and rewriting logic while it runs.
+//     node bin/sarvm.mjs run examples/evolve.sarvm
+import "./lib/pricing.sarvm" as pricing
+
+print("== modules ================================================")
+print("   with_fee(1000, 25) =", pricing["with_fee"](1000, 25))
+print("   spread(99, 101)    =", pricing["spread"](99, 101))
+print("   (a module runs once, in its own scope, and cannot see this file)")
+
+print("")
+print("== two versions of a payload, negotiating =================")
+
+let v1 = schema("OrderV1", { "id": "num", "side": "str", "legacy_flag": "str" })
+let v2 = schema("OrderV2", { "id": "str", "side": "str", "note": "str=none" })
+
+let deal = negotiate(v1, v2)
+print("   compatible:", deal["compatible"])
+print("   v2 adds:   ", deal["added"], "(optional, so old senders are fine)")
+print("   v2 drops:  ", deal["dropped"])
+print("   retyped:   ", deal["retyped"])
+
+let old_record = { "id": 7, "side": "buy", "legacy_flag": "x" }
+print("   read as v2:", adapt(old_record, v1, v2))
+
+// A required field with no default is a real break, and it says so rather
+// than quietly substituting a zero.
+let v3 = schema("OrderV3", { "id": "str", "side": "str", "account": "str" })
+print("   v1 -> v3 compatible:", negotiate(v1, v3)["compatible"])
+print("   because:", negotiate(v1, v3)["blocking"])
+
+print("")
+print("== macro and micro on one clock ===========================")
+
+fn open_market() {
+  print("   t=" + str(time()) + "  macro: market opens")
+}
+
+fn fill() {
+  print("   t=" + str(time()) + "  micro: order filled")
+}
+
+fn close_market() {
+  print("   t=" + str(time()) + "  macro: market closes")
+}
+
+schedule(0, open_market)
+schedule(0.004, fill)
+schedule(0.009, fill)
+schedule(6.5, close_market)
+print("   fired", simulate(24), "events across two timescales")
+
+print("")
+print("== rewriting logic while it runs ==========================")
+
+fn risk_limit(exposure)
+  requires exposure >= 0
+  ensures result >= 0
+{
+  return exposure * 0.5
+}
+
+print("   before:", risk_limit(1000))
+
+redefine fn risk_limit(exposure) {
+  return exposure * 0.25
+}
+
+print("   after: ", risk_limit(1000))
+print("   versions kept:", versions("risk_limit"))
+
+// A rewrite that breaks the promise the original made does not go live.
+attempt {
+  redefine fn risk_limit(exposure) {
+    return exposure - 100000
+  }
+} rescue e {
+  print("  ", e["kind"], "->", e["message"])
+}
+print("   still the working version:", risk_limit(1000))
+
+rollback("risk_limit")
+print("   after rollback:", risk_limit(1000))
+
+print("")
+print("== what did that cost =====================================")
+
+let spent = energy()
+print("   steps:", spent["steps"], " calls:", spent["calls"], " tokens:", spent["tokens"])
+print("   score:", spent["score"], "--", spent["units"])

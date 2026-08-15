@@ -1,0 +1,75 @@
+// Types are optional. Where you write them, you are held to them; where you do
+// not, nothing changes. That is the whole bargain of gradual typing.
+//
+//     node bin/sarvm.mjs check examples/typed.sarvm    <- finds nothing here
+//     node bin/sarvm.mjs run examples/typed.sarvm
+
+// --- annotated ---------------------------------------------------------------
+fn area(width: num, height: num) -> num {
+  return width * height
+}
+
+fn label(name: str, value: num) -> str {
+  return name + ": " + str(value)
+}
+
+fn total(prices: list<num>) -> num {
+  var sum = 0
+  for p in prices {
+    sum = sum + p
+  }
+  return sum
+}
+
+print(area(3, 4))
+print(label("area", area(3, 4)))
+print(total([10, 20, 30]))
+
+// Annotations flow into the contract system too: a type says what shape a
+// value has, a contract says what must be true of it.
+fn discount(price: num, pct: num) -> num
+  requires pct >= 0 and pct <= 100
+  ensures result <= price
+{
+  return price - price * pct / 100
+}
+
+print(discount(200, 15))
+
+// --- inferred ----------------------------------------------------------------
+
+// No annotation needed for the checker to know these.
+let rate = 1.08
+let names = ["ada", "grace", "alan"]
+let counts = { "ada": 3, "grace": 5 }
+
+print(names[0], counts["grace"], rate)
+
+// --- untyped, and still fine -------------------------------------------------
+
+// Not one annotation, and the checker reports nothing. An unannotated program
+// is a valid program -- `dyn` is consistent with every type, so nothing here
+// can be inconsistent with anything.
+fn whatever(x, y) {
+  if x > y {
+    return x
+  }
+  return [x, y, "mixed", nil]
+}
+
+print(whatever(2, 1))
+print(whatever("a", "b"))
+
+// --- what the checker would catch --------------------------------------------
+//
+// Each of these is a real error caught before the program runs. Uncomment one
+// and run `sarvm check` to see it.
+//
+//   area("3", 4)              expected `num`, found `str`
+//   area(3)                   `area` takes 2 arguments, but 1 was supplied
+//   let n: num = "hello"      expected `num`, found `str`
+//   total([1, 2]) + "x"       `+` needs `num`, found `str`
+//   rate = 2                  `rate` was declared with `let`
+//   aera(3, 4)                `aera` is not defined -- help: similar spelling `area`
+
+print("checked, and nothing to report")

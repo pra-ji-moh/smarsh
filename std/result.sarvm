@@ -1,0 +1,128 @@
+// std/result — outcomes that cannot be ignored.
+//
+// The point is not the types, it is that `match` forces you to say what happens
+// when the answer is missing. A nil that flows three functions away before it
+// breaks something is the failure mode this removes.
+//
+//     let r = parse_price("12.50")
+//     match r {
+//       Ok(v)  => use(v),
+//       Err(e) => report(e)
+//     }
+record Ok(value)
+record Err(error)
+
+record Some(value)
+record None()
+
+// --- constructing ------------------------------------------------------------
+
+fn ok(value) {
+  return Ok(value)
+}
+
+fn err(error) {
+  return Err(error)
+}
+
+fn some(value) {
+  return Some(value)
+}
+
+fn none() {
+  return None()
+}
+
+// nil is how the rest of the language says "nothing"; this is the bridge.
+fn from_nil(value) {
+  if value == nil {
+    return None()
+  }
+  return Some(value)
+}
+
+// --- asking ------------------------------------------------------------------
+
+fn is_ok(r) -> bool {
+  return match r { Ok(_) => true, _ => false }
+}
+
+fn is_err(r) -> bool {
+  return match r { Err(_) => true, _ => false }
+}
+
+fn is_some(o) -> bool {
+  return match o { Some(_) => true, _ => false }
+}
+
+fn is_none(o) -> bool {
+  return match o { None() => true, _ => false }
+}
+
+// --- getting the value out ---------------------------------------------------
+
+fn unwrap_or(r, fallback) {
+  return match r { Ok(v) => v, Some(v) => v, _ => fallback }
+}
+
+// Insists on a value, and fails loudly with your message if there is not one.
+// Use it where a missing value really is a programming error.
+fn expect(r, message: str) {
+  return match r { Ok(v) => v, Some(v) => v, Err(e) => fail(message + ": " + str(e)), None() => fail(message) }
+}
+
+fn fail(message: str) {
+  assert(false, message)
+  return nil
+}
+
+// --- combining ---------------------------------------------------------------
+
+fn map_ok(r, f) {
+  return match r { Ok(v) => Ok(f(v)), Some(v) => Some(f(v)), _ => r }
+}
+
+fn map_err(r, f) {
+  return match r { Err(e) => Err(f(e)), _ => r }
+}
+
+// Chain a step that itself may fail, without unwrapping in between.
+fn and_then(r, f) {
+  return match r { Ok(v) => f(v), Some(v) => f(v), _ => r }
+}
+
+fn or_else(r, f) {
+  return match r { Err(e) => f(e), None() => f(nil), _ => r }
+}
+
+// Turn a list of results into a result of a list: the first failure wins.
+fn all_ok(results: list<dyn>) {
+  var values = []
+  for r in results {
+    let stop = match r { Err(e) => Err(e), Ok(v) => nil, _ => Err("not a result: " + str(r)) }
+    if stop != nil {
+      return stop
+    }
+    values.push(unwrap_or(r, nil))
+  }
+  return Ok(values)
+}
+
+// Everything that succeeded, ignoring what did not.
+fn oks(results: list<dyn>) -> list<dyn> {
+  var out = []
+  for r in results {
+    if is_ok(r) or is_some(r) {
+      out.push(unwrap_or(r, nil))
+    }
+  }
+  return out
+}
+
+fn errors(results: list<dyn>) -> list<dyn> {
+  var out = []
+  for r in results {
+    match r { Err(e) => out.push(e), _ => nil }
+  }
+  return out
+}

@@ -1,0 +1,17 @@
+// A module. Everything declared at this top level is what it exports --
+// there is no export list to keep in sync with the code.
+let basis_points = 10000
+
+fn with_fee(amount, bps)
+  requires bps >= 0
+  ensures result >= amount
+{
+  return amount + amount * bps / basis_points
+}
+
+fn spread(bid, ask)
+  requires ask >= bid
+  ensures result >= 0
+{
+  return ask - bid
+}

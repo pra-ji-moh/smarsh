@@ -1,0 +1,111 @@
+// Cryptography that is actually cryptography.
+//     node bin/sarvm.mjs run examples/crypto.sarvm --grant crypto
+//
+// Key generation, encryption and proving consume real entropy, which makes a
+// run irreproducible -- so they need the `crypto` capability, the same way
+// reading the clock does. Verifying, decrypting and committing are
+// deterministic and need nothing.
+print("== computing on data you cannot read ======================")
+
+let k = paillier_keygen(512)
+let salary_a = encrypt(k, 82000)
+let salary_b = encrypt(k, 95000)
+let salary_c = encrypt(k, 71000)
+
+// Ordinary syntax. The runtime never decrypts anything below this line.
+let payroll = salary_a + salary_b + salary_c
+let with_raise = salary_a * 2
+let after_fee = payroll - 1000
+
+print("   total payroll:", decrypt(k, payroll))
+print("   doubled:      ", decrypt(k, with_raise))
+print("   less fee:     ", decrypt(k, after_fee))
+
+// The public key can do the arithmetic but cannot read the answer.
+let pub = k.public()
+attempt {
+  decrypt(pub, payroll)
+} rescue e {
+  print("  ", e["kind"], "->", e["message"])
+}
+
+attempt {
+  salary_a * salary_b
+} rescue e {
+  print("  ", e["message"])
+}
+
+print("")
+print("== proving you know something without showing it ==========")
+
+let password = secret_of("correct horse battery staple")
+let public_point = zk_public(password)
+let proof = zk_prove(password)
+
+print("   the verifier sees only:", public_point)
+print("   proof checks out:", zk_verify(public_point, proof))
+print("   a different secret fails:", zk_verify(zk_public(secret_of("wrong")), proof))
+
+let sealed = commit(4200, 987654321)
+print("   commitment:", sealed)
+print("   opens to 4200:", commit_open(sealed, 4200, 987654321))
+print("   opens to 9999:", commit_open(sealed, 9999, 987654321))
+
+print("")
+print("== provenance that survives leaving the machine ===========")
+
+let node_key = keypair()
+let chain = lineage("sensor-7", node_key)
+chain.record("raw reading 41.2C")
+chain.record("calibrated 40.9C")
+chain.record("normalized 0.409")
+
+print("   steps:", chain.steps())
+print("   chain verifies:", chain.verify())
+print("   signed by:", chain.signer.slice(-16))
+
+// There is no way to edit a recorded step from inside Sarvm -- a lineage chain
+// exposes record/verify/steps and nothing that writes. Tampering therefore has
+// to happen at the storage layer, and verify() catches it there:
+// tests/crypto.test.mjs edits an entry directly and asserts verify() is false.
+
+print("")
+print("== all of it, or none of it ===============================")
+
+let book = ledger("trades")
+let mirror = ledger("mirror")
+
+atomic {
+  book.append("buy 100 ACME @ 12.50")
+  mirror.append("buy 100 ACME @ 12.50")
+}
+print("   after a committed transaction ->  book:", book.len(), " mirror:", mirror.len())
+
+attempt {
+  atomic {
+    book.append("sell 40 ACME @ 12.90")
+    mirror.append("sell 40 ACME @ 12.90")
+    assert(false, "settlement leg failed")
+  }
+} rescue e {
+  print("  ", e["message"])
+}
+// Both ledgers took an append inside the failed block; both went back to 1.
+print("   after a failed transaction   ->  book:", book.len(), " mirror:", mirror.len())
+print("   both chains still verify:", book.verify() and mirror.verify())
+
+print("")
+print("== secrets that do not outlive their scope ================")
+
+var held = nil
+secret {
+  held = random_secret(32)
+  print("   inside the block:", held, "digest", held.digest().slice(0, 16))
+}
+print("   after the block: ", held)
+attempt {
+  held.digest()
+} rescue e {
+  print("  ", e["kind"], "->", e["message"])
+}
+print("   a secret never prints its bytes, before or after")

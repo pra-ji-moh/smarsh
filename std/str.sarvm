@@ -1,0 +1,107 @@
+// std/str — text handling beyond the methods every string already carries.
+fn is_empty(s: str) -> bool {
+  return s.len() == 0
+}
+
+fn is_blank(s: str) -> bool {
+  return s.trim().len() == 0
+}
+
+fn repeat(s: str, n: num) -> str {
+  var out = ""
+  var i = 0
+  while i < n {
+    out = out + s
+    i = i + 1
+  }
+  return out
+}
+
+fn pad_left(s: str, width: num, fill: str) -> str {
+  if s.len() >= width {
+    return s
+  }
+  return repeat(fill, width - s.len()) + s
+}
+
+fn pad_right(s: str, width: num, fill: str) -> str {
+  if s.len() >= width {
+    return s
+  }
+  return s + repeat(fill, width - s.len())
+}
+
+fn lines(s: str) -> list<str> {
+  return s.replace("\r\n", "\n").split("\n")
+}
+
+fn words(s: str) -> list<str> {
+  var out = []
+  for piece in s.split(" ") {
+    let trimmed = piece.trim()
+    if trimmed.len() > 0 {
+      out.push(trimmed)
+    }
+  }
+  return out
+}
+
+fn strip_prefix(s: str, prefix: str) -> str {
+  if s.starts(prefix) {
+    return s.slice(prefix.len())
+  }
+  return s
+}
+
+fn strip_suffix(s: str, suffix: str) -> str {
+  if s.ends(suffix) {
+    return s.slice(0, s.len() - suffix.len())
+  }
+  return s
+}
+
+fn count_of(s: str, needle: str) -> num {
+  if needle.len() == 0 {
+    return 0
+  }
+  return s.split(needle).len() - 1
+}
+
+fn capitalise(s: str) -> str {
+  if s.len() == 0 {
+    return s
+  }
+  return s.slice(0, 1).upper() + s.slice(1)
+}
+
+fn title(s: str) -> str {
+  var out = []
+  for w in words(s) {
+    out.push(capitalise(w))
+  }
+  return out.join(" ")
+}
+
+// Cut a string to length, marking that it was cut.
+fn truncate(s: str, width: num) -> str {
+  if s.len() <= width {
+    return s
+  }
+  if width <= 3 {
+    return s.slice(0, width)
+  }
+  return s.slice(0, width - 3) + "..."
+}
+
+fn reverse(s: str) -> str {
+  var out = ""
+  for ch in s {
+    out = ch + out
+  }
+  return out
+}
+
+fn is_palindrome(s: str) -> bool {
+  let cleaned = s.lower().replace(" ", "")
+  return cleaned == reverse(cleaned)
+}

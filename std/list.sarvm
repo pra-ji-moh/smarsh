@@ -1,0 +1,249 @@
+// std/list — working with sequences.
+//
+// Written in Sarvm. If the language cannot express its own standard library
+// comfortably, that is a fact worth discovering early rather than hiding behind
+// builtins.
+fn is_empty(xs: list<dyn>) -> bool {
+  return xs.len() == 0
+}
+
+fn first(xs: list<dyn>) {
+  if xs.len() == 0 {
+    return nil
+  }
+  return xs[0]
+}
+
+fn last(xs: list<dyn>) {
+  if xs.len() == 0 {
+    return nil
+  }
+  return xs[xs.len() - 1]
+}
+
+fn take(xs: list<dyn>, n: num) -> list<dyn> {
+  if n <= 0 {
+    return []
+  }
+  if n >= xs.len() {
+    return xs.slice(0, xs.len())
+  }
+  return xs.slice(0, n)
+}
+
+fn drop(xs: list<dyn>, n: num) -> list<dyn> {
+  if n <= 0 {
+    return xs.slice(0, xs.len())
+  }
+  if n >= xs.len() {
+    return []
+  }
+  return xs.slice(n)
+}
+
+fn find(xs: list<dyn>, predicate) {
+  for x in xs {
+    if predicate(x) {
+      return x
+    }
+  }
+  return nil
+}
+
+fn index_of(xs: list<dyn>, wanted) -> num {
+  var i = 0
+  for x in xs {
+    if x == wanted {
+      return i
+    }
+    i = i + 1
+  }
+  return -1
+}
+
+fn any(xs: list<dyn>, predicate) -> bool {
+  for x in xs {
+    if predicate(x) {
+      return true
+    }
+  }
+  return false
+}
+
+fn all(xs: list<dyn>, predicate) -> bool {
+  for x in xs {
+    if not predicate(x) {
+      return false
+    }
+  }
+  return true
+}
+
+fn count(xs: list<dyn>, predicate) -> num {
+  var n = 0
+  for x in xs {
+    if predicate(x) {
+      n = n + 1
+    }
+  }
+  return n
+}
+
+fn zip(xs: list<dyn>, ys: list<dyn>) -> list<dyn> {
+  var out = []
+  var i = 0
+  let limit = min(xs.len(), ys.len())
+  while i < limit {
+    out.push([xs[i], ys[i]])
+    i = i + 1
+  }
+  return out
+}
+
+fn enumerate(xs: list<dyn>) -> list<dyn> {
+  var out = []
+  var i = 0
+  for x in xs {
+    out.push([i, x])
+    i = i + 1
+  }
+  return out
+}
+
+fn flatten(xs: list<dyn>) -> list<dyn> {
+  var out = []
+  for group in xs {
+    for item in group {
+      out.push(item)
+    }
+  }
+  return out
+}
+
+fn unique(xs: list<dyn>) -> list<dyn> {
+  var out = []
+  for x in xs {
+    if not out.contains(x) {
+      out.push(x)
+    }
+  }
+  return out
+}
+
+fn chunk(xs: list<dyn>, size: num) -> list<dyn> {
+  if size <= 0 {
+    return []
+  }
+  var out = []
+  var current = []
+  for x in xs {
+    current.push(x)
+    if current.len() == size {
+      out.push(current)
+      current = []
+    }
+  }
+  if current.len() > 0 {
+    out.push(current)
+  }
+  return out
+}
+
+// Pairs of neighbours: windows([1,2,3], 2) is [[1,2],[2,3]].
+fn windows(xs: list<dyn>, size: num) -> list<dyn> {
+  var out = []
+  if size <= 0 or size > xs.len() {
+    return out
+  }
+  var i = 0
+  while i + size <= xs.len() {
+    out.push(xs.slice(i, i + size))
+    i = i + 1
+  }
+  return out
+}
+
+// Insertion sort by a key function. Stable, and fine for the sizes a program
+// sorts by hand; sort() covers plain numbers and strings faster.
+fn sort_by(xs: list<dyn>, key) -> list<dyn> {
+  var out = []
+  for x in xs {
+    var placed = false
+    var next = []
+    for y in out {
+      if not placed and key(x) < key(y) {
+        next.push(x)
+        placed = true
+      }
+      next.push(y)
+    }
+    if not placed {
+      next.push(x)
+    }
+    out = next
+  }
+  return out
+}
+
+fn min_by(xs: list<dyn>, key) {
+  if xs.len() == 0 {
+    return nil
+  }
+  var best = xs[0]
+  for x in xs {
+    if key(x) < key(best) {
+      best = x
+    }
+  }
+  return best
+}
+
+fn max_by(xs: list<dyn>, key) {
+  if xs.len() == 0 {
+    return nil
+  }
+  var best = xs[0]
+  for x in xs {
+    if key(x) > key(best) {
+      best = x
+    }
+  }
+  return best
+}
+
+// Group into a map of key -> list of items.
+fn group_by(xs: list<dyn>, key) -> map<dyn> {
+  var out = { }
+  for x in xs {
+    let k = str(key(x))
+    if out.has(k) {
+      out[k].push(x)
+    } else {
+      out[k] = [x]
+    }
+  }
+  return out
+}
+
+fn partition(xs: list<dyn>, predicate) -> list<dyn> {
+  var yes = []
+  var no = []
+  for x in xs {
+    if predicate(x) {
+      yes.push(x)
+    } else {
+      no.push(x)
+    }
+  }
+  return [yes, no]
+}
+
+fn repeat(value, n: num) -> list<dyn> {
+  var out = []
+  var i = 0
+  while i < n {
+    out.push(value)
+    i = i + 1
+  }
+  return out
+}

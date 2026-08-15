@@ -1,0 +1,74 @@
+// Money, done exactly.
+//     node bin/sarvm.mjs run examples/money.sarvm
+//
+// `num` is a 64-bit float. It cannot hold 0.1, and no amount of care at the
+// call site fixes that. `dec` is an integer coefficient and a scale, so it can.
+
+print("== the problem =============================================")
+
+print("   float:  0.1 + 0.2 == 0.3 ?  ${0.1 + 0.2 == 0.3}")
+print("   exact:  0.1 + 0.2 == 0.3 ?  ${dec("0.1") + dec("0.2") == dec("0.3")}")
+
+var drift = 0
+for i in range(1000) {
+  drift = drift + 0.01
+}
+var exact = dec("0")
+for i in range(1000) {
+  exact = exact + dec("0.01")
+}
+print("   a thousand additions of 0.01")
+print("     as float: ${drift}   equals 10? ${drift == 10}")
+print("     as dec:   ${exact}    equals 10? ${exact == dec("10")}")
+
+print("")
+print("== a settlement =============================================")
+
+record Line(sku, qty, unit)
+
+let order = [Line("A-100", 3, dec("19.99")), Line("B-220", 1, dec("249.50")), Line("C-005", 12, dec("0.85"))]
+
+var subtotal = dec("0")
+for line in order {
+  let amount = line.unit * line.qty
+  print("   ${line.sku}  ${line.qty} x ${line.unit}  =  ${amount}")
+  subtotal = subtotal + amount
+}
+
+let vat = (subtotal * 20).div(dec("100"), 2)
+let total = subtotal + vat
+
+print("   subtotal          ${subtotal}")
+print("   vat at 20%        ${vat}")
+print("   total             ${total}")
+print("   reconciles:       ${total - vat == subtotal}")
+
+print("")
+print("== rounding you can point at ================================")
+
+// Half-to-even, which is what financial reporting expects: ties go to the
+// even digit, so a long run of roundings does not drift upward.
+print("   2.5 -> ${dec("2.5").round(0)}      3.5 -> ${dec("3.5").round(0)}")
+print("   2.675 to 2dp -> ${dec("2.675").round(2)}")
+print("   1/3 to 6dp   -> ${dec("1").div(dec("3"), 6)}")
+
+print("")
+print("== the mistakes it will not let you make ====================")
+
+attempt {
+  let bad = dec("100.00") + 0.1
+} rescue e {
+  print("   ${e["message"]}")
+}
+
+print("   and an integer past 2^53 is refused at parse time, not rounded:")
+print("     9007199254740993 as dec -> ${dec("9007199254740993") + dec("1")}")
+
+print("")
+print("== ledgers hold the exact figure ============================")
+
+let book = ledger("settlement")
+book.append("total ${total}")
+book.append("vat ${vat}")
+print("   ${distill(book)}")
+print("   chain intact: ${book.verify()}")

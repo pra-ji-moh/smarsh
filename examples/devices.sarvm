@@ -1,0 +1,53 @@
+// Where code runs, and what it is allowed to use while running there.
+//     node bin/sarvm.mjs run examples/devices.sarvm
+print("== the machine underneath =================================")
+
+let machine = topology()
+print("  ", machine["cores"], "cores  |", machine["model"])
+print("  ", machine["memory_mb"], "MB total,", machine["free_mb"], "MB free")
+print("   current load:", round(pressure()["busy"] * 100), "% busy")
+print("   devices available:", devices())
+
+print("")
+print("== the same code, a different substrate ===================")
+
+// A weight matrix and a batch of inputs, big enough to be worth threads.
+fn build(n, m) {
+  return zeros([n, m]).map(fn(x) { return 0.5 })
+}
+
+let w = build(200, 200)
+let batch = build(200, 200)
+
+let on_cpu = w @ batch
+
+var on_threads = nil
+device "workers" {
+  on_threads = w @ batch
+}
+
+print("   cpu result sum:    ", on_cpu.sum())
+print("   threaded result sum:", on_threads.sum())
+print("   identical:", on_cpu == on_threads)
+print("   stats:", device_stats()["workers"])
+
+// A device block only changes where the work happens. It never changes what
+// the answer is, and the previous device is restored on the way out.
+print("   back on:", device_stats()["active"])
+
+print("")
+print("== a memory budget that spills instead of dying ===========")
+
+let pool = arena(4096)
+pool.hold("layer_a", build(8, 8))
+pool.hold("layer_b", build(8, 8))
+print("   holding", pool.held, "tensors,", pool.resident, "of", pool.budget, "bytes")
+
+let back = pool.get("layer_a")
+print("   read back intact:", back.shape, "sum", back.sum())
+
+// Reclamation happens when you say so, and reports what it actually cost.
+let freed = pool.reclaim(["layer_a"])
+print("   reclaimed", freed["released"], "entries /", freed["bytes"], "bytes in", freed["nanos"], "ns")
+print("   still held:", pool.held)
+print("   (a measured pause at a moment you chose -- not a promise of no pause)")

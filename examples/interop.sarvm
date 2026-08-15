@@ -1,0 +1,64 @@
+// Calling the code you already have.
+//     node bin/sarvm.mjs run examples/interop.sarvm --grant ffi
+//
+// Nobody rewrites a working system to adopt a language, so this is the bridge.
+// It needs the `ffi` capability, because a foreign call leaves everything Sarvm
+// guarantees behind: once control is inside JavaScript the runtime cannot see
+// what happens, so the boundary is declared rather than assumed.
+print("== calling a host module =================================")
+
+let os = foreign("node:os")
+print("   platform: ${os.platform()}")
+print("   cpus:     ${os.cpus().len()}")
+
+let pathmod = foreign("node:path")
+print("   joined:   ${pathmod.join("a", "b", "c.txt")}")
+
+print("")
+print("== values are converted, not shared ======================")
+
+let util = foreign("node:util")
+print("   ${util.format("%s scored %d", "ada", 97)}")
+
+// A list goes over as a fresh array; the JavaScript side cannot reach back in
+// and change the original.
+let numbers = [3, 1, 2]
+let json = foreign("node:querystring")
+print("   still ours, untouched: ${numbers}")
+
+print("")
+print("== everything coming back is untrusted ===================")
+
+let result = os.platform()
+print("   labels on a foreign result: ${labels(result)}")
+
+// Which means it cannot quietly slip into a checked region.
+attempt {
+  grounded {
+    print(result)
+  }
+} rescue e {
+  print("   ${e["kind"]} -> ${e["message"]}")
+}
+
+// You launder it the same way as anything else: deliberately, with a reason
+// that ends up in the run trace.
+let checked = trust(result, "os.platform() is a fixed enum from the host")
+grounded {
+  print("   after an explicit trust(): ${checked}")
+}
+
+print("")
+print("== the boundary is refused without the capability ========")
+
+fn sneaky() {
+  return foreign("node:fs")
+}
+
+attempt {
+  sneaky()
+} rescue e {
+  print("   ${e["kind"]} -> ${e["message"]}")
+}
+print("   a function that did not declare `ffi` cannot open the boundary,")
+print("   even though the top level here holds it")

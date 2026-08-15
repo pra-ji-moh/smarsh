@@ -1,0 +1,58 @@
+// Quantum logic, distributed ordering and decaying value, in the same file as
+// ordinary code.
+//     node bin/sarvm.mjs run examples/quantum.sarvm
+print("== superposition and entanglement =========================")
+
+let q = qubits(2)
+qh(q, 0)  // qubit 0 into an even superposition
+cnot(q, 0, 1)  // entangle qubit 1 with it
+
+print("   amplitudes squared:", probabilities(q))
+print("   |01> and |10> are impossible, so the two must agree")
+
+let bits = measure_all(q)
+print("   measured:", bits, "-> agreed:", bits[0] == bits[1])
+
+// Measurement collapsed the state; asking again gives the same answer.
+print("   asked again:", measure(q, 0), measure(q, 1))
+
+print("")
+print("== interference is not just probability ===================")
+
+let r = qubits(1)
+qh(r, 0)
+print("   after H, chance of reading 1:", r.probability_of(0))
+qz(r, 0)
+qh(r, 0)
+print("   after Z then H:               ", r.probability_of(0))
+print("   two 'random' steps cancelled exactly -- that is interference")
+
+print("")
+print("== ordering across machines, with no clock to drift =======")
+
+let alice = clock("alice")
+let bob = clock("bob")
+
+let placed = alice.tick()
+let seen = bob.merge(placed)
+let filled = bob.tick()
+
+print("   order placed:", placed)
+print("   order seen:  ", seen)
+print("   placed before seen:", before(placed, seen))
+print("   seen before filled:", before(seen, filled))
+print("   no wall clock was read, so there is nothing to drift")
+
+print("")
+print("== an asset that is worth less the longer you hold it =====")
+
+let edge = liquid(10000, 20)  // halves every 20 ticks
+
+print("   at t=0: ", edge + 0)
+advance(20)
+print("   at t=20:", edge + 0)
+advance(20)
+print("   at t=40:", edge + 0)
+print("   still worth more than 1000?", edge > 1000)
+print("   ticks until it falls to 500:", edge.time_to(500))
+print("   its face value never moved:", edge.initial)

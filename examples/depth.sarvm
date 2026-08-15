@@ -1,0 +1,173 @@
+// Three things the shallow versions cannot express.
+//     node bin/sarvm.mjs run examples/depth.sarvm --grant fs --principal hr
+
+print("== a contract that talks about before and after ===========")
+
+record Account(holder, balance) invariant balance >= 0
+
+fn withdraw(account, amount)
+  requires amount > 0
+  ensures result.balance == old(account.balance) - amount
+{
+  return account.with("balance", account.balance - amount)
+}
+
+let ada = Account("ada", 100)
+print("   ${ada} -> ${withdraw(ada, 30)}")
+
+// The invariant is part of the type, so there is no moment at which an
+// Account exists holding a negative balance.
+attempt {
+  Account("bob", -5)
+} rescue e {
+  print("   ${e["message"]}")
+}
+
+attempt {
+  ada.with("balance", -1)
+} rescue e {
+  print("   and .with() cannot walk around it either")
+}
+
+// A postcondition that needs the entry value: `old`.
+fn buggy(account, amount)
+  ensures result.balance == old(account.balance) - amount
+{
+  return account.with("balance", account.balance - amount * 2)
+}
+
+attempt {
+  buggy(ada, 10)
+} rescue e {
+  print("   caught: ${e["message"]}")
+}
+
+print("")
+print("== a loop that proves it finishes ==========================")
+
+fn collatz_steps(start) requires start > 0 {
+  var n = start
+  var steps = 0
+  // No variant here: nobody has proved Collatz terminates, and inventing one
+  // would be claiming a proof that does not exist.
+  while n != 1 {
+    if n % 2 == 0 {
+      n = n / 2
+    } else {
+      n = 3 * n + 1
+    }
+    steps = steps + 1
+  }
+  return steps
+}
+
+print("   collatz(27) took ${collatz_steps(27)} steps (no variant: none is known)")
+
+fn countdown(from) requires from >= 0 {
+  var i = from
+  var seen = 0
+  while i > 0
+    invariant seen >= 0
+    variant i
+  {
+    seen = seen + 1
+    i = i - 1
+  }
+  return seen
+}
+
+print("   countdown(6) saw ${countdown(6)}, and the variant proved it ends")
+
+attempt {
+  var j = 0
+  while j < 5 variant 5 - j {
+    j = j - 1
+  }
+} rescue e {
+  print("   ${e["message"]}")
+}
+
+print("")
+print("== whose data is this, and who said who may read it =======")
+
+let salary = classify(82000, "hr", ["hr", "payroll"])
+print("   label:   ${policy_of(salary)}")
+print("   readers: ${readers_of(salary)}")
+
+// Combining data with another owner's narrows the readers to the intersection.
+// Mixing data never makes it more readable.
+let audited = classify(salary, "audit", ["audit", "payroll"])
+print("   joined:  ${policy_of(audited)}")
+print("   now only ${readers_of(audited)} may read it")
+
+release_to "payroll" {
+  print("   payroll reads it fine: ${salary + 0}")
+}
+
+attempt {
+  release_to "marketing" {
+    print(salary)
+  }
+} rescue e {
+  print("   ${e["message"]}")
+}
+
+// The part a blanket trust() cannot express: authority is per principal.
+authority "hr" {
+  let released = declassify(salary, "hr", "approved for the annual report")
+  release_to "marketing" {
+    print("   after hr signs off: ${released + 0}")
+  }
+  attempt {
+    declassify(audited, "audit", "not hr's to release")
+  } rescue e {
+    print("   ${e["message"]}")
+  }
+}
+
+print("")
+print("== authority you can lend, narrow, and take back ==========")
+
+fn report_worker(access, text) {
+  using access {
+    write("report.txt", text)
+  }
+  return "wrote the report"
+}
+
+let pair = caretaker(grant("fs", "the report worker"))
+print("   ${report_worker(pair["grant"], "quarterly figures")}")
+
+revoke(pair["revoker"])
+attempt {
+  report_worker(pair["grant"], "should not happen")
+} rescue e {
+  print("   ${e["message"]}")
+}
+
+// Narrower still: a fixed number of uses, or a deadline.
+let twice = grant("fs").attenuate({ "uses": 2 })
+using twice {
+  print("   use one of two")
+}
+using twice {
+  print("   use two of two")
+}
+attempt {
+  using twice {
+    print("never")
+  }
+} rescue e {
+  print("   ${e["message"]}")
+}
+
+// And a frame that holds nothing cannot lend anything.
+fn cannot_lend() {
+  return grant("fs")
+}
+
+attempt {
+  cannot_lend()
+} rescue e {
+  print("   ${e["message"]}")
+}

@@ -1,0 +1,104 @@
+// std/math — statistics and number helpers.
+fn sum(xs: list<num>) -> num {
+  var total = 0
+  for x in xs {
+    total = total + x
+  }
+  return total
+}
+
+fn mean(xs: list<num>) -> num {
+  if xs.len() == 0 {
+    return 0
+  }
+  return sum(xs) / xs.len()
+}
+
+fn median(xs: list<num>) -> num {
+  if xs.len() == 0 {
+    return 0
+  }
+  let sorted = xs.sort()
+  let mid = floor(xs.len() / 2)
+  if xs.len() % 2 == 1 {
+    return sorted[mid]
+  }
+  return (sorted[mid - 1] + sorted[mid]) / 2
+}
+
+// Sample variance (n-1), which is what you want for measurements.
+fn variance(xs: list<num>) -> num {
+  if xs.len() < 2 {
+    return 0
+  }
+  let m = mean(xs)
+  var total = 0
+  for x in xs {
+    total = total + (x - m) ** 2
+  }
+  return total / (xs.len() - 1)
+}
+
+fn stdev(xs: list<num>) -> num {
+  return sqrt(variance(xs))
+}
+
+fn percentile(xs: list<num>, p: num) -> num requires p >= 0 and p <= 100 {
+  if xs.len() == 0 {
+    return 0
+  }
+  let sorted = xs.sort()
+  let rank = p / 100 * (sorted.len() - 1)
+  let low = floor(rank)
+  let high = ceil(rank)
+  if low == high {
+    return sorted[low]
+  }
+  return sorted[low] + (sorted[high] - sorted[low]) * (rank - low)
+}
+
+fn lerp(a: num, b: num, t: num) -> num {
+  return a + (b - a) * t
+}
+
+fn gcd(a: num, b: num) -> num {
+  var x = abs(a)
+  var y = abs(b)
+  while y != 0 {
+    let t = y
+    y = x % y
+    x = t
+  }
+  return x
+}
+
+fn lcm(a: num, b: num) -> num {
+  if a == 0 or b == 0 {
+    return 0
+  }
+  return abs(a * b) / gcd(a, b)
+}
+
+fn factorial(n: num) -> num
+  requires n >= 0
+  ensures result >= 1
+{
+  var out = 1
+  var i = 2
+  while i <= n {
+    out = out * i
+    i = i + 1
+  }
+  return out
+}
+
+fn is_close(a: num, b: num, tolerance: num) -> bool {
+  return abs(a - b) <= tolerance
+}
+
+// Compounding, stated plainly, because getting this wrong is expensive.
+fn compound(principal: num, rate: num, periods: num) -> num
+  requires periods >= 0
+{
+  return principal * (1 + rate) ** periods
+}

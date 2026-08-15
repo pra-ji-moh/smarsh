@@ -1,0 +1,126 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: node ${{ matrix.node }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node: [18, 20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # No install step: the runtime has no dependencies, and that is a
+      # property worth noticing if it ever stops being true.
+      - name: Check for dependencies
+        shell: bash
+        run: |
+          if [ -f package-lock.json ] || [ -d node_modules ]; then
+            echo "Sarvm has no dependencies; something added one."
+            exit 1
+          fi
+
+      - name: Version is consistent
+        shell: bash
+        run: |
+          pkg=$(node -p "require('./package.json').version")
+          cli=$(node bin/Sarvm.mjs --version)
+          if [ "$pkg" != "$cli" ]; then
+            echo "package.json says $pkg, the CLI says $cli"
+            exit 1
+          fi
+          grep -q "\[$pkg\]" CHANGELOG.md || { echo "no changelog entry for $pkg"; exit 1; }
+
+      - name: Test
+        run: node --test tests/*.test.mjs
+
+      # `std/` was once missing from the package's file list, so an installed
+      # copy had no standard library while every local test passed. Only a real
+      # install catches packaging.
+      - name: The published package works from a clean install
+        shell: bash
+        run: |
+          npm pack --pack-destination "$RUNNER_TEMP"
+          mkdir -p "$RUNNER_TEMP/install-check"
+          cd "$RUNNER_TEMP/install-check"
+          npm init -y > /dev/null
+          npm install "$RUNNER_TEMP"/sarvm-*.tgz
+          printf 'import "std/math" as math\nprint(math.mean([2, 4, 6]))\n' > hello.sarvm
+          test "$(npx Sarvm run hello.sarvm)" = "4"
+
+      - name: The standard library's own tests
+        run: node bin/Sarvm.mjs test std/
+
+      - name: Everything is formatted
+        run: node bin/Sarvm.mjs fmt examples/ --check
+
+      - name: Run the examples
+        shell: bash
+        run: |
+          node bin/Sarvm.mjs run examples/tour.sarvm
+          node bin/Sarvm.mjs run examples/quantum.sarvm
+          node bin/Sarvm.mjs run examples/agents.sarvm
+          node bin/Sarvm.mjs run examples/devices.sarvm
+          node bin/Sarvm.mjs run examples/evolve.sarvm
+          node bin/Sarvm.mjs run examples/modern.sarvm
+          node bin/Sarvm.mjs run examples/typed.sarvm
+          node bin/Sarvm.mjs run examples/crypto.sarvm --grant crypto
+          node bin/Sarvm.mjs run examples/interop.sarvm --grant ffi
+
+      - name: Every example must type-check clean
+        shell: bash
+        run: |
+          # The gradual guarantee is only worth something if it holds on real
+          # code. agents.sarvm is excluded: it contains a deliberate race.
+          for f in tour quantum devices evolve modern typed crypto contracts; do
+            node bin/Sarvm.mjs check "examples/$f.sarvm"
+          done
+
+      - name: The verifier must still refute the known-bad contracts
+        shell: bash
+        run: |
+          # examples/contracts.sarvm contains deliberately false contracts, so a
+          # clean verify would mean the prover stopped working.
+          if node bin/Sarvm.mjs verify examples/contracts.sarvm; then
+            echo "verify proved a file containing known-false contracts"
+            exit 1
+          fi
+
+      - name: Contracts must still hold where they are supposed to
+        shell: bash
+        run: |
+          # examples/contracts.sarvm ships deliberate counterexamples, so a
+          # zero exit here would mean the prover stopped finding them.
+          if node bin/Sarvm.mjs prove examples/contracts.sarvm; then
+            echo "prove found nothing in a file that contains known-bad contracts"
+            exit 1
+          fi
+
+      - name: A bundle must run standalone
+        shell: bash
+        run: |
+          node bin/Sarvm.mjs build examples/tour.sarvm -o ci-tour.mjs
+          node ci-tour.mjs > ci-bundled.txt
+          node bin/Sarvm.mjs run examples/tour.sarvm > ci-direct.txt
+          diff ci-bundled.txt ci-direct.txt
+          rm -f ci-tour.mjs ci-bundled.txt ci-direct.txt
+
+      - name: The race checker must still see the planted race
+        shell: bash
+        run: |
+          if node bin/Sarvm.mjs check examples/agents.sarvm; then
+            echo "check found no race in a file that contains one"
+            exit 1
+          fi
