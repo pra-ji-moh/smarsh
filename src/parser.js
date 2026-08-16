@@ -36,6 +36,27 @@ export class Parser {
   matchOp(value) { return this.match('op', value); }
   matchKw(value) { return this.match('kw', value); }
 
+  // A contextual keyword: an ordinary identifier everywhere except the one
+  // position where it cannot mean anything else. `shape` says what must follow.
+  //
+  //   'block'  region "eu" { }     the word, then a string or name
+  //   'brace'  secret { }          the word, then a block
+  //   'ident'  budget steps 5 { }  the word, then a bare word
+  //   'name'   record Point(x, y)  the word, a name, then a paren
+  matchSoft(word, shape) {
+    if (!this.check('ident', word)) return false;
+    const next = this.peek(1);
+    const after = this.peek(2);
+    let fits = false;
+    if (shape === 'block') fits = next.type === 'str' || next.type === 'ident';
+    else if (shape === 'brace') fits = next.type === 'op' && next.value === '{';
+    else if (shape === 'ident') fits = next.type === 'ident';
+    else if (shape === 'name') fits = next.type === 'ident' && after.type === 'op' && after.value === '(';
+    if (!fits) return false;
+    this.advance();
+    return true;
+  }
+
   expect(type, value, what) {
     if (this.check(type, value)) return this.advance();
     const got = this.current.type === 'eof' ? 'end of file' : `'${this.current.value}'`;
@@ -261,7 +282,7 @@ export class Parser {
     }
 
     // budget steps 50000 { ... }  -- cannot be raised or caught from inside
-    if (this.matchKw('budget')) {
+    if (this.matchSoft('budget', 'ident')) {
       const kindTok = this.expect('ident', undefined, "'steps' or 'tokens'");
       if (kindTok.value !== 'steps' && kindTok.value !== 'tokens') {
         throw sarvmError('SyntaxError',
@@ -304,19 +325,19 @@ export class Parser {
     }
 
     // device "workers" { ... }  or  device "workers" 4 { ... }
-    if (this.matchKw('device')) {
+    if (this.matchSoft('device', 'block')) {
       const target = this.expression();
       const threads = this.checkOp('{') ? null : this.expression();
       return { type: 'Device', target, threads, body: this.block(), line };
     }
 
     // atomic { ... }  -- every ledger append inside lands, or none does
-    if (this.matchKw('atomic')) {
+    if (this.matchSoft('atomic', 'brace')) {
       return { type: 'Atomic', body: this.block(), line };
     }
 
     // secret { ... }  -- secrets created inside are shredded on the way out
-    if (this.matchKw('secret')) {
+    if (this.matchSoft('secret', 'brace')) {
       return { type: 'Secret', body: this.block(), line };
     }
 
@@ -329,7 +350,7 @@ export class Parser {
 
     // authority "alice" { ... }  -- act for a principal, so their policies can
     // be declassified inside. The run must have been started holding it.
-    if (this.matchKw('authority')) {
+    if (this.matchSoft('authority', 'block')) {
       const who = this.expression();
       const body = this.block();
       return { type: 'Authority', who, body, line };
@@ -346,13 +367,13 @@ export class Parser {
     }
 
     // grounded { ... }  -- no ungrounded/untrusted value may be read inside
-    if (this.matchKw('grounded')) {
+    if (this.matchSoft('grounded', 'brace')) {
       const body = this.block();
       return { type: 'Grounded', body, line };
     }
 
     // region "eu" { ... }  -- no value tagged to another jurisdiction may be read
-    if (this.matchKw('region')) {
+    if (this.matchSoft('region', 'block')) {
       const name = this.expect('str', undefined, 'a region name string').value;
       const body = this.block();
       return { type: 'Region', name, body, line };

@@ -228,6 +228,63 @@ to side-channel attack, and they have had no third-party audit.** Holding
 refuse the rest, and the grant appears in the run's configuration where a
 reviewer will see it.
 
+## The run leaves a record it cannot rewrite
+
+This is the part Java structurally cannot do, and it is the reason the rest of
+the language exists.
+
+```bash
+sarvm run agent.sarvm --grant fs --principal compliance --audit run.json --sign
+sarvm audit run.json
+```
+
+```
+run of examples/regulated.sarvm  (sarvm 0.3.0, outcome: completed)
+  program sha256   02d2859c794440679c593e86a0b6d06f...
+  replay with      --seed 0 --grant fs
+
+  authority
+    granted        fs
+    actually used  fs
+  data
+    released       0 permitted, 1 refused
+    taint cleared  1
+
+  events worth a reviewer's attention
+    line 22   taint.cleared           "reviewed and confirmed by analyst 12"
+    line 73   data.release_refused    marketing
+    line 110  authority.delegated     fs
+    line 118  authority.revoked       fs
+
+INTACT — every event hashes onto the one before it
+         and the head is signed by 2f7f8187eefb18c5
+```
+
+A compliance reviewer does not run a language. They read a document, and they
+need to know it was not written afterwards by the party being reviewed. Delete
+the inconvenient line and `audit` says so:
+
+```
+ALTERED — this record does not describe the run it claims to
+  event 1 does not follow the one before it
+  the signature covers the recorded head, but the events no longer
+  produce that head: the record was signed and then edited
+```
+
+Every effect passes through a single capability check, so the record is
+complete rather than best-effort — including **refusals**, which is the run a
+reviewer most wants to see. It also names authority that was granted and
+demonstrably never used, which is the line that gets a permission withdrawn.
+
+None of this is instrumentation you add to your program. The runtime already
+had to know all of it in order to enforce the rules; the manifest is what stops
+it being discarded when the process exits. That is the structural difference:
+Java has no capability check to record, no label to observe, and no seed that
+makes the run reproducible — so there is nothing for a Java equivalent to write
+down, however carefully it is written.
+
+See [examples/regulated.sarvm](examples/regulated.sarvm) for the whole thing.
+
 ## Proving, not testing
 
 ```bash

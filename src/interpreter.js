@@ -101,6 +101,9 @@ export class Interpreter {
       branches: [], forks: 0, calls: 0, contracts: 0,
       laundered: [], redefinitions: [], declassifications: [],
       grantUses: [], revocations: [],
+      // What the audit record is assembled from.
+      effects: [],        // every capability exercised or refused
+      crossings: [],      // every data boundary a labelled value met
     };
     this.graph = new CallGraph();
     this.versions = new Map();  // function name -> every version it has had
@@ -1032,14 +1035,21 @@ export class Interpreter {
     }
   }
 
+  // Every capability check, allowed or refused, is recorded here. This is the
+  // one choke point all effects pass through, which is what makes the audit
+  // record of a run complete rather than best-effort.
   requireCaps(needs, name, line) {
     if (!needs || needs.length === 0) return;
     for (const cap of needs) {
       if (!this.caps.has(cap)) {
         const held = this.caps.size ? [...this.caps].join(', ') : 'nothing';
+        this.trace.effects.push({ capability: cap, by: name, line, allowed: false });
         throw sarvmError('CapabilityError',
           `${name} needs the '${cap}' capability; this frame holds ${held}`, line);
       }
+    }
+    for (const cap of needs) {
+      this.trace.effects.push({ capability: cap, by: name, line, allowed: true });
     }
   }
 
@@ -1053,6 +1063,9 @@ export class Interpreter {
       const to = this.releaseStack[this.releaseStack.length - 1];
       if (!value.label.canRead(to)) {
         const readers = [...(value.label.effectiveReaders() ?? [])].sort();
+        this.trace.crossings.push({
+          kind: 'release', to, line, allowed: false, label: value.label.toString(),
+        });
         throw sarvmError('LabelError',
           `\`${to}\` may not read this ${what}; its owners permit ${readers.length ? readers.join(', ') : 'nobody'}`, line)
           .withLabel('not a permitted reader')

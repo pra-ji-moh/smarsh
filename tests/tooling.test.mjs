@@ -35,7 +35,9 @@ const ALL_SOURCES = [
 
 // Runnable without capabilities and without side effects, so behaviour can be
 // compared before and after formatting.
-const NEEDS_GRANTS = new Set(['crypto.sarvm', 'interop.sarvm', 'devices.sarvm', 'depth.sarvm']);
+const NEEDS_GRANTS = new Set([
+  'crypto.sarvm', 'interop.sarvm', 'devices.sarvm', 'depth.sarvm', 'regulated.sarvm',
+]);
 const RUNNABLE = ALL_SOURCES.filter((f) => {
   const name = path.basename(f);
   return f.includes('examples') && !NEEDS_GRANTS.has(name)

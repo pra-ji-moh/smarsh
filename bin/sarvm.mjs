@@ -16,6 +16,8 @@ import { typecheck } from '../src/types.js';
 import { verifyProgram, formatVerification } from '../src/verify.js';
 import { discover, runFile, format } from '../src/testrunner.js';
 import { formatSource } from '../src/format.js';
+import { buildManifest, verifyManifest, summarise } from '../src/audit.js';
+import { generateKeypair, verifyMessage } from '../src/crypto.js';
 
 const VERSION = '0.3.0';
 
@@ -26,6 +28,8 @@ usage:
   sarvm check <file.sarvm>             static checks, without running anything
   sarvm build <file.sarvm> [-o out]    one self-contained .mjs, no dependencies
   sarvm prove <file.sarvm> [options]   generate inputs and check every contract
+  sarvm verify <file.sarvm>            prove contracts hold for every input
+  sarvm audit <manifest.json>          read back a run record and check it is intact
   sarvm repl [options]                interactive session
   sarvm eval "<source>" [options]     run a one-liner
 
@@ -50,6 +54,8 @@ function parseArgs(argv) {
     else if (a === '--trials') opts.trials = Number(argv[++i]);
     else if (a === '--trace') opts.trace = true;
     else if (a === '--profile') opts.profile = true;
+    else if (a === '--audit') opts.audit = argv[++i] ?? 'audit.json';
+    else if (a === '--sign') opts.sign = true;
     else if (a === '-o' || a === '--out') opts.output = argv[++i];
     else if (a === '--check') opts.check = true;
     else if (a === '--help' || a === '-h') opts.help = true;
@@ -61,10 +67,13 @@ function parseArgs(argv) {
   return opts;
 }
 
+// A missing file has to stop the command outright rather than return nothing
+// for the caller to destructure. This one keeps process.exit deliberately:
+// nothing has been printed to stdout yet, so there is nothing to truncate.
 function readSource(file) {
   const full = path.resolve(process.cwd(), file);
   if (!fs.existsSync(full)) {
-    console.error(`Sarvm: no such file: ${file}`);
+    console.error(`sarvm: no such file: ${file}`);
     process.exit(2);
   }
   return { full, source: fs.readFileSync(full, 'utf8') };
@@ -134,16 +143,92 @@ function cmdRun(opts) {
   });
   interp.profiling = Boolean(opts.profile);
   interp.entryPath = full;
+  let outcome = 'completed';
+  let failure = null;
   try {
     interp.run(source, file);
   } catch (e) {
-    reportError(e, source, file);
+    outcome = e instanceof SarvmError ? `failed: ${e.kind}` : 'failed';
+    failure = e;
+  }
+
+  // The record is written whether or not the program succeeded. A run that was
+  // stopped by a refused capability is exactly the run a reviewer most wants to
+  // see, so writing the manifest only on success would defeat the purpose.
+  if (opts.audit) writeManifest(interp, { file, source, full, opts, outcome });
+
+  if (failure) {
+    reportError(failure, source, file);
     if (opts.trace) printTrace(interp);
     if (opts.profile) printProfile(interp);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (opts.trace) printTrace(interp);
   if (opts.profile) printProfile(interp);
+}
+
+// Read back a record someone else produced and check it has not been edited.
+function cmdAudit(opts) {
+  const file = opts.positional[0];
+  if (!file) { console.error('sarvm: audit needs a manifest file'); process.exit(2); }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), file), 'utf8'));
+  } catch (e) {
+    console.error(`sarvm: cannot read ${file}: ${e.message}`);
+    process.exitCode = 2;
+    return;
+  }
+
+  console.log(summarise(manifest));
+  console.log('');
+
+  const { ok, problems } = verifyManifest(manifest);
+  const signed = manifest.signature
+    ? verifyMessage(manifest.signature.public_key, manifest.head, manifest.signature.value)
+    : null;
+
+  // Both facts are reported together, and neither is stated in a way that
+  // could be read alone. A signature only ever attests to the head; if the
+  // events no longer produce that head, a "valid signature" means the record
+  // was signed and *then* edited, which is worse than an invalid one, and a
+  // reviewer skimming two separate lines could easily read it the other way.
+  if (ok && signed !== false) {
+    console.log('INTACT — every event hashes onto the one before it');
+    if (signed) console.log(`         and the head is signed by ${manifest.signature.public_key.slice(-16)}`);
+    else console.log('         unsigned: this proves nothing about who produced it');
+  } else {
+    console.log('ALTERED — this record does not describe the run it claims to');
+    for (const p of problems) console.log(`  ${p}`);
+    if (signed === true) {
+      console.log('  the signature covers the recorded head, but the events no longer');
+      console.log('  produce that head: the record was signed and then edited');
+    } else if (signed === false) {
+      console.log('  the signature does not match the recorded head either');
+    }
+  }
+
+  process.exitCode = ok && signed !== false ? 0 : 1;
+  return;
+}
+
+function writeManifest(interp, { file, source, opts, outcome }) {
+  let key = null;
+  if (opts.sign) {
+    key = generateKeypair();
+  }
+  const manifest = buildManifest(interp, {
+    file, source, runtimeVersion: VERSION, signWith: key, outcome,
+  });
+  fs.writeFileSync(path.resolve(process.cwd(), opts.audit), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+  console.error(`\nwrote ${opts.audit} — ${manifest.events.length} events, head ${manifest.head.slice(0, 16)}`);
+  if (key) {
+    console.error(`signed with an ephemeral key ${key.publicHex.slice(-16)}`);
+    console.error('note: an ephemeral key proves the record was not edited after this run, '
+      + 'not who produced it. Bind a persistent key to claim that.');
+  }
 }
 
 // The names the runtime will provide, so the checker does not report a builtin
@@ -255,7 +340,8 @@ function cmdCheck(opts) {
     diagnostics = diagnose(source, file);
   } catch (e) {
     reportError(e, source, file);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   for (const d of diagnostics) {
     d.file = file;
@@ -270,7 +356,8 @@ function cmdCheck(opts) {
   console.log(errors === 0
     ? `${file}: no problems found${silenced}`
     : `${errors} problem${errors === 1 ? '' : 's'} found${silenced}`);
-  process.exit(errors === 0 ? 0 : 1);
+  process.exitCode = errors === 0 ? 0 : 1;
+  return;
 }
 
 function cmdEval(opts) {
@@ -282,7 +369,8 @@ function cmdEval(opts) {
     if (v !== null && v !== undefined) console.log(stringify(v, 0));
   } catch (e) {
     reportError(e, source, '<eval>');
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   if (opts.trace) printTrace(interp);
 }
@@ -296,7 +384,8 @@ function cmdProve(opts) {
     reports = proveSource(source, { file, seed: opts.seed, trials: opts.trials });
   } catch (e) {
     reportError(e, source, file);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   const { text, findings, checked } = formatReports(reports);
   console.log(`prove ${file} (seed ${opts.seed}, ${opts.trials} inputs per function)`);
@@ -307,7 +396,8 @@ function cmdProve(opts) {
   console.log(findings === 0
     ? `\n${checked} contracted function${checked === 1 ? '' : 's'}, no counterexamples found`
     : `\n${findings} counterexample${findings === 1 ? '' : 's'} across ${checked} contracted function${checked === 1 ? '' : 's'}`);
-  process.exit(findings === 0 ? 0 : 1);
+  process.exitCode = findings === 0 ? 0 : 1;
+  return;
 }
 
 function cmdBuild(opts) {
@@ -320,7 +410,8 @@ function cmdBuild(opts) {
     bundle = buildBundle(source, path.basename(file), { seed: opts.seed, caps: opts.grant });
   } catch (e) {
     console.error(`Sarvm: cannot build: ${e.message}`);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   fs.writeFileSync(out, bundle, 'utf8');
   const kb = (Buffer.byteLength(bundle) / 1024).toFixed(1);
@@ -337,7 +428,8 @@ function cmdTest(opts) {
     files = discover(target);
   } catch (e) {
     console.error(`Sarvm: cannot read ${target}: ${e.code ?? e.message}`);
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   if (files.length === 0) {
     console.log(`no test files found in ${target} (they are named *_test.sarvm)`);
@@ -346,7 +438,8 @@ function cmdTest(opts) {
   const results = files.map((f) => runFile(f, { seed: opts.seed, caps: opts.grant, trials: opts.trials }));
   const { text, ok } = format(results, { colour: COLOUR });
   console.log(text);
-  process.exit(ok ? 0 : 1);
+  process.exitCode = ok ? 0 : 1;
+  return;
 }
 
 function cmdFmt(opts) {
@@ -368,7 +461,8 @@ function cmdFmt(opts) {
     collect(path.resolve(target));
   } catch (e) {
     console.error(`Sarvm: cannot read ${target}: ${e.code ?? e.message}`);
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   let changed = 0;
@@ -379,7 +473,8 @@ function cmdFmt(opts) {
       formatted = formatSource(source, path.basename(file));
     } catch (e) {
       reportError(e, source, path.relative(process.cwd(), file));
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     if (formatted === source) continue;
     changed += 1;
@@ -393,7 +488,8 @@ function cmdFmt(opts) {
   }
 
   if (changed === 0) console.log(`${files.length} file${files.length === 1 ? '' : 's'} already formatted`);
-  process.exit(opts.check && changed > 0 ? 1 : 0);
+  process.exitCode = opts.check && changed > 0 ? 1 : 0;
+  return;
 }
 
 function cmdVerify(opts) {
@@ -406,7 +502,8 @@ function cmdVerify(opts) {
     program = parse(source, file);
   } catch (e) {
     reportError(e, source, file);
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
 
   const results = verifyProgram(program);
@@ -422,14 +519,16 @@ function cmdVerify(opts) {
     console.log('undecided means the solver could not settle it, not that it is false;');
     console.log('the runtime still checks every contract, and `sarvm prove` still tests them');
   }
-  process.exit(report.failed === 0 ? 0 : 1);
+  process.exitCode = report.failed === 0 ? 0 : 1;
+  return;
 }
 
 function cmdExplain(opts) {
   const code = (opts.positional[0] ?? '').toUpperCase();
   if (!code) {
     console.error('Sarvm: explain needs an error code, e.g. Sarvm explain E0402');
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
   if (EXPLANATIONS[code]) {
     console.log(`${code}: ${CODES[code] ?? ''}\n`);
@@ -444,7 +543,8 @@ function cmdExplain(opts) {
   console.error(`Sarvm: no such error code \`${code}\``);
   const known = Object.keys(CODES).filter((c) => EXPLANATIONS[c]);
   console.error(`codes with a longer explanation: ${known.join(', ')}`);
-  process.exit(2);
+  process.exitCode = 2;
+  return;
 }
 
 function cmdRepl(opts) {
@@ -509,7 +609,9 @@ function main() {
   if (opts.help || argv.length === 0) { console.log(HELP); return; }
 
   const first = opts.positional[0];
-  const commands = new Set(['run', 'prove', 'repl', 'eval', 'check', 'build', 'explain', 'test', 'fmt', 'verify']);
+  const commands = new Set([
+    'run', 'prove', 'repl', 'eval', 'check', 'build', 'explain', 'test', 'fmt', 'verify', 'audit',
+  ]);
 
   let command;
   if (commands.has(first)) {
@@ -520,7 +622,8 @@ function main() {
   } else {
     console.error(`Sarvm: unknown command '${first}'\n`);
     console.log(HELP);
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   if (command === 'run') cmdRun(opts);
@@ -530,6 +633,7 @@ function main() {
   else if (command === 'build') cmdBuild(opts);
   else if (command === 'explain') cmdExplain(opts);
   else if (command === 'verify') cmdVerify(opts);
+  else if (command === 'audit') cmdAudit(opts);
   else if (command === 'test') cmdTest(opts);
   else if (command === 'fmt') cmdFmt(opts);
   else if (command === 'repl') cmdRepl(opts);

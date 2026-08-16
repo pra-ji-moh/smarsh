@@ -5,17 +5,26 @@ export const KEYWORDS = new Set([
   'true', 'false', 'nil', 'and', 'or', 'not', 'break', 'continue',
   // the parts that make this language what it is
   'maybe', 'choose', 'fork', 'tensor', 'needs', 'requires', 'ensures',
-  'grounded', 'region', 'attempt', 'rescue', 'atomic', 'secret',
-  'agent', 'on', 'spawn', 'budget', 'device', 'redefine', 'import', 'as',
-  'invariant', 'variant', 'authority', 'using',
+  'attempt', 'rescue',
+  'agent', 'on', 'spawn', 'redefine', 'import', 'as',
+  'invariant', 'variant', 'using',
   'match', 'when',
 ]);
 
-// `record` is deliberately NOT reserved. It is far too useful an ordinary name
-// -- an agent handler called `record`, a variable holding one -- and Java hit
-// exactly this when it added records, which is why theirs is contextual too.
-// `record Name(` cannot be anything else, so the parser recognises it there and
-// treats the word as an ordinary identifier everywhere else.
+// These are NOT reserved. Every one of them is an ordinary noun that a program
+// will want as a field or a variable — `region`, `secret`, `budget`, `record`
+// — and a language that confiscates common nouns makes people fight it.
+//
+// Each is recognised only in the one position where it cannot be anything else:
+// `region "eu" {`, `secret {`, `budget steps 5 {`, `record Name(`. Everywhere
+// else the lexer hands back a plain identifier. Java did this for `record` and
+// `sealed` for the same reason.
+//
+// This was found the honest way, twice: an agent handler called `record`, then
+// a customer field called `region`.
+export const CONTEXTUAL = new Set([
+  'record', 'region', 'secret', 'atomic', 'grounded', 'device', 'budget', 'authority',
+]);
 
 // Longest first: the matcher takes the first that fits.
 const PUNCT = [

@@ -1,0 +1,128 @@
+// An AI agent handling customer data, under rules somebody has to answer for.
+//
+//   sarvm run examples/regulated.sarvm --grant fs --principal compliance \
+//     --audit run.json --sign
+//   sarvm audit run.json
+//
+// Every line below has a Java equivalent that compiles, runs, and produces no
+// evidence of what it did. The point is not that Java cannot be written
+// carefully — it is that nothing in Java *checks*, and nothing writes it down.
+
+record Customer(id, region, balance) invariant balance >= dec("0")
+
+// --- what the model says is not a fact --------------------------------------
+
+fn model_assessment(customer) {
+  // A model's output is a claim, not a finding. It is labelled at the source
+  // so that nothing downstream can quietly treat it as established.
+  return ungrounded("risk appears elevated for ${customer.id}")
+}
+
+fn human_reviewed(claim, reviewer) {
+  return trust(claim, "reviewed and confirmed by ${reviewer}")
+}
+
+// --- money is exact ---------------------------------------------------------
+
+fn apply_fee(customer, fee)
+  requires fee >= dec("0")
+  ensures result.balance == old(customer.balance) - fee
+{
+  return customer.with("balance", customer.balance - fee)
+}
+
+// --- the run ----------------------------------------------------------------
+
+print("== a customer record, owned and jurisdictional ============")
+
+let raw = Customer("DE-4471", "eu", dec("1250.00"))
+
+// Two independent policies now govern this value. Neither owner can release it
+// alone: the readers are the intersection of what both permit.
+let record_eu = classify(raw.id, "customer", ["customer", "compliance", "support"])
+let governed = classify(record_eu, "regulator", ["regulator", "compliance"])
+
+print("   owners:  ${owners_of(governed)}")
+print("   readers: ${readers_of(governed)}")
+print("   -> support was permitted by the customer but not by the regulator")
+
+print("")
+print("== the model's claim cannot become a finding by accident ==")
+
+let claim = model_assessment(raw)
+print("   labels on the claim: ${labels(claim)}")
+
+attempt {
+  grounded {
+    print("filing a regulatory report that says: ${claim}")
+  }
+} rescue e {
+  print("   refused: ${e["message"]}")
+}
+
+let confirmed = human_reviewed(claim, "analyst 12")
+grounded {
+  print("   after human review, it may be filed: ${confirmed.slice(0, 34)}...")
+}
+
+print("")
+print("== data cannot leave to a party that was not permitted ====")
+
+attempt {
+  release_to "marketing" {
+    print(governed)
+  }
+} rescue e {
+  print("   refused: ${e["message"]}")
+}
+
+release_to "compliance" {
+  print("   compliance may read it: ${governed}")
+}
+
+print("")
+print("== releasing it requires the owner, and a stated reason ===")
+
+authority "compliance" {
+  attempt {
+    declassify(governed, "regulator", "we would like to share this")
+  } rescue e {
+    print("   refused: ${e["message"]}")
+  }
+}
+
+print("")
+print("== the balance arithmetic is exact ========================")
+
+let charged = apply_fee(raw, dec("12.50"))
+print("   ${raw.balance} - 12.50 = ${charged.balance}   (not 1237.4999999999998)")
+
+attempt {
+  apply_fee(raw, dec("99999.00"))
+} rescue e {
+  print("   the invariant refuses an overdraft: ${e["kind"]}")
+}
+
+print("")
+print("== authority is lent, and taken back ======================")
+
+fn export_worker(access, payload) {
+  using access {
+    write("export.csv", payload)
+  }
+  return "exported"
+}
+
+let lease = caretaker(grant("fs", "the nightly export"))
+print("   ${export_worker(lease["grant"], "id,balance")}")
+revoke(lease["revoker"])
+attempt {
+  export_worker(lease["grant"], "id,balance")
+} rescue e {
+  print("   after the window closes: ${e["message"]}")
+}
+
+print("")
+print("== and none of the above is only in this console ==========")
+print("   the manifest records every line of it, hash-chained and signed.")
+print("   run: sarvm audit run.json")
