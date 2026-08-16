@@ -137,8 +137,21 @@ not been done.
 
 ## 3. Performance
 
-- **A tree-walking interpreter.** About 1.9µs per function call, orders of
-  magnitude off a JIT. A bytecode VM is the honest next step.
+- **Still an interpreter, just a faster one.** The AST compiles to JavaScript
+  closures rather than being re-walked (`src/compile.js`), which is about 1.9×
+  overall and 2.4× on recursion and calls against the old tree-walker. That
+  leaves it roughly 15–30× off a JIT-compiled language on compute-bound code,
+  down from 50–100×. Closing more of that needs a typed value representation and
+  escape analysis so `t = t + i` does not box — a much larger change than this
+  one was. `--engine tree` still runs the original, and CI proves the two agree
+  on every example, every std module and 3,000 generated programs.
+- **The recursion limit is 300 frames**, and low on purpose. It used to be 2000,
+  which no run ever reached: both engines exhausted the host JavaScript stack
+  first, so the real limit was however many host frames happened to be free —
+  measured at 422 on one run and 652 on another, on the same machine. A language
+  that signs a manifest claiming a run replays from its seed cannot have a
+  recursion limit that is a property of the machine. Raising it means using
+  fewer host frames per call, not raising the number.
 - **Agents are single-threaded and cooperative.** An agent runtime that cannot
   use more than one core for agent logic is architecturally limited for the
   workload it is pitched at.
@@ -157,9 +170,14 @@ not been done.
 - **No union or optional types.** Nullability is not tracked; `nil` is `dyn`.
 - **No flow-sensitive narrowing.** Testing `if type(x) == "num"` teaches the
   checker nothing.
-- **No sealed types, so no exhaustiveness checking** on `match`. A missing arm
-  is a runtime `MatchError`, not a compile-time error. This is a real gap given
-  that `Ok`/`Err` are separate record types with nothing tying them together.
+- **Exhaustiveness is syntactic, not type-directed.** `choice` gives closed sets
+  and `pedag check` reports a `match` that misses a variant, but it works off
+  the arms rather than off an inferred type for the subject. So it says nothing
+  when the arms span two choices, when a variant name belongs to more than one
+  choice, or when there is a wildcard. It also cannot report an *unreachable*
+  arm — matching the same variant twice is silently accepted. A type-directed
+  version would catch all of those; this one catches the case that actually
+  bites, which is a forgotten variant.
 - **No subtyping, no interfaces, no traits.**
 - **Local inference only.** No Hindley-Milner, no inference across statements.
 - **Capabilities are not in the type system.** They are checked dynamically and
@@ -200,7 +218,7 @@ not been done.
 ## 6. Missing language features
 
 No async or promises. No iterators or generators. No traits, interfaces or
-protocols. No sum types or enums. No operator overloading for user types. No
+protocols. No operator overloading for user types. No
 destructuring in `let`. No spread or rest. No default or named arguments. No
 varargs for user functions. No tail calls, and recursion is depth-limited. No
 regex. No date or time type. No JSON in the standard library. No streaming or

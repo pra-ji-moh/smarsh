@@ -283,7 +283,7 @@ function diagnose(source, file) {
   });
   for (const f of analyze(program)) {
     out.push(Object.assign(new Diagnostic({
-      code: f.kind === 'race' ? 'E0404' : 'E0604',
+      code: f.kind === 'race' ? 'E0404' : f.kind === 'inexhaustive match' ? 'E0605' : 'E0604',
       message: f.message,
       span: f.span,
       file,

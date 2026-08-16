@@ -116,6 +116,88 @@ function controlFlowFindings(program) {
   return found;
 }
 
+// Exhaustiveness: does this `match` handle every variant of the choice it is
+// matching on?
+//
+// A missed variant is otherwise a MatchError at run time, on whichever input
+// finally reaches it -- the class of bug that closed sum types exist to remove.
+// Reporting it before the program runs is most of the value of having `choice`
+// at all.
+//
+// This works off the syntax rather than inferred types, so it is decidable
+// without the type checker and it stays quiet when it cannot be sure. A match
+// is only judged when every record pattern in it names a variant of one single
+// choice. Then the answer is arithmetic: the declared variants, minus the ones
+// with an arm.
+//
+// A wildcard, a bare binding, or a guard on the arm that would have covered a
+// variant all mean the checker says nothing -- `_` is an explicit statement
+// that the remaining cases are handled, and a guard means the arm may not fire
+// even when the pattern fits.
+function exhaustivenessFindings(program) {
+  // Every choice declared anywhere in the file, and which choice each variant
+  // name belongs to. Declaration order does not matter: a `match` written
+  // above the `choice` is still checked.
+  const variantOwner = new Map();   // variant name -> choice node
+  const nullary = new Set();        // variants carrying no fields
+  const choices = new Map();        // choice name  -> choice node
+  walk(program, (n) => {
+    if (n.type !== 'ChoiceDecl') return;
+    choices.set(n.name, n);
+    for (const v of n.variants) {
+      // A name used by two different choices is ambiguous; refuse to guess.
+      variantOwner.set(v.name, variantOwner.has(v.name) ? null : n);
+      if (v.fields.length === 0) nullary.add(v.name);
+    }
+  });
+  if (choices.size === 0) return [];
+
+  const findings = [];
+  walk(program, (node) => {
+    if (node.type !== 'Match') return;
+
+    let owner;
+    const covered = new Set();
+    for (const arm of node.arms) {
+      const p = arm.pattern;
+      // Anything that can match more than one variant ends the analysis.
+      if (p.kind === 'wildcard') return;
+      // A variant carrying nothing is written without parentheses, so it
+      // parses as a binding. Only a binding that is *not* one of those is a
+      // genuine catch-all. (The interpreter draws the same distinction, in
+      // matchPattern -- they have to agree or the checker would be describing
+      // a different language than the one that runs.)
+      if (p.kind === 'bind' && !nullary.has(p.name)) return;
+      if (p.kind !== 'record' && p.kind !== 'bind') return;
+
+      const which = variantOwner.get(p.name);
+      if (!which) return;                       // not a variant, or ambiguous
+      if (owner === undefined) owner = which;
+      else if (owner !== which) return;         // arms span two choices
+
+      // A guarded arm may decline to fire, so it does not close its variant.
+      if (!arm.guard) covered.add(p.name);
+    }
+    if (owner === undefined) return;
+
+    const missing = owner.variants.map((v) => v.name).filter((n) => !covered.has(n));
+    if (missing.length === 0) return;
+
+    const guarded = node.arms.some((a) => a.guard);
+    findings.push({
+      line: node.line,
+      span: node.span,
+      kind: 'inexhaustive match',
+      message: `this match on \`${owner.name}\` does not handle `
+        + `${missing.map((m) => `\`${m}\``).join(', ')}`,
+      hint: guarded
+        ? 'an arm with a `when` guard may not fire, so it does not cover its variant; add an arm without one, or `_ => ...`'
+        : `add ${missing.length === 1 ? 'an arm for it' : 'arms for them'}, or \`_ => ...\` if the rest genuinely need no case`,
+    });
+  });
+  return findings;
+}
+
 function baseIdentifier(node) {
   let cur = node;
   while (cur && (cur.type === 'Index' || cur.type === 'Member')) cur = cur.object;
@@ -123,7 +205,7 @@ function baseIdentifier(node) {
 }
 
 export function analyze(program) {
-  const findings = controlFlowFindings(program);
+  const findings = [...controlFlowFindings(program), ...exhaustivenessFindings(program)];
 
   walk(program, (node) => {
     if (node.type === 'Fork') {

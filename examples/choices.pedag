@@ -1,0 +1,92 @@
+// Closed sets of cases, and a checker that knows when you missed one.
+//     node bin/pedag.mjs run examples/choices.pedag
+//     node bin/pedag.mjs check examples/choices.pedag
+print("== a value is exactly one of these ========================")
+
+choice Payment {
+  Card(last4, amount)
+  Transfer(iban, amount)
+  Cash(amount)
+  Refused(reason)
+}
+
+// Every case is handled, so this is total: there is no input for which it
+// falls off the end.
+fn settled(p) {
+  return match p { Card(last4, amount) => amount, Transfer(iban, amount) => amount, Cash(amount) => amount, Refused(reason) => 0 }
+}
+
+let payments = [Card("4242", 1200), Transfer("GB33BUKB2020", 8000), Cash(150), Refused("insufficient funds")]
+
+var total = 0
+for p in payments {
+  total = total + settled(p)
+}
+print("   settled total:", total)
+
+print("")
+print("== a variant carrying nothing is a value, not a call ======")
+
+choice Status {
+  Pending
+  Cleared(at)
+  Failed(code)
+}
+
+// `Pending` has no fields, so there is only ever one of it. It is written
+// without parentheses, both when you build it and when you match it -- and
+// two of them are the same value.
+let s = Pending
+print("   status:", s)
+print("   the same one every time:", s == Pending)
+
+// This matters more than it looks. A bare name in a pattern normally binds
+// anything, so an arm reading `Pending =>` would quietly swallow a `Cleared`.
+// A name that is already a variant tests for that variant instead, which is
+// why the arms below can be written in any order and still be right.
+fn describe(x) {
+  return match x { Cleared(at) => "cleared at " + str(at), Pending => "still pending", Failed(code) => "failed with " + str(code) }
+}
+
+print("  ", describe(Cleared(1430)))
+print("  ", describe(Pending))
+print("  ", describe(Failed(402)))
+
+print("")
+print("== the part a comment cannot enforce ======================")
+print("   examples/choices.pedag handles every case, so `check` is quiet.")
+print("   delete the `Refused` arm above and run `pedag check` again:")
+print("")
+print("     error[E0605]: this match on `Payment` does not handle `Refused`")
+print("")
+print("   That is the whole reason for a closed set. Four unrelated records")
+print("   would run exactly the same way, right up until a payment was")
+print("   refused in production and nothing had a case for it.")
+
+print("")
+print("== variants keep everything records already had ===========")
+
+choice Reading {
+  Celsius(degrees) invariant degrees >= 0 - 273
+  Fahrenheit(degrees) invariant degrees >= 0 - 459
+  Unavailable
+}
+
+fn celsius(r) {
+  return match r { Celsius(d) => d, Fahrenheit(d) => (d - 32) * 5 / 9, Unavailable => nil }
+}
+
+print("   20C  ->", celsius(Celsius(20)))
+print("   68F  ->", celsius(Fahrenheit(68)))
+print("   none ->", celsius(Unavailable))
+
+// An invariant belongs to the variant that declares it, and is checked when
+// one is built -- the same promise a record makes.
+attempt {
+  Celsius(0 - 400)
+} rescue e {
+  print("   below absolute zero refused:", e["kind"])
+}
+
+print("")
+print("done. `pedag check` proves every match above is total.")

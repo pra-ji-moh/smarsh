@@ -323,6 +323,21 @@ export class Checker {
         this.scope.declare(stmt.name, fnType(fieldTypes, named(stmt.name)), false);
         this.records.set(stmt.name, { fields: stmt.fields, types: fieldTypes });
       }
+      else if (stmt.type === 'ChoiceDecl') {
+        // The choice's own name, then each of its variants. A variant carrying
+        // fields is a constructor like any record; one carrying nothing is a
+        // value of the type, because there is only ever one of it.
+        this.scope.declare(stmt.name, named('choice_type'), false);
+        for (const v of stmt.variants) {
+          const fieldTypes = (v.fieldTypes ?? v.fields.map(() => null)).map((t) => this.ann(t));
+          this.scope.declare(
+            v.name,
+            v.fields.length === 0 ? named(v.name) : fnType(fieldTypes, named(v.name)),
+            false,
+          );
+          this.records.set(v.name, { fields: v.fields, types: fieldTypes });
+        }
+      }
       else if (stmt.type === 'Import') this.importUnknown = true;
     }
   }
@@ -446,6 +461,7 @@ export class Checker {
       // An import brings in names this pass cannot see, so from here on the
       // checker stops reporting unknown names rather than reporting nonsense.
       case 'RecordDecl':
+      case 'ChoiceDecl':
         return;   // handled when hoisting, so order of declaration is free
 
       case 'Import':
@@ -686,6 +702,13 @@ export class Checker {
     if (op === '+') {
       if (l === STR || r === STR) return STR;
       if (l && r && l.k === 'list' && r.k === 'list') return listOf(join(l.of, r.of));
+      // `+` is the one overloaded operator: it adds numbers, joins text and
+      // concatenates lists. So an operand the checker does not know leaves the
+      // result unknown as well. Falling through to `num` here claimed to know
+      // something it did not, and reported a false type error on correct code
+      // -- `s.slice(0, 1).upper() + s.slice(1)` in std/str.pedag, where both
+      // sides are `dyn` and the answer is plainly a string.
+      if (isDyn(l) || isDyn(r)) return DYN;
     }
 
     if (l === TENSOR || r === TENSOR) return TENSOR;

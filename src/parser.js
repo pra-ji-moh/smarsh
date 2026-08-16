@@ -214,6 +214,57 @@ export class Parser {
       return { type: 'Attempt', body, name, handler, line };
     }
 
+    // choice Shape {
+    //   Circle(radius)
+    //   Rect(width, height)
+    //   Empty
+    // }
+    //
+    // Contextual, like `record`: only `choice <Name> {` is a declaration, so a
+    // program may still use `choice` as a name of its own.
+    if (this.check('ident', 'choice') && this.peek(1).type === 'ident'
+        && this.peek(2).type === 'op' && this.peek(2).value === '{') {
+      this.advance();
+      const name = this.advance().value;
+      this.expectOp('{', "'{' after the choice name");
+      const variants = [];
+      while (!this.checkOp('}') && !this.check('eof')) {
+        const vline = this.line;
+        const vname = this.expect('ident', undefined, 'a variant name').value;
+        const fields = [];
+        const fieldTypes = [];
+        // `Empty`, with no parentheses, is a variant that carries nothing.
+        if (this.matchOp('(')) {
+          if (!this.checkOp(')')) {
+            do {
+              fields.push(this.expect('ident', undefined, 'a field name').value);
+              fieldTypes.push(this.matchOp(':') ? this.typeAnnotation() : null);
+            } while (this.matchOp(','));
+          }
+          this.expectOp(')', "')' to close the variant fields");
+        }
+        const invariants = [];
+        while (this.matchKw('invariant')) invariants.push(this.contract());
+        variants.push({ name: vname, fields, fieldTypes, invariants, line: vline });
+        // Separators between variants are allowed, not required.
+        if (!this.matchOp(',')) this.matchOp(';');
+      }
+      this.expectOp('}', "'}' to close the choice");
+      if (variants.length === 0) {
+        throw pedagError('SyntaxError', 'a choice needs at least one variant', line);
+      }
+      const seen = new Set();
+      for (const v of variants) {
+        if (seen.has(v.name)) {
+          throw pedagError('SyntaxError',
+            `\`${name}\` declares the variant \`${v.name}\` twice`, v.line);
+        }
+        seen.add(v.name);
+      }
+      this.terminator();
+      return { type: 'ChoiceDecl', name, variants, line };
+    }
+
     // record Point(x, y)  -- an immutable data carrier.
     // Contextual: only this exact shape is a declaration.
     if (this.check('ident', 'record') && this.peek(1).type === 'ident'

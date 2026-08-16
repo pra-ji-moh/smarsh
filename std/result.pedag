@@ -9,11 +9,20 @@
 //       Ok(v)  => use(v),
 //       Err(e) => report(e)
 //     }
-record Ok(value)
-record Err(error)
+// These are closed sets, not two unrelated records that happen to be used
+// together. That is what makes the promise above enforceable: `pedag check`
+// knows a `Result` is an `Ok` or an `Err` and nothing else, so a match that
+// forgets the failing case is reported before the program runs, rather than
+// throwing a MatchError on the first input that actually fails.
+choice Result {
+  Ok(value)
+  Err(error)
+}
 
-record Some(value)
-record None()
+choice Option {
+  Some(value)
+  None
+}
 
 // --- constructing ------------------------------------------------------------
 
@@ -30,13 +39,13 @@ fn some(value) {
 }
 
 fn none() {
-  return None()
+  return None
 }
 
 // nil is how the rest of the language says "nothing"; this is the bridge.
 fn from_nil(value) {
   if value == nil {
-    return None()
+    return None
   }
   return Some(value)
 }
@@ -56,7 +65,7 @@ fn is_some(o) -> bool {
 }
 
 fn is_none(o) -> bool {
-  return match o { None() => true, _ => false }
+  return match o { None => true, _ => false }
 }
 
 // --- getting the value out ---------------------------------------------------
@@ -68,7 +77,7 @@ fn unwrap_or(r, fallback) {
 // Insists on a value, and fails loudly with your message if there is not one.
 // Use it where a missing value really is a programming error.
 fn expect(r, message: str) {
-  return match r { Ok(v) => v, Some(v) => v, Err(e) => fail(message + ": " + str(e)), None() => fail(message) }
+  return match r { Ok(v) => v, Some(v) => v, Err(e) => fail(message + ": " + str(e)), None => fail(message) }
 }
 
 fn fail(message: str) {
@@ -92,7 +101,7 @@ fn and_then(r, f) {
 }
 
 fn or_else(r, f) {
-  return match r { Err(e) => f(e), None() => f(nil), _ => r }
+  return match r { Err(e) => f(e), None => f(nil), _ => r }
 }
 
 // Turn a list of results into a result of a list: the first failure wins.

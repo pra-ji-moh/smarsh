@@ -5,7 +5,7 @@ import { AgentTemplate, Scheduler } from './agents.js';
 import { DeviceRegistry } from './devices.js';
 import { CallGraph } from './graph.js';
 import { closestName } from './diagnostics.js';
-import { RecordType, RecordValue, recordsEqual } from './records.js';
+import { RecordType, RecordValue, ChoiceType, recordsEqual } from './records.js';
 import { analyze } from './analysis.js';
 import { exercise } from './exercise.js';
 import {
@@ -272,6 +272,27 @@ export class Interpreter {
         type.closure = this.env;
         this.redeclareIfAllowed(node.name);
         this.env.declare(node.name, type, false, node.line);
+        return null;
+      }
+
+      case 'ChoiceDecl': {
+        const choice = new ChoiceType(node.name, node.line);
+        this.redeclareIfAllowed(node.name);
+        this.env.declare(node.name, choice, false, node.line);
+
+        for (const v of node.variants) {
+          const type = new RecordType(v.name, v.fields, v.line);
+          type.invariants = v.invariants ?? [];
+          type.closure = this.env;
+          type.choice = choice;
+          choice.variants.set(v.name, type);
+          this.redeclareIfAllowed(v.name);
+          // A variant carrying nothing is a value, not a constructor: there is
+          // only one of it, so it is written `Empty`, not `Empty()`. Built once
+          // and shared, which makes it identical to itself as well as equal.
+          const bound = v.fields.length === 0 ? new RecordValue(type, []) : type;
+          this.env.declare(v.name, bound, false, v.line);
+        }
         return null;
       }
 
@@ -833,7 +854,28 @@ export class Interpreter {
   matchPattern(pattern, value, bindings) {
     switch (pattern.kind) {
       case 'wildcard': return true;
-      case 'bind': bindings.set(pattern.name, value); return true;
+
+      case 'bind': {
+        // A variant carrying nothing is written `Empty`, with no parentheses,
+        // which is syntactically indistinguishable from a new binding. Treated
+        // as a binding it would match *anything*: `match s { Empty => 0,
+        // Circle(r) => r * r }` returned 0 for a Circle, silently, because the
+        // first arm swallowed it. A pattern that looks like it tests for a
+        // specific value must not be a catch-all.
+        //
+        // So a name already bound to a nullary variant is a test for that
+        // variant. The check is deliberately narrow -- the name has to resolve
+        // to a RecordValue belonging to a choice and carrying no fields -- so
+        // an ordinary `let Empty = 5` still binds, as any other name would.
+        const existing = this.env.slot(pattern.name);
+        const known = existing ? unwrap(existing.value) : null;
+        if (known instanceof RecordValue && known.type.choice && known.type.fields.length === 0) {
+          return value instanceof RecordValue && value.type === known.type;
+        }
+        bindings.set(pattern.name, value);
+        return true;
+      }
+
       case 'literal': return this.deepEquals(value, pattern.value);
 
       case 'list': {

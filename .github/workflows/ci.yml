@@ -88,16 +88,20 @@ jobs:
       - name: The compiled engine matches the tree-walker exactly
         run: node tools/differential.mjs
 
-      - name: Every example must type-check clean
+      - name: Every example and std module must check clean
         shell: bash
         run: |
           # The gradual guarantee is only worth something if it holds on real
           # code. Every example, not a hand-written subset -- the subset here
           # had fallen five examples behind the directory.
           #
+          # `std/` is included because it was not, and a false positive from the
+          # type checker had been sitting in std/str.pedag unnoticed: `+` is
+          # overloaded, and two `dyn` operands were being typed as `num`.
+          #
           # agents.pedag is the one exclusion: it contains a deliberate race,
           # and the step below asserts that the checker still finds it.
-          for f in examples/*.pedag; do
+          for f in examples/*.pedag std/*.pedag; do
             [ "$f" = "examples/agents.pedag" ] && continue
             node bin/pedag.mjs check "$f"
           done

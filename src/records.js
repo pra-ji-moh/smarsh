@@ -15,11 +15,50 @@ export class RecordType {
     this.name = name;
     this.fields = fields;
     this.line = line;
+    // Set when this type is one variant of a `choice`. It is what makes
+    // exhaustiveness decidable: from any variant the checker can reach the
+    // full set of siblings a match is obliged to cover.
+    this.choice = null;
   }
   get pedagType() { return 'record_type'; }
   toString() { return `<record ${this.name}(${this.fields.join(', ')})>`; }
   pedagMembers() {
-    return { name: this.name, fields: [...this.fields] };
+    return {
+      name: this.name,
+      fields: [...this.fields],
+      choice: this.choice ? this.choice.name : null,
+    };
+  }
+}
+
+// A choice: one named type whose values are exactly one of a fixed set of
+// variants.
+//
+//     choice Shape {
+//       Circle(radius)
+//       Rect(width, height)
+//       Empty
+//     }
+//
+// Each variant is an ordinary record, so construction, fields, structural
+// equality, printing, `.with()` and pattern matching all work already and
+// none of it needed a second implementation. What the choice adds is the
+// closed set -- and a closed set is the thing that lets `pedag check` prove a
+// `match` handles every case before the program runs, instead of a missed
+// variant becoming a MatchError in production.
+//
+// A variant with no fields is a value rather than a constructor: `Empty`, not
+// `Empty()`. There is only one of it, so there is nothing to call.
+export class ChoiceType {
+  constructor(name, line) {
+    this.name = name;
+    this.line = line;
+    this.variants = new Map();   // variant name -> RecordType
+  }
+  get pedagType() { return 'choice_type'; }
+  toString() { return `<choice ${this.name}(${[...this.variants.keys()].join(' | ')})>`; }
+  pedagMembers() {
+    return { name: this.name, variants: [...this.variants.keys()] };
   }
 }
 
@@ -48,6 +87,8 @@ export class RecordValue {
   }
 
   toString() {
+    // A variant carrying nothing is written `Empty`, so it prints that way too.
+    if (this.type.fields.length === 0) return this.type.name;
     const parts = this.type.fields.map((f, i) => `${f}: ${stringify(this.values[i], 1)}`);
     return `${this.type.name}(${parts.join(', ')})`;
   }

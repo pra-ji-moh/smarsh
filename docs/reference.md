@@ -10,6 +10,7 @@ Complete list of keywords, block forms and builtins. For what any of it is
 | `let x = e` / `let x: T = e` | immutable binding |
 | `var x = e` / `var x: T = e` | mutable binding |
 | `record Name(a, b)` | immutable data carrier (contextual keyword) |
+| `choice Name { A(x)  B(y)  C }` | a closed set of variants (contextual keyword) |
 | `fn name(a: T, b) -> T { }` | function; annotations optional |
 | `fn name(a, b) { }` | function |
 | `fn(a, b) { }` | anonymous function (an expression) |
@@ -191,6 +192,60 @@ pedag eval "<source>"
 `TaintError` `SecretError` `CryptoError` `AgentError` `AgentIsolationError`
 `BudgetError` `RedefineError` `RestoreError` `ImportError` `SchemaError`
 `DeviceError` `MemoryError` `StepLimitError` `ControlFlowError`
+
+## Choices
+
+A `choice` is one type whose values are exactly one of a fixed set of variants.
+
+```
+choice Payment {
+  Card(last4, amount)
+  Transfer(iban, amount)
+  Cash(amount)
+  Refused(reason)
+}
+```
+
+Each variant is an ordinary record: it constructs the same way, has the same
+fields, the same structural equality, the same printed form, the same `.with()`,
+and it is matched by the same patterns. A variant may carry an `invariant`, and
+it is checked when one is built, exactly as for a record.
+
+What the choice adds is that the set is **closed**, and a closed set is what
+lets `pedag check` prove a `match` handles every case:
+
+```
+error[E0605]: this match on `Payment` does not handle `Refused`
+help: add an arm for it, or `_ => ...` if the rest genuinely need no case
+```
+
+Without that, the four records above would run identically right up until a
+payment was refused and nothing had a case for it.
+
+**A variant carrying nothing is a value, not a constructor.** There is only
+ever one of it, so it is written `Pending`, not `Pending()` — when built, and
+when matched. In a pattern a bare name normally binds anything, so this is a
+deliberate exception: a name that is already a nullary variant tests for that
+variant. Without the exception, an arm reading `Pending =>` would silently
+swallow every other case that reached it. An ordinary variable keeps binding as
+before; only names bound to a nullary variant behave this way.
+
+The checker stays quiet when it cannot be certain. It says nothing if the match
+has a `_` or a bare binding, if the arms span two different choices, if a
+variant name is declared by more than one choice, or if the only arms are
+literals. A `when` guard does not close its variant, because a guarded arm may
+decline to fire.
+
+Exhaustiveness is a static check. A program run without `check` still fails
+safely — a match with no arm for its subject raises `MatchError` rather than
+returning nil.
+
+`std/result` is built from two of them:
+
+```
+choice Result { Ok(value)  Err(error) }
+choice Option { Some(value)  None }
+```
 
 ## Budgets
 

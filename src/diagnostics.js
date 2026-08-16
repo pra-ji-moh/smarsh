@@ -45,6 +45,7 @@ export const CODES = {
   E0602: 'division by zero',
   E0603: 'recursion too deep',
   E0604: 'control flow has no target',
+  E0605: 'match does not cover every variant',
 };
 
 // Runtime error kinds mapped onto codes, so every failure a program can hit is
@@ -148,6 +149,25 @@ A function body is not: a \`break\` with no loop inside the function is an error
 rather than something that reaches into the caller's loop.
 
 \`pedag check\` reports this before the program runs.`,
+
+  E0605: `A \`match\` on a \`choice\` left one of its variants without an arm.
+
+    choice Payment { Card(n)  Cash(n)  Refused(why) }
+
+    match p { Card(n) => n, Cash(n) => n }    // error: \`Refused\` has no arm
+
+A choice is a closed set, which is what makes this decidable: the declared
+variants, minus the ones that have an arm, is either empty or a list of cases
+that will fall off the end of the match and raise a MatchError on the first
+input that reaches them.
+
+Add the missing arms, or \`_ => ...\` if the rest genuinely need no case. A
+\`when\` guard does not close its variant, because a guarded arm may decline to
+fire.
+
+The checker stays quiet wherever it cannot be certain: a wildcard or a bare
+binding in the match, arms spanning two different choices, or a variant name
+declared by more than one choice.`,
 
   E0401: `A function's stated contract did not hold.
 

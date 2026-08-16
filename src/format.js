@@ -338,6 +338,31 @@ function statement(node, p, prefix = '') {
       return;
     }
 
+    case 'ChoiceDecl': {
+      p.line(`choice ${node.name} {`);
+      p.depth += 1;
+      for (const v of node.variants) {
+        const types = v.fieldTypes ?? [];
+        const fields = v.fields.map((f, i) => (types[i] ? `${f}: ${typeText(types[i])}` : f));
+        // A variant carrying nothing is written without parentheses, because
+        // that is how it is constructed and matched.
+        const head = v.fields.length === 0 ? v.name : `${v.name}(${fields.join(', ')})`;
+        const invariants = v.invariants ?? [];
+        if (invariants.length === 0) { p.line(head); continue; }
+        if (invariants.length === 1 && `${head} invariant ${invariants[0].src}`.length < 80) {
+          p.line(`${head} invariant ${invariants[0].src}`);
+          continue;
+        }
+        p.line(head);
+        p.depth += 1;
+        for (const c of invariants) p.line(`invariant ${c.src}`);
+        p.depth -= 1;
+      }
+      p.depth -= 1;
+      p.line('}');
+      return;
+    }
+
     case 'AgentDecl': {
       p.line(`agent ${node.name}(${node.params.join(', ')}) {`);
       p.depth += 1;

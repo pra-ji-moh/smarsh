@@ -68,7 +68,7 @@ export function runFile(file, { seed = 0, caps = [], trials = 60, quiet = true }
     ...analyze(program).map((f) => ({
       message: f.message,
       span: f.span,
-      code: f.kind === 'race' ? 'E0404' : 'E0604',
+      code: f.kind === 'race' ? 'E0404' : f.kind === 'inexhaustive match' ? 'E0605' : 'E0604',
       helps: f.hint ? [f.hint] : [],
     })),
   ];

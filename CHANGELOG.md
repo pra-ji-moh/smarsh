@@ -11,6 +11,60 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
 
 ## [Unreleased]
 
+### Added
+
+- **`choice` — sum types with static exhaustiveness checking.**
+
+  ```
+  choice Payment {
+    Card(last4, amount)
+    Transfer(iban, amount)
+    Cash(amount)
+    Refused(reason)
+  }
+  ```
+
+  Each variant is an ordinary record, so construction, fields, structural
+  equality, printing, `.with()`, invariants and pattern matching all worked
+  already and none of it needed a second implementation. What a choice adds is
+  that the set is *closed*, and a closed set is what lets `pedag check` prove a
+  `match` is total:
+
+  ```
+  error[E0605]: this match on `Payment` does not handle `Refused`
+  ```
+
+  Without it the four records above run identically — right up until a payment
+  is refused in production and nothing has a case for it. `pedag explain E0605`.
+
+  The checker is deliberately quiet where it cannot be certain: a wildcard or
+  bare binding, arms spanning two choices, a variant name declared by more than
+  one choice, or a `when` guard (a guarded arm may decline to fire, so it does
+  not close its variant). Exhaustiveness is static; a program run without
+  `check` still raises `MatchError` rather than returning nil.
+
+  A variant carrying nothing is a value, not a constructor: `Pending`, not
+  `Pending()`. That required an exception in the matcher — a bare name in a
+  pattern normally binds anything, so an arm reading `Pending =>` was silently
+  swallowing every other case that reached it. `match s { Empty => 0, Circle(r)
+  => r * r }` returned 0 for a `Circle`. A name already bound to a nullary
+  variant now tests for that variant; ordinary variables still bind.
+
+- **`std/result` is built from choices.** `Result` is `Ok | Err`, `Option` is
+  `Some | None`. The file always claimed to be about "outcomes that cannot be
+  ignored"; now that is enforced rather than asserted, because a match that
+  forgets the failing case is a build failure. `None()` is written `None`.
+
+- **`examples/choices.pedag`**, and `choice` in `docs/reference.md`.
+
+### Fixed
+
+- **The type checker no longer invents a type for `+`.** It is the one
+  overloaded operator — numbers, text, lists — and with both operands `dyn` the
+  checker returned `num` anyway. That produced a false error on correct code in
+  the shipped standard library (`std/str.pedag`), which nobody had seen because
+  CI only ran `check` over `examples/`. `std/` is now checked too.
+
 ### Security
 
 - **`budget memory N { }`** — a third budget kind. Allocation is charged at list
