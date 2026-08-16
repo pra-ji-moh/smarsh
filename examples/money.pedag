@@ -1,5 +1,5 @@
 // Money, done exactly.
-//     node bin/sarvm.mjs run examples/money.sarvm
+//     node bin/pedag.mjs run examples/money.pedag
 //
 // `num` is a 64-bit float. It cannot hold 0.1, and no amount of care at the
 // call site fixes that. `dec` is an integer coefficient and a scale, so it can.

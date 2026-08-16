@@ -2,15 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { Interpreter } from './interpreter.js';
-import { LumeFunction } from './values.js';
-import { SarvmError } from './errors.js';
+import { PedagFunction } from './values.js';
+import { PedagError } from './errors.js';
 import { parse } from './parser.js';
 import { typecheck } from './types.js';
 import { analyze } from './analysis.js';
 import { exercise } from './exercise.js';
 import { Rng } from './rng.js';
 
-// `sarvm test` — one command that runs three kinds of check.
+// `pedag test` — one command that runs three kinds of check.
 //
 //   1. every `test_*` function, as an ordinary unit test
 //   2. the type checker and the race checker over the file
@@ -32,7 +32,7 @@ export function discover(target) {
       if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
       const child = path.join(dir, entry.name);
       if (entry.isDirectory()) walk(child);
-      else if (entry.name.endsWith('_test.sarvm')) found.push(child);
+      else if (entry.name.endsWith('_test.pedag')) found.push(child);
     }
   };
   walk(full);
@@ -85,7 +85,7 @@ export function runFile(file, { seed = 0, caps = [], trials = 60, quiet = true }
   const tests = [];
   for (const [name, slot] of interp.globals.vars) {
     if (!name.startsWith('test_')) continue;
-    if (!(slot.value instanceof LumeFunction)) continue;
+    if (!(slot.value instanceof PedagFunction)) continue;
     if (slot.value.decl.params.length !== 0) {
       result.skipped.push({ name, why: 'takes arguments; a test takes none' });
       continue;
@@ -113,7 +113,7 @@ export function runFile(file, { seed = 0, caps = [], trials = 60, quiet = true }
   const rng = new Rng((seed ^ 0x5bf03635) >>> 0);
   for (const [name, slot] of interp.globals.vars) {
     const fn = slot.value;
-    if (!(fn instanceof LumeFunction)) continue;
+    if (!(fn instanceof PedagFunction)) continue;
     if (name.startsWith('test_')) continue;
     const d = fn.decl;
     if (d.requires.length === 0 && d.ensures.length === 0) continue;
@@ -155,7 +155,7 @@ export function format(results, { colour = false } = {}) {
 
     for (const t of r.failed) {
       failed += 1;
-      const message = t.error instanceof SarvmError
+      const message = t.error instanceof PedagError
         ? t.error.format(r.source, r.file)
         : String(t.error && t.error.stack ? t.error.stack : t.error);
       lines.push(red(`        ${t.name} FAILED`));

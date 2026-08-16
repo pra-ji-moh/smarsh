@@ -1,5 +1,5 @@
 import { tokenize } from './lexer.js';
-import { sarvmError, SarvmError } from './errors.js';
+import { pedagError, PedagError } from './errors.js';
 
 // Recursive-descent parser producing a plain-object AST.
 //
@@ -60,7 +60,7 @@ export class Parser {
   expect(type, value, what) {
     if (this.check(type, value)) return this.advance();
     const got = this.current.type === 'eof' ? 'end of file' : `'${this.current.value}'`;
-    throw sarvmError('SyntaxError', `expected ${what ?? `'${value}'`}, found ${got}`, this.line);
+    throw pedagError('SyntaxError', `expected ${what ?? `'${value}'`}, found ${got}`, this.line);
   }
   expectOp(value, what) { return this.expect('op', value, what); }
 
@@ -117,7 +117,7 @@ export class Parser {
       try {
         body.push(this.statement());
       } catch (e) {
-        if (!(e instanceof SarvmError)) throw e;
+        if (!(e instanceof PedagError)) throw e;
         errors.push(e);
         if (this.pos === before) this.advance();   // always make progress
         this.recover();
@@ -263,7 +263,7 @@ export class Parser {
           const hline = this.line;
           const message = this.expect('ident', undefined, 'a message name').value;
           if (handlers.has(message)) {
-            throw sarvmError('SyntaxError', `agent ${name} handles '${message}' twice`, hline);
+            throw pedagError('SyntaxError', `agent ${name} handles '${message}' twice`, hline);
           }
           this.expectOp('(', "'(' after the message name");
           const hparams = [];
@@ -285,15 +285,15 @@ export class Parser {
     if (this.matchSoft('budget', 'ident')) {
       const kindTok = this.expect('ident', undefined, "'steps' or 'tokens'");
       if (kindTok.value !== 'steps' && kindTok.value !== 'tokens') {
-        throw sarvmError('SyntaxError',
+        throw pedagError('SyntaxError',
           `a budget is measured in 'steps' or 'tokens', not '${kindTok.value}'`, kindTok.line);
       }
       const amount = this.expression();
       return { type: 'Budget', kind: kindTok.value, amount, body: this.block(), line };
     }
 
-    // import "./lib.sarvm"            -- bring its names into this scope
-    // import "./lib.sarvm" as lib     -- bind them under one name
+    // import "./lib.pedag"            -- bring its names into this scope
+    // import "./lib.pedag" as lib     -- bind them under one name
     if (this.matchKw('import')) {
       const pathTok = this.expect('str', undefined, 'a quoted module path');
       let alias = null;
@@ -431,7 +431,7 @@ export class Parser {
 
     const tok = this.current;
     if (tok.type !== 'ident' && tok.type !== 'kw') {
-      throw sarvmError('SyntaxError', `expected a type, found \`${tok.value}\``, tok.line);
+      throw pedagError('SyntaxError', `expected a type, found \`${tok.value}\``, tok.line);
     }
     this.advance();
     const args = [];
@@ -533,7 +533,7 @@ export class Parser {
       return { kind: 'bind', name, line };
     }
 
-    throw sarvmError('SyntaxError', `expected a pattern, found \`${t0.value}\``, line);
+    throw pedagError('SyntaxError', `expected a pattern, found \`${t0.value}\``, line);
   }
 
   // What a loop promises about itself.
@@ -555,7 +555,7 @@ export class Parser {
       if (this.checkKw('variant')) {
         const line = this.line;
         this.advance();
-        if (variant) throw sarvmError('SyntaxError', 'a loop has at most one variant', line);
+        if (variant) throw pedagError('SyntaxError', 'a loop has at most one variant', line);
         variant = this.contract();
         continue;
       }
@@ -583,7 +583,7 @@ export class Parser {
       this.advance();
       const value = this.assignment();
       if (left.type !== 'Ident' && left.type !== 'Index' && left.type !== 'Member') {
-        throw sarvmError('SyntaxError', 'left side of = is not something that can be assigned to', line);
+        throw pedagError('SyntaxError', 'left side of = is not something that can be assigned to', line);
       }
       return { type: 'Assign', target: left, value, line };
     }
@@ -697,7 +697,7 @@ export class Parser {
         this.advance();
         const tok = this.current;
         if (tok.type !== 'ident' && tok.type !== 'kw') {
-          throw sarvmError('SyntaxError', `expected a property name after '.', found '${tok.value}'`, line);
+          throw pedagError('SyntaxError', `expected a property name after '.', found '${tok.value}'`, line);
         }
         this.advance();
         expr = { type: 'Member', object: expr, name: tok.value, line };
@@ -722,7 +722,7 @@ export class Parser {
         const sub = new Parser(part.source, this.file);
         const expr = sub.expression();
         if (!sub.check('eof')) {
-          throw sarvmError('SyntaxError',
+          throw pedagError('SyntaxError',
             `\`\${...}\` holds more than one expression`, part.line);
         }
         return { kind: 'expr', expr, line: part.line };
@@ -760,7 +760,7 @@ export class Parser {
         } while (this.matchOp(','));
       }
       this.expectOp('}', "'}' to close choose");
-      if (arms.length === 0) throw sarvmError('SyntaxError', 'choose needs at least one arm', line);
+      if (arms.length === 0) throw pedagError('SyntaxError', 'choose needs at least one arm', line);
       return { type: 'Choose', arms, line };
     }
 
@@ -778,7 +778,7 @@ export class Parser {
         if (!this.matchOp(',')) break;
       }
       this.expectOp('}', "'}' to close the match");
-      if (arms.length === 0) throw sarvmError('SyntaxError', 'a match needs at least one arm', line);
+      if (arms.length === 0) throw pedagError('SyntaxError', 'a match needs at least one arm', line);
       return { type: 'Match', subject, arms, line };
     }
 
@@ -839,7 +839,7 @@ export class Parser {
     }
 
     const got = t.type === 'eof' ? 'end of file' : `'${t.value}'`;
-    throw sarvmError('SyntaxError', `expected an expression, found ${got}`, line);
+    throw pedagError('SyntaxError', `expected an expression, found ${got}`, line);
   }
 }
 
@@ -855,7 +855,7 @@ export function parseAll(source, file = '<script>') {
     return new Parser(source, file).parseRecovering();
   } catch (e) {
     // A lexer failure has no token stream to recover within.
-    if (e instanceof SarvmError) {
+    if (e instanceof PedagError) {
       return { program: { type: 'Program', body: [], comments: [], source }, errors: [e] };
     }
     throw e;

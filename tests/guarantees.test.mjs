@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { Interpreter } from '../src/interpreter.js';
-import { SarvmError } from '../src/errors.js';
+import { PedagError } from '../src/errors.js';
 import { Decimal } from '../src/decimal.js';
 
 // The four defects found in review, each pinned so it cannot come back.
@@ -24,14 +24,14 @@ function fails(src, opts = {}) {
   try {
     run(src, opts);
   } catch (e) {
-    if (e instanceof SarvmError) return e;
+    if (e instanceof PedagError) return e;
     throw e;
   }
   throw new Error('expected the program to fail, but it ran cleanly');
 }
 
 function project(files) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Sarvm-guard-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Pēdāg-guard-'));
   for (const [name, body] of Object.entries(files)) {
     const full = path.join(dir, name);
     fs.mkdirSync(path.dirname(full), { recursive: true });
@@ -46,21 +46,21 @@ function project(files) {
 
 test('a module cannot perform effects at import time', () => {
   const dir = project({
-    'evil.sarvm': 'write("pwned.txt", "ran with the importer\'s capability")\nlet harmless = 1',
-    'main.sarvm': 'import "./evil.sarvm" as m\nm["harmless"]',
+    'evil.pedag': 'write("pwned.txt", "ran with the importer\'s capability")\nlet harmless = 1',
+    'main.pedag': 'import "./evil.pedag" as m\nm["harmless"]',
   });
   const e = (() => {
     try {
       const interp = new Interpreter({ caps: ['fs'], cwd: dir, out: () => {} });
-      interp.entryPath = path.join(dir, 'main.sarvm');
-      interp.run(fs.readFileSync(path.join(dir, 'main.sarvm'), 'utf8'), 'main.sarvm');
+      interp.entryPath = path.join(dir, 'main.pedag');
+      interp.run(fs.readFileSync(path.join(dir, 'main.pedag'), 'utf8'), 'main.pedag');
       interp.devices.shutdown();
       return null;
     } catch (err) {
       return err;
     }
   })();
-  assert.ok(e instanceof SarvmError, 'the import should have been refused');
+  assert.ok(e instanceof PedagError, 'the import should have been refused');
   assert.equal(e.kind, 'CapabilityError');
   assert.equal(fs.existsSync(path.join(dir, 'pwned.txt')), false,
     'the module wrote a file using authority it was never granted');
@@ -68,13 +68,13 @@ test('a module cannot perform effects at import time', () => {
 
 test('a module still exports functions that work under the caller capabilities', () => {
   const dir = project({
-    'lib.sarvm': 'fn save(text) needs fs { return write("out.txt", text) }\nlet version = 2',
-    'main.sarvm': 'import "./lib.sarvm" as lib\n[lib.version, type(lib.save)]',
+    'lib.pedag': 'fn save(text) needs fs { return write("out.txt", text) }\nlet version = 2',
+    'main.pedag': 'import "./lib.pedag" as lib\n[lib.version, type(lib.save)]',
   });
   const interp = new Interpreter({ caps: ['fs'], cwd: dir, out: () => {} });
-  interp.entryPath = path.join(dir, 'main.sarvm');
+  interp.entryPath = path.join(dir, 'main.pedag');
   try {
-    const value = interp.run(fs.readFileSync(path.join(dir, 'main.sarvm'), 'utf8'), 'main.sarvm');
+    const value = interp.run(fs.readFileSync(path.join(dir, 'main.pedag'), 'utf8'), 'main.pedag');
     assert.deepEqual(value, [2, 'fn']);
   } finally {
     interp.devices.shutdown();
@@ -83,13 +83,13 @@ test('a module still exports functions that work under the caller capabilities',
 
 test('a module loads fine when it needs nothing', () => {
   const dir = project({
-    'lib.sarvm': 'let answer = 42',
-    'main.sarvm': 'import "./lib.sarvm" as lib\nlib.answer',
+    'lib.pedag': 'let answer = 42',
+    'main.pedag': 'import "./lib.pedag" as lib\nlib.answer',
   });
   const interp = new Interpreter({ cwd: dir, out: () => {} });
-  interp.entryPath = path.join(dir, 'main.sarvm');
+  interp.entryPath = path.join(dir, 'main.pedag');
   try {
-    assert.equal(interp.run(fs.readFileSync(path.join(dir, 'main.sarvm'), 'utf8'), 'main.sarvm'), 42);
+    assert.equal(interp.run(fs.readFileSync(path.join(dir, 'main.pedag'), 'utf8'), 'main.pedag'), 42);
   } finally {
     interp.devices.shutdown();
   }

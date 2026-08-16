@@ -1,5 +1,5 @@
 import { Interpreter } from './interpreter.js';
-import { LumeFunction } from './values.js';
+import { PedagFunction } from './values.js';
 import { Rng } from './rng.js';
 import { exercise } from './exercise.js';
 
@@ -25,7 +25,7 @@ export function proveSource(source, { file = '<script>', seed = 0, trials = 200 
 
     for (const [name, slot] of interp.globals.vars) {
       const fn = slot.value;
-      if (!(fn instanceof LumeFunction)) continue;
+      if (!(fn instanceof PedagFunction)) continue;
       const d = fn.decl;
       if (d.requires.length === 0 && d.ensures.length === 0) continue;
 

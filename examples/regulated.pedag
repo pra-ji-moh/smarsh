@@ -1,8 +1,8 @@
 // An AI agent handling customer data, under rules somebody has to answer for.
 //
-//   sarvm run examples/regulated.sarvm --grant fs --principal compliance \
+//   pedag run examples/regulated.pedag --grant fs --principal compliance \
 //     --audit run.json --sign
-//   sarvm audit run.json
+//   pedag audit run.json
 //
 // Every line below has a Java equivalent that compiles, runs, and produces no
 // evidence of what it did. The point is not that Java cannot be written
@@ -53,7 +53,7 @@ let claim = model_assessment(raw)
 print("   labels on the claim: ${labels(claim)}")
 
 attempt {
-  // sarvm-allow: taint  (deliberate -- this section exists to show the refusal)
+  // pedag-allow: taint  (deliberate -- this section exists to show the refusal)
   grounded {
     print("filing a regulatory report that says: ${claim}")
   }
@@ -126,4 +126,4 @@ attempt {
 print("")
 print("== and none of the above is only in this console ==========")
 print("   the manifest records every line of it, hash-chained and signed.")
-print("   run: sarvm audit run.json")
+print("   run: pedag audit run.json")

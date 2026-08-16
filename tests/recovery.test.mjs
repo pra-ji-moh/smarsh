@@ -15,38 +15,38 @@ test('several syntax errors are all reported', () => {
     'fn f( { return 1 }',
     'let c = 3',
     'let = 4',
-  ].join('\n'), 't.sarvm');
+  ].join('\n'), 't.pedag');
   assert.ok(errors.length >= 3, `expected several errors, got ${errors.length}`);
   assert.ok(errors.every((e) => e.kind === 'SyntaxError'));
 });
 
 test('recovery keeps the statements that did parse', () => {
-  const { program, errors } = parseAll('let a = 1\nlet = 2\nlet c = 3\n', 't.sarvm');
+  const { program, errors } = parseAll('let a = 1\nlet = 2\nlet c = 3\n', 't.pedag');
   assert.equal(errors.length, 1);
   const names = program.body.filter((s) => s.type === 'Declare').map((s) => s.name);
   assert.deepEqual(names, ['a', 'c'], 'the good statements on both sides should survive');
 });
 
 test('a clean file reports nothing and parses fully', () => {
-  const { program, errors } = parseAll('let a = 1\nfn f() { return a }\n', 't.sarvm');
+  const { program, errors } = parseAll('let a = 1\nfn f() { return a }\n', 't.pedag');
   assert.deepEqual(errors, []);
   assert.equal(program.body.length, 2);
 });
 
 test('recovery always terminates, even on hostile input', () => {
   for (const src of ['{{{{{{', '}}}}}}', 'fn fn fn', '((((', 'let let let', '=]=]=]']) {
-    const { errors } = parseAll(src, 't.sarvm');
+    const { errors } = parseAll(src, 't.pedag');
     assert.ok(Array.isArray(errors), `did not terminate on ${JSON.stringify(src)}`);
   }
 });
 
 test('the error cap stops a pathological file from flooding', () => {
-  const { errors } = parseAll('let = 1\n'.repeat(200), 't.sarvm');
+  const { errors } = parseAll('let = 1\n'.repeat(200), 't.pedag');
   assert.ok(errors.length <= 25);
 });
 
 test('a lexer failure still comes back as one error', () => {
-  const { errors } = parseAll('let x = "unterminated', 't.sarvm');
+  const { errors } = parseAll('let x = "unterminated', 't.pedag');
   assert.equal(errors.length, 1);
   assert.equal(errors[0].kind, 'SyntaxError');
 });
@@ -54,14 +54,14 @@ test('a lexer failure still comes back as one error', () => {
 test('running a file still stops at the first error', () => {
   // parse() is what execution uses: there is no point running a file that does
   // not parse, and a half-parsed program must never reach the interpreter.
-  assert.throws(() => parse('let = 1\nlet b = 2', 't.sarvm'), /SyntaxError|expected/);
+  assert.throws(() => parse('let = 1\nlet b = 2', 't.pedag'), /SyntaxError|expected/);
 });
 
 // ---------------------------------------------------------------------------
 // taint reachability over every path
 // ---------------------------------------------------------------------------
 
-const taint = (src) => analyseTaint(parse(src, 't.sarvm'));
+const taint = (src) => analyseTaint(parse(src, 't.pedag'));
 
 test('a label reaching a grounded block is found even on an untaken path', () => {
   const findings = taint(`

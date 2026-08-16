@@ -4,19 +4,19 @@ import assert from 'node:assert/strict';
 import { Interpreter } from '../src/interpreter.js';
 import { buildManifest, verifyManifest, summarise } from '../src/audit.js';
 import { generateKeypair, verifyMessage } from '../src/crypto.js';
-import { SarvmError } from '../src/errors.js';
+import { PedagError } from '../src/errors.js';
 
 function record(src, opts = {}) {
   const out = [];
   const interp = new Interpreter({ ...opts, out: (s) => out.push(s) });
   let outcome = 'completed';
   try {
-    interp.run(src, 'test.sarvm');
+    interp.run(src, 'test.pedag');
   } catch (e) {
-    outcome = e instanceof SarvmError ? `failed: ${e.kind}` : 'failed';
+    outcome = e instanceof PedagError ? `failed: ${e.kind}` : 'failed';
   }
   const manifest = buildManifest(interp, {
-    file: 'test.sarvm', source: src, runtimeVersion: '0.3.0', outcome, ...opts.manifest,
+    file: 'test.pedag', source: src, runtimeVersion: '0.3.0', outcome, ...opts.manifest,
   });
   interp.devices.shutdown();
   return { manifest, out };

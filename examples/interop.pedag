@@ -1,8 +1,8 @@
 // Calling the code you already have.
-//     node bin/sarvm.mjs run examples/interop.sarvm --grant ffi
+//     node bin/pedag.mjs run examples/interop.pedag --grant ffi
 //
 // Nobody rewrites a working system to adopt a language, so this is the bridge.
-// It needs the `ffi` capability, because a foreign call leaves everything Sarvm
+// It needs the `ffi` capability, because a foreign call leaves everything Pēdāg
 // guarantees behind: once control is inside JavaScript the runtime cannot see
 // what happens, so the boundary is declared rather than assumed.
 print("== calling a host module =================================")

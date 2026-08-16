@@ -1,14 +1,14 @@
 ﻿node_modules/
 *.log
 
-# `Sarvm build` output
+# `Pēdāg build` output
 *.mjs
 !bin/*.mjs
 !src/*.mjs
 !tests/*.mjs
 
 # arena spill directories and scratch written by examples
-.sarvm-spill/
+.pedag-spill/
 scratch/
 note.txt
 out.txt

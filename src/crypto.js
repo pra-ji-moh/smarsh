@@ -5,7 +5,7 @@ import {
 
 import { modpow, modinv, lcm, randomPrime, randomBits, bigFromHex, bitLength } from './bigmath.js';
 import { NativeFunction, unwrap, stringify } from './values.js';
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
 export const sha256Hex = (data) => createHash('sha256').update(data).digest('hex');
 
@@ -28,11 +28,11 @@ export class PaillierKey {
     this.lambda = lambda;
     this.mu = mu;
   }
-  get sarvmType() { return 'paillier_key'; }
+  get pedagType() { return 'paillier_key'; }
   get canDecrypt() { return this.lambda !== null; }
   publicOnly() { return new PaillierKey({ n: this.n, g: this.g }); }
   toString() { return `<paillier ${bitLength(this.n)}-bit ${this.canDecrypt ? 'keypair' : 'public key'}>`; }
-  sarvmMembers() {
+  pedagMembers() {
     return {
       bits: bitLength(this.n),
       can_decrypt: this.canDecrypt,
@@ -48,10 +48,10 @@ export class Cipher {
     this.nn = key.nn;
     this.g = key.g;
   }
-  get sarvmType() { return 'cipher'; }
+  get pedagType() { return 'cipher'; }
   sameGroup(other) { return this.n === other.n; }
   toString() { return `<cipher over ${bitLength(this.n)}-bit modulus>`; }
-  sarvmMembers() {
+  pedagMembers() {
     return { bits: bitLength(this.n) };
   }
 }
@@ -131,7 +131,7 @@ const Q = (P - 1n) / 2n;
 const G = 4n;
 // A second generator whose discrete log with respect to G nobody knows:
 // squaring an arbitrary hash lands in the same order-q subgroup.
-const H = modpow(bigFromHex(sha256Hex('Sarvm/pedersen/generator/v1')), 2n, P);
+const H = modpow(bigFromHex(sha256Hex('Pēdāg/pedersen/generator/v1')), 2n, P);
 
 export const ZK = { P, Q, G, H };
 
@@ -139,25 +139,25 @@ export const ZK = { P, Q, G, H };
 // form inside the language rather than leaking a bare BigInt.
 export class GroupElement {
   constructor(v) { this.v = v; }
-  get sarvmType() { return 'group_element'; }
+  get pedagType() { return 'group_element'; }
   toString() { return `<group element ${this.v.toString(16).slice(0, 16)}...>`; }
-  sarvmMembers() { return { hex: this.v.toString(16) }; }
+  pedagMembers() { return { hex: this.v.toString(16) }; }
 }
 
 export class ZkProof {
   constructor(t, s) { this.t = t; this.s = s; }
-  get sarvmType() { return 'zk_proof'; }
+  get pedagType() { return 'zk_proof'; }
   toString() { return `<zk proof t=${this.t.toString(16).slice(0, 12)}...>`; }
-  sarvmMembers() {
+  pedagMembers() {
     return { t: this.t.toString(16), s: this.s.toString(16) };
   }
 }
 
 export class Commitment {
   constructor(c) { this.c = c; }
-  get sarvmType() { return 'commitment'; }
+  get pedagType() { return 'commitment'; }
   toString() { return `<commitment ${this.c.toString(16).slice(0, 16)}...>`; }
-  sarvmMembers() { return { hex: this.c.toString(16) }; }
+  pedagMembers() { return { hex: this.c.toString(16) }; }
 }
 
 const challenge = (...parts) => bigFromHex(sha256Hex(parts.map((x) => x.toString(16)).join('|'))) % Q;
@@ -198,10 +198,10 @@ export class KeyPair {
     this.privateKey = privateKey;
     this.publicHex = publicKey.export({ type: 'spki', format: 'der' }).toString('hex');
   }
-  get sarvmType() { return 'keypair'; }
+  get pedagType() { return 'keypair'; }
   get canSign() { return this.privateKey !== null; }
   toString() { return `<ed25519 ${this.canSign ? 'keypair' : 'public key'} ${this.publicHex.slice(-16)}>`; }
-  sarvmMembers() {
+  pedagMembers() {
     return {
       public: this.publicHex,
       can_sign: this.canSign,
@@ -248,7 +248,7 @@ export class LineageChain {
     this.entries = [];
     this.head = '0'.repeat(64);
   }
-  get sarvmType() { return 'lineage'; }
+  get pedagType() { return 'lineage'; }
 
   record(payload) {
     const text = stringify(unwrap(payload), 0);
@@ -273,7 +273,7 @@ export class LineageChain {
 
   toString() { return `<lineage ${this.name} n=${this.entries.length} head=${this.head.slice(0, 8)}>`; }
 
-  sarvmMembers() {
+  pedagMembers() {
     return {
       head: this.head,
       signer: this.keypair.publicHex,
@@ -302,7 +302,7 @@ export class Secret {
     this.bytes = bytes instanceof Uint8Array ? bytes : new TextEncoder().encode(String(bytes));
     this.shredded = false;
   }
-  get sarvmType() { return 'secret'; }
+  get pedagType() { return 'secret'; }
 
   shred() {
     this.bytes.fill(0);
@@ -322,12 +322,12 @@ export class Secret {
 
   toString() { return `<secret ${this.bytes.length} bytes${this.shredded ? ', shredded' : ''}>`; }
 
-  sarvmMembers() {
+  pedagMembers() {
     return {
       len: nf('len', 0, () => this.bytes.length),
       shredded: this.shredded,
       digest: nf('digest', 0, (_a, line) => {
-        try { return this.digest(); } catch (e) { throw sarvmError('SecretError', e.message, line); }
+        try { return this.digest(); } catch (e) { throw pedagError('SecretError', e.message, line); }
       }),
       shred: nf('shred', 0, () => this.shred()),
     };

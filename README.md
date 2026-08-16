@@ -1,11 +1,11 @@
-# Sarvm
+# Pēdāg
 
 A programming language for programs that reason under uncertainty and have to
 be held accountable for it.
 
 Java and Python assume the program knows what it is doing: a condition is true
 or false, a value is just a value, and a function may do anything it can reach.
-Sarvm assumes none of that. A branch can be probabilistic. A value carries where
+Pēdāg assumes none of that. A branch can be probabilistic. A value carries where
 it came from. A function holds only the powers it declared. A function that
 promises something gets checked against generated inputs.
 
@@ -20,19 +20,19 @@ minutes, assumes nothing.
 > audited and is not constant time ([SECURITY.md](SECURITY.md)).
 
 ```bash
-node bin/sarvm.mjs run examples/tour.sarvm
+node bin/pedag.mjs run examples/tour.pedag
 ```
 
 ```bash
-node bin/sarvm.mjs prove examples/contracts.sarvm
+node bin/pedag.mjs prove examples/contracts.pedag
 ```
 
 ```bash
 node --test tests/*.test.mjs
 ```
 
-Other commands: `sarvm check <file>` (types and static checks, without running),
-`sarvm explain E0301`, `sarvm build`, `sarvm repl`, `sarvm eval "<source>"`. Flags:
+Other commands: `pedag check <file>` (types and static checks, without running),
+`pedag explain E0301`, `pedag build`, `pedag repl`, `pedag eval "<source>"`. Flags:
 `--seed N`, `--grant fs,clock,crypto`, `--trace`, `--profile`, `--trials N`.
 
 **Speed.** `node bench/run.mjs` runs the benchmark suite. The optimisation pass
@@ -45,24 +45,24 @@ is about 5%, and a change inside the noise is not an improvement.
 
 ---
 
-## What it is like to be wrong in Sarvm
+## What it is like to be wrong in Pēdāg
 
 The thing a language is judged on is not its best day, it is what happens when
 you make a mistake. So:
 
 ```
 error[E0201]: `totl` is not defined
- --> tally.sarvm:6:10
+ --> tally.pedag:6:10
   |
 6 |   return totl
   |          ^^^^ not found in this scope
   |
 help: there is a name in scope with a similar spelling: `total`
-  run `sarvm explain E0201` for a longer explanation
+  run `pedag explain E0201` for a longer explanation
 stack:
-  at tally (tally.sarvm:6)
-  at report (tally.sarvm:10)
-  at <top level> (tally.sarvm:13)
+  at tally (tally.pedag:6)
+  at report (tally.pedag:10)
+  at <top level> (tally.pedag:13)
 ```
 
 Exact spans, a suggestion that accounts for transposed letters, an error code
@@ -74,7 +74,7 @@ And a lot of it arrives before the program runs at all:
 
 ```
 error[E0301]: expected `num`, found `str`
- --> orders.sarvm:6:6
+ --> orders.pedag:6:6
   |
 6 | area("3", 4)
   |      ^^^ argument 1 of `area`
@@ -82,7 +82,7 @@ error[E0301]: expected `num`, found `str`
 help: `num(x)` reads a number out of text
 
 error[E0302]: `area` takes 2 arguments, but 1 was supplied
- --> orders.sarvm:7:1
+ --> orders.pedag:7:1
   |
 7 | area(3)
   | ^^^^^^^ 1 supplied
@@ -92,13 +92,13 @@ note: its type is `fn(num, num) -> num`
 
 ## Types, if you want them
 
-```sarvm
+```pedag
 fn area(width: num, height: num) -> num { return width * height }
 fn total(prices: list<num>) -> num { ... }
 let rate: num = 1.08
 ```
 
-Sarvm is **gradually typed**, following Siek and Taha: there is a type `dyn` for
+Pēdāg is **gradually typed**, following Siek and Taha: there is a type `dyn` for
 "not known statically", and the checker uses a *consistency* relation rather
 than equality, under which `dyn` is consistent with everything. That single
 choice is what keeps annotations optional instead of viral — a program with no
@@ -115,7 +115,7 @@ a gradual system the second is much worse.
 
 ## Records, matching, interpolation
 
-```sarvm
+```pedag
 record Point(x, y)
 
 let a = Point(3, 4)
@@ -143,7 +143,7 @@ same reason, and this repository's own agent tests, which have a handler called
 
 ## Money is exact, and floats are not allowed near it
 
-```sarvm
+```pedag
 let price = dec("12.50")
 print(price * 3)                       // 37.50, exactly
 
@@ -168,7 +168,7 @@ rounded — `9007199254740993` is a syntax error that points you at `dec`.
 
 ## `let` means immutable, all the way down
 
-```sarvm
+```pedag
 let xs = [1, 2]
 xs.push(3)          // ImmutableError: bound with `let`, which freezes it
 var ys = [1, 2]
@@ -181,7 +181,7 @@ people assume they are getting and are not. The freeze is deep: `let deep = {
 
 ## Taint is checked over every path, not just the one you ran
 
-```sarvm
+```pedag
 fn maybe_taint(flag) {
   if flag { return ungrounded(model_output) }
   return "a checked constant"
@@ -190,7 +190,7 @@ let value = maybe_taint(false)
 grounded { print(value) }
 ```
 
-This program *runs* clean — the tainted branch was not taken. `sarvm check`
+This program *runs* clean — the tainted branch was not taken. `pedag check`
 reports it anyway:
 
 ```
@@ -205,13 +205,13 @@ follow a value it assumes the worst rather than assuming safety.
 When a violation is intentional, you say so in the source, and the summary
 counts it:
 
-```sarvm
-// sarvm-allow: taint  (deliberate -- this section demonstrates the refusal)
+```pedag
+// pedag-allow: taint  (deliberate -- this section demonstrates the refusal)
 grounded { print(reply) }
 ```
 
 ```
-examples/tour.sarvm: no problems found (2 suppressed by sarvm-allow)
+examples/tour.pedag: no problems found (2 suppressed by pedag-allow)
 ```
 
 ## Unaudited cryptography is quarantined
@@ -234,12 +234,12 @@ This is the part Java structurally cannot do, and it is the reason the rest of
 the language exists.
 
 ```bash
-sarvm run agent.sarvm --grant fs --principal compliance --audit run.json --sign
-sarvm audit run.json
+pedag run agent.pedag --grant fs --principal compliance --audit run.json --sign
+pedag audit run.json
 ```
 
 ```
-run of examples/regulated.sarvm  (sarvm 0.3.0, outcome: completed)
+run of examples/regulated.pedag  (pedag 0.3.0, outcome: completed)
   program sha256   02d2859c794440679c593e86a0b6d06f...
   replay with      --seed 0 --grant fs
 
@@ -283,12 +283,12 @@ Java has no capability check to record, no label to observe, and no seed that
 makes the run reproducible — so there is nothing for a Java equivalent to write
 down, however carefully it is written.
 
-See [examples/regulated.sarvm](examples/regulated.sarvm) for the whole thing.
+See [examples/regulated.pedag](examples/regulated.pedag) for the whole thing.
 
 ## Proving, not testing
 
 ```bash
-sarvm verify examples/contracts.sarvm
+pedag verify examples/contracts.pedag
 ```
 
 ```
@@ -299,13 +299,13 @@ sarvm verify examples/contracts.sarvm
   REFUTED   safe_div: safe_div keeps its promise
 ```
 
-`sarvm prove` throws generated inputs at a contract. `sarvm verify` discharges it
+`pedag prove` throws generated inputs at a contract. `pedag verify` discharges it
 as a theorem: **for every input, unbounded, with no sampling.** Two conditions
 for `abs_` because there are two paths through it, and both are proved.
 
 It follows the shape Dafny uses — [weakest preconditions to verification
 conditions to a solver](https://www.cs.umd.edu/class/spring2025/cmsc433/code/VerificationConditions.pdf)
-— except Sarvm has no dependencies, so it cannot pipe to Z3. It carries its own
+— except Pēdāg has no dependencies, so it cannot pipe to Z3. It carries its own
 decision procedure: exact BigInt rationals, Fourier-Motzkin elimination, and a
 small DPLL search over the boolean structure. Loops produce four obligations —
 the invariant is established, a pass preserves it, the variant stays at or above
@@ -317,7 +317,7 @@ proof by silence. Two properties make that trustworthy:
 *It will not claim a refutation it cannot justify.* Anything the solver cannot
 model — a non-linear product, a call — becomes an unconstrained variable. That
 widens the models, which is sound for proving and unsound for refuting, so any
-refutation resting on one is downgraded to `undecided`. `sarvm prove` still finds
+refutation resting on one is downgraded to `undecided`. `pedag prove` still finds
 those by testing; the two tools cover different halves and agree where they
 overlap, which the test suite checks.
 
@@ -329,7 +329,7 @@ exact; reasoning about `num` does not model per-operation rounding, and says so.
 
 **A caveat on the obvious claim to make here.** It is tempting to say no other
 language verifies functional contracts, information flow, capability
-sufficiency and termination together. Sarvm does check all four — but not in one
+sufficiency and termination together. Pēdāg does check all four — but not in one
 pass and not in one engine. `verify` does contracts and termination against the
 solver; `check` does information flow, types and races with entirely different
 algorithms. One toolchain, four analyses, no shared logic between them.
@@ -344,7 +344,7 @@ and usefulness on real code. See [LIMITATIONS.md](LIMITATIONS.md).
 
 Following [Eiffel](https://www.eiffel.org/doc/eiffel/ET-_Design_by_Contract_(tm),_Assertions_and_Exceptions):
 
-```sarvm
+```pedag
 record Account(holder, balance) invariant balance >= 0
 
 fn withdraw(account, amount)
@@ -360,7 +360,7 @@ negative balance.
 
 And loops can prove they finish:
 
-```sarvm
+```pedag
 while i > 0
   invariant seen >= 0
   variant i
@@ -382,7 +382,7 @@ model](https://www.cs.cornell.edu/andru/papers/sp98/sp98.pdf). Flat labels
 answer "is this suspect". They cannot answer the question a system with several
 mutually distrusting parties actually has.
 
-```sarvm
+```pedag
 let salary  = classify(82000, "hr",    ["hr", "payroll"])
 let audited = classify(salary, "audit", ["audit", "payroll"])
 
@@ -396,7 +396,7 @@ never makes it more readable.
 
 The part a blanket `trust()` cannot express — **authority is per principal**:
 
-```sarvm
+```pedag
 authority "hr" {
   declassify(salary,  "hr",    "approved for the annual report")  // fine
   declassify(audited, "audit", "not hr's to release")             // refused
@@ -412,7 +412,7 @@ Following the [object-capability
 patterns](https://people.mpi-sws.org/~dreyer/papers/ocpl/paper.pdf). `needs fs`
 is a static claim you cannot lend and cannot withdraw. A grant is a value:
 
-```sarvm
+```pedag
 let pair = caretaker(grant("fs", "the report worker"))
 report_worker(pair["grant"], "quarterly figures")   // works
 revoke(pair["revoker"])
@@ -427,29 +427,29 @@ grant kills everything derived from it.
 ## Tooling
 
 ```bash
-sarvm test .          # unit tests, contracts, types and races, in one command
-sarvm fmt .           # one canonical layout, no options
-sarvm check file      # types and static checks, without running
-sarvm explain E0402   # what an error code actually means
-sarvm build file      # one self-contained .mjs, no dependencies
+pedag test .          # unit tests, contracts, types and races, in one command
+pedag fmt .           # one canonical layout, no options
+pedag check file      # types and static checks, without running
+pedag explain E0402   # what an error code actually means
+pedag build file      # one self-contained .mjs, no dependencies
 ```
 
-`sarvm test` runs three things at once: every `test_*` function, the type and
+`pedag test` runs three things at once: every `test_*` function, the type and
 race checkers, and `prove` against every contracted function in the file. That
 last one is why the command earns its place — a contract *is* a specification,
 so adding a `requires` clause immediately buys you generated tests with no
 separate step to remember.
 
-`sarvm fmt` has no options, on purpose. Its guarantee is checked by tests that
+`pedag fmt` has no options, on purpose. Its guarantee is checked by tests that
 matter: formatting is idempotent, comments survive, and **a formatted program
 produces byte-identical output to the original**. Building it found two bugs
 where the formatter silently changed the program — a multi-statement lambda body
 replaced with a literal `{ ... }`, and `redefine fn f` printed as `fn f`, which
 turns a redefinition into a duplicate declaration.
 
-## A standard library, written in Sarvm
+## A standard library, written in Pēdāg
 
-```sarvm
+```pedag
 import "std/list" as list
 import "std/math" as math
 import "std/result" as res
@@ -463,14 +463,14 @@ match parse_price(input) {
 }
 ```
 
-`std/list`, `std/str`, `std/math` and `std/result` are written in Sarvm, not
+`std/list`, `std/str`, `std/math` and `std/result` are written in Pēdāg, not
 bolted on as builtins. If the language could not express its own standard
 library comfortably that would be worth finding out early, not hiding. It has
-its own test suite: `sarvm test std/`.
+its own test suite: `pedag test std/`.
 
 ## Interop, because nobody rewrites
 
-```sarvm
+```pedag
 let os = foreign("node:os")
 print(os.platform())
 ```
@@ -480,7 +480,7 @@ have. `foreign()` calls into JavaScript — built-in modules, CommonJS files,
 installed packages.
 
 It needs the `ffi` capability, and that is the entire design. Everything else in
-Sarvm is bounded; a foreign call escapes all of it, because once control is
+Pēdāg is bounded; a foreign call escapes all of it, because once control is
 inside JavaScript the runtime cannot see what happens. So the boundary is
 declared rather than ambient, values are **converted rather than shared** (a
 host function cannot reach back into your list), and everything coming back is
@@ -495,8 +495,8 @@ boundary even when the top level holds it.
 Familiar on the surface. Semicolons optional, `//` `#` `/* */` comments,
 `let` is immutable and `var` is not.
 
-```sarvm
-let name = "Sarvm"
+```pedag
+let name = "Pēdāg"
 var count = 0
 while count < 3 { count = count + 1 }
 
@@ -521,11 +521,11 @@ Types: `num` `str` `bool` `nil` `list` `map` `fn` `tensor` `context` `ledger`.
 
 ---
 
-## The seven things that make it Sarvm
+## The seven things that make it Pēdāg
 
 ### 1. Branches that admit they are uncertain
 
-```sarvm
+```pedag
 maybe 0.7 { explore() } else { exploit() }
 
 let strategy = choose {
@@ -541,7 +541,7 @@ A language with `maybe` in it would be undebuggable otherwise.
 
 ### 2. Forking a reasoning path
 
-```sarvm
+```pedag
 let scores = fork 5 {
   let prior = 0.4 + (_ * 0.05)
   prior * 0.6 + random() * 0.4
@@ -555,7 +555,7 @@ diverge from each other; the whole fan-out replays identically next run.
 
 ### 3. Tensors are values, not a library
 
-```sarvm
+```pedag
 let w = tensor [[0.2, -0.4, 0.1], [0.7, 0.3, -0.9]]
 let x = tensor [1.0, 2.0, 0.5]
 let h = relu(w @ x)          // matmul, rank-1 and rank-2
@@ -574,7 +574,7 @@ Tensors are immutable — writing into one is an error, not a silent aliasing bu
 
 ### 4. Where a value came from is part of the value
 
-```sarvm
+```pedag
 let reply = ungrounded("the filing says revenue was 9.9bn")
 let form  = untrusted(user_input)
 
@@ -595,7 +595,7 @@ remove one, it demands a written reason, and it records the laundering.
 
 ### 5. Jurisdiction travels with the data
 
-```sarvm
+```pedag
 let record = restrict("customer 4471, Dublin", "eu")
 
 region "eu" { print(record) }     // fine
@@ -606,7 +606,7 @@ Same machinery as above, different label namespace.
 
 ### 6. Capabilities are held, not assumed
 
-```sarvm
+```pedag
 fn save_note(text) needs fs {
   write("note.txt", text)
 }
@@ -619,7 +619,7 @@ fn sneaky(text) {
 A function holds exactly what it declared with `needs` — never what its caller
 held. That is real attenuation, not a policy file:
 
-```sarvm
+```pedag
 fn inner() needs clock { return now() }
 fn outer() needs fs { return inner() }   // CapabilityError, even when the top
 outer()                                  // level was granted both
@@ -631,18 +631,18 @@ touch the filesystem or read the clock — which is also why a program without
 
 ### 7. Contracts are checked, and generate their own tests
 
-```sarvm
+```pedag
 fn share(total, n) requires n > 0 ensures result * n == total {
   return total / n
 }
 ```
 
 Violations are runtime errors that quote the predicate. And because the contract
-*is* the specification, `sarvm prove` generates inputs, discards the ones the
+*is* the specification, `pedag prove` generates inputs, discards the ones the
 preconditions reject, and reports where a promise failed:
 
 ```
-prove examples/contracts.sarvm (seed 0, 200 inputs per function)
+prove examples/contracts.pedag (seed 0, 200 inputs per function)
   . abs_     held over 147 accepted inputs (53 outside its domain)
   . clamp01  held over 147 accepted inputs (53 outside its domain)
   X scale    3 counterexamples over 48 accepted inputs
@@ -660,7 +660,7 @@ promises nothing cannot be checked against anything.
 
 ### And: memory measured in tokens
 
-```sarvm
+```pedag
 let ctx = context(4000)
 ctx.pin("system: you verify claims, you do not invent them")
 ctx.push(user_turn)
@@ -670,7 +670,7 @@ print(ctx.tokens, "of", ctx.budget, "used")   // evicts oldest unpinned on overf
 
 ### 8. Arithmetic on data you cannot read
 
-```sarvm
+```pedag
 let k = paillier_keygen(512)
 let payroll = encrypt(k, 82000) + encrypt(k, 95000) + encrypt(k, 71000)
 let after_fee = payroll - 1000
@@ -685,7 +685,7 @@ still cannot decrypt the answer.
 
 ### 9. Proving without revealing, and provenance that travels
 
-```sarvm
+```pedag
 let pw = secret_of("correct horse battery staple")
 let proof = zk_prove(pw)
 print(zk_verify(zk_public(pw), proof))     // true, and the verifier learns nothing
@@ -706,7 +706,7 @@ generators lie in the order-*q* subgroup.
 
 ### 10. All of it or none of it, and secrets that do not linger
 
-```sarvm
+```pedag
 atomic {
   book.append("buy 100 ACME @ 12.50")
   mirror.append("buy 100 ACME @ 12.50")
@@ -722,7 +722,7 @@ A secret never renders its contents — printing one gives `<secret 32 bytes>`.
 
 ### 11. Quantum logic in the same file as everything else
 
-```sarvm
+```pedag
 let q = qubits(2)
 qh(q, 0)
 cnot(q, 0, 1)
@@ -738,7 +738,7 @@ register stops at 22.
 
 ### 12. Ordering across machines, and value that decays
 
-```sarvm
+```pedag
 let alice = clock("alice")
 let bob = clock("bob")
 let placed = alice.tick()
@@ -757,7 +757,7 @@ nothing to drift. Decay runs on the same logical time, so a schedule replays.
 
 ### 13. Agents that can only talk
 
-```sarvm
+```pedag
 agent Keeper(name) {
   var seen = 0
   var total = 0
@@ -788,7 +788,7 @@ write to them, which is the property an actor model exists to provide.
 
 ### 14. A kill switch the code inside cannot argue with
 
-```sarvm
+```pedag
 attempt {
   budget steps 5000 {
     attempt {
@@ -814,11 +814,11 @@ may push into context windows.
 ### 15. Problems found before the program runs
 
 ```bash
-sarvm check examples/agents.sarvm
+pedag check examples/agents.pedag
 ```
 
 ```
-examples/agents.sarvm:128  race: every forked path assigns to 'tally', which is
+examples/agents.pedag:128  race: every forked path assigns to 'tally', which is
 declared outside the fork; the paths are sharing one cell
       try: return a value from the path and combine the results afterwards
 ```
@@ -855,7 +855,7 @@ Split by what is actually true today, not by what sounds good.
 | 35 | Data-sovereignty tainting | same label engine as #14, per-variable, propagating |
 | 37 | Adversarial input isolation | `untrusted()` + taint reaching a sink |
 | 40 | Capability-based access control | `needs`, deny-by-default, real attenuation |
-| 43 | Compiler-driven synthetic test generation | `sarvm prove` |
+| 43 | Compiler-driven synthetic test generation | `pedag prove` |
 | 34 | Homomorphic encryption runtime | Paillier; `+`, `-`, `*`-by-plaintext on ciphertexts as ordinary operators |
 | 21 | Zero-knowledge math integration | Schnorr proofs and Pedersen commitments over a verified 2048-bit group |
 | 38 | Cryptographic provenance | Ed25519 `sign` / `verify_signature`, no third-party package |
@@ -868,7 +868,7 @@ Split by what is actually true today, not by what sounds good.
 | 5 | Agent-to-agent primitives | `agent` / `spawn` / `send`, private state, enforced isolation |
 | 33 | Autonomous kill-switch | `budget steps N { }` — not raisable or catchable from inside |
 | 44 | Deep observability | `--profile`: calls, steps and inclusive time per function, no instrumentation |
-| 19 | Predictive race blocking | `sarvm check` finds shared writes across forked paths before running |
+| 19 | Predictive race blocking | `pedag check` finds shared writes across forked paths before running |
 | 25 | Dynamic kernel slicing | matmul split across OS threads over SharedArrayBuffers |
 | 26 | Race safety at the slicing level | each thread owns a disjoint band of output rows, so collisions are impossible by construction |
 | 27 | Memory eviction instead of crashing | `arena(bytes, dir)` spills least-recently-used tensors to disk and reads them back |
@@ -893,7 +893,7 @@ Caveats that matter, and none of them are hidden in the code:
 - **#12** uses a deterministic token estimate (within roughly 10–15% of BPE
   counts on prose), not a real vocabulary.
 - **#7** checks stated intent. It does not read minds.
-- **#37** is now checked statically as well as at runtime — `sarvm check` reports
+- **#37** is now checked statically as well as at runtime — `pedag check` reports
   a labelled value reaching a sink on any path.
 - **#17** is the honest half of what you asked for. The chain proves *who
   asserted each step* and that the sequence has not been edited, reordered or
@@ -934,7 +934,7 @@ named rather than blurred.
 | 24 | NVIDIA / AMD / ASIC from one source | a backend registry a new backend plugs into | Nothing implements a GPU backend. A registry with no GPU in it is a seam, not silicon agnosticism. |
 | 28 | Silicon topology awareness | real core count, model, clock, memory, load | No NUMA distances, no cache hierarchy, no interconnect map. Node cannot see them. |
 | 29 | Asymmetric compute pipelining | small jobs stay on the calling thread, large ones go wide | Routing by size, not by matrix-core vs general-core. There is no second core type to route to. |
-| 50 | one universal native binary | `sarvm build` → one `.mjs`, no dependencies, no install | It needs Node. Universal binaries are per-target builds in a wrapper; this is the honest version of the idea. |
+| 50 | one universal native binary | `pedag build` → one `.mjs`, no dependencies, no install | It needs Node. Universal binaries are per-target builds in a wrapper; this is the honest version of the idea. |
 | 13 | deterministic nanosecond GC | `arena.reclaim()` — you choose the moment, and it reports the pause it caused in nanoseconds | Not a collector, and not pause-free. It measures the pause instead of promising there isn't one. |
 
 ### Not achievable as stated (4)
@@ -965,7 +965,7 @@ list either works or works smaller, and the difference is written down.
 - `fork` evaluates paths in order, not on OS threads. The semantics — isolation
   and independent randomness — are real; the parallelism is not. Real
   parallelism needs worker threads and a serializable value representation.
-  This is also why `sarvm check`'s race detection matters: the defect is real
+  This is also why `pedag check`'s race detection matters: the defect is real
   even though today's scheduler happens not to expose it.
 - Agents run on one thread. Isolation and determinism are real; concurrency is
   cooperative, and nothing crosses a machine boundary yet.
@@ -993,7 +993,7 @@ list either works or works smaller, and the difference is written down.
 ## Layout
 
 ```
-bin/sarvm.mjs        CLI: run, prove, repl, eval
+bin/pedag.mjs        CLI: run, prove, repl, eval
 src/lexer.js        tokens
 src/parser.js       recursive-descent -> AST
 src/interpreter.js  tree-walking evaluator, capabilities, taint, contracts

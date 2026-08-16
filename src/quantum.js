@@ -1,5 +1,5 @@
 import { NativeFunction } from './values.js';
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
 // A state-vector quantum simulator: 2^n complex amplitudes, exact unitary
 // evolution, and measurement that genuinely collapses the state.
@@ -57,11 +57,11 @@ export class QubitRegister {
     this.ops = 0;
   }
 
-  get sarvmType() { return 'qubits'; }
+  get pedagType() { return 'qubits'; }
 
   checkIndex(q, line) {
     if (!Number.isInteger(q) || q < 0 || q >= this.n) {
-      throw sarvmError('IndexError', `qubit ${q} is outside a register of ${this.n}`, line);
+      throw pedagError('IndexError', `qubit ${q} is outside a register of ${this.n}`, line);
     }
   }
 
@@ -87,7 +87,7 @@ export class QubitRegister {
     this.checkIndex(control, line);
     this.checkIndex(target, line);
     if (control === target) {
-      throw sarvmError('ValueError', 'a controlled gate needs two different qubits', line);
+      throw pedagError('ValueError', 'a controlled gate needs two different qubits', line);
     }
     const [ar, ai, br, bi, cr, ci, dr, di] = gate;
     const cbit = 1 << control;
@@ -198,7 +198,7 @@ export class QubitRegister {
 
   toString() { return `<qubits n=${this.n} after ${this.ops} gates>`; }
 
-  sarvmMembers(interp) {
+  pedagMembers(interp) {
     return {
       n: this.n,
       gates: this.ops,

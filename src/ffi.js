@@ -3,21 +3,21 @@ import path from 'node:path';
 
 import { NativeFunction, Tainted, stringify, typeName, unwrap } from './values.js';
 import { Tensor } from './tensor.js';
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
-// Calling JavaScript from Sarvm.
+// Calling JavaScript from Pēdāg.
 //
 // Nobody rewrites a working system to adopt a language, so a language that
 // cannot call the code you already have is a language you cannot adopt. This is
 // the bridge.
 //
 // It is a capability (`ffi`), not an ambient ability, and that is the whole
-// design. Everything else in Sarvm is bounded — capabilities, taint, budgets —
+// design. Everything else in Pēdāg is bounded — capabilities, taint, budgets —
 // and a foreign call escapes all of it, because once control is inside
 // JavaScript the runtime cannot see what it does. So the boundary is explicit,
 // declared, and reported, rather than a quiet hole in the middle of the model.
 //
-// Values crossing the boundary are converted, never shared: a Sarvm list arrives
+// Values crossing the boundary are converted, never shared: a Pēdāg list arrives
 // in JavaScript as a fresh array, and mutating it does not reach back. Anything
 // that comes back is converted the same way, and arrives labelled `untrusted`,
 // because a foreign function's return value is exactly as trustworthy as
@@ -30,14 +30,14 @@ export class ForeignModule {
     this.specifier = specifier;
     this.exports = exports;
   }
-  get sarvmType() { return 'foreign'; }
+  get pedagType() { return 'foreign'; }
   toString() { return `<foreign ${this.specifier}>`; }
 
   // Members are converted on access, not up front. Host modules are full of
   // things that are expensive or impossible to convert eagerly -- `node:path`
   // refers to itself through `path.posix.posix` -- and none of that matters if
   // you only ever asked for `join`.
-  sarvmMembers(interp, line) {
+  pedagMembers(interp, line) {
     const out = {};
     for (const name of Object.keys(this.exports)) {
       Object.defineProperty(out, name, {
@@ -46,7 +46,7 @@ export class ForeignModule {
           const value = this.exports[name];
           return typeof value === 'function'
             ? wrapFunction(name, value, this.exports, interp)
-            : toLume(value, interp, line);
+            : toPēdāg(value, interp, line);
         },
       });
     }
@@ -61,17 +61,17 @@ function wrapFunction(name, fn, thisArg, interp) {
     try {
       result = fn.apply(thisArg, plain);
     } catch (e) {
-      throw sarvmError('ForeignError', `\`${name}\` failed: ${e && e.message ? e.message : String(e)}`, line);
+      throw pedagError('ForeignError', `\`${name}\` failed: ${e && e.message ? e.message : String(e)}`, line);
     }
     if (result && typeof result.then === 'function') {
-      throw sarvmError('ForeignError',
-        `\`${name}\` returned a promise, and Sarvm has no way to wait for one`, line)
+      throw pedagError('ForeignError',
+        `\`${name}\` returned a promise, and Pēdāg has no way to wait for one`, line)
         .help('wrap it on the JavaScript side in a function that returns a settled value');
     }
     interp.trace.foreignCalls = (interp.trace.foreignCalls ?? 0) + 1;
     // Labelled on the way back in: the runtime could not watch what happened
     // in there, so it does not pretend the result is grounded.
-    return new Tainted(toLume(result, interp, line), ['untrusted']);
+    return new Tainted(toPēdāg(result, interp, line), ['untrusted']);
   });
 }
 
@@ -83,7 +83,7 @@ export function toJs(value, line, seen = new Set()) {
   if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') return v;
 
   if (Array.isArray(v)) {
-    if (seen.has(v)) throw sarvmError('ForeignError', 'this value contains itself and cannot cross the boundary', line);
+    if (seen.has(v)) throw pedagError('ForeignError', 'this value contains itself and cannot cross the boundary', line);
     seen.add(v);
     const out = v.map((x) => toJs(x, line, seen));
     seen.delete(v);
@@ -91,7 +91,7 @@ export function toJs(value, line, seen = new Set()) {
   }
 
   if (v instanceof Map) {
-    if (seen.has(v)) throw sarvmError('ForeignError', 'this value contains itself and cannot cross the boundary', line);
+    if (seen.has(v)) throw pedagError('ForeignError', 'this value contains itself and cannot cross the boundary', line);
     seen.add(v);
     const out = {};
     for (const [k, val] of v) out[k] = toJs(val, line, seen);
@@ -103,18 +103,18 @@ export function toJs(value, line, seen = new Set()) {
 
   // Records arrive as plain objects with a tag, which is what a JavaScript
   // caller can actually work with.
-  if (v && v.type && v.values && typeof v.sarvmType === 'string') {
+  if (v && v.type && v.values && typeof v.pedagType === 'string') {
     const out = { __record: v.type.name };
     v.type.fields.forEach((f, i) => { out[f] = toJs(v.values[i], line, seen); });
     return out;
   }
 
-  throw sarvmError('ForeignError',
+  throw pedagError('ForeignError',
     `a ${typeName(v)} cannot cross into JavaScript`, line)
     .help('pass it as text, a list, or a map instead');
 }
 
-export function toLume(value, interp, line, depth = 0, seen = new Map()) {
+export function toPēdāg(value, interp, line, depth = 0, seen = new Map()) {
   if (depth > 32) return '<too deeply nested to convert>';
   if (value === null || value === undefined) return null;
   // Host objects refer to themselves more often than you would think. A cycle
@@ -133,21 +133,21 @@ export function toLume(value, interp, line, depth = 0, seen = new Map()) {
 
   if (Array.isArray(value)) {
     seen.set(value, true);
-    const out = value.map((x) => toLume(x, interp, line, depth + 1, seen));
+    const out = value.map((x) => toPēdāg(x, interp, line, depth + 1, seen));
     seen.delete(value);
     return out;
   }
   if (value instanceof Map) {
     seen.set(value, true);
     const out = new Map();
-    for (const [k, v] of value) out.set(String(k), toLume(v, interp, line, depth + 1, seen));
+    for (const [k, v] of value) out.set(String(k), toPēdāg(v, interp, line, depth + 1, seen));
     seen.delete(value);
     return out;
   }
   if (t === 'object') {
     seen.set(value, true);
     const out = new Map();
-    for (const [k, v] of Object.entries(value)) out.set(k, toLume(v, interp, line, depth + 1, seen));
+    for (const [k, v] of Object.entries(value)) out.set(k, toPēdāg(v, interp, line, depth + 1, seen));
     seen.delete(value);
     return out;
   }
@@ -167,7 +167,7 @@ export function loadForeign(specifier, interp, line) {
   try {
     loaded = require(target);
   } catch (e) {
-    throw sarvmError('ForeignError',
+    throw pedagError('ForeignError',
       `cannot load \`${specifier}\`: ${e && e.message ? e.message.split('\n')[0] : String(e)}`, line)
       .help('CommonJS and built-in `node:` modules load directly; an ESM-only package needs a small CommonJS wrapper');
   }

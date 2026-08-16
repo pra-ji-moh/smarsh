@@ -4,7 +4,7 @@ import { signMessage } from './crypto.js';
 
 // What a run actually did, as a document.
 //
-// Sarvm already observes things a runtime normally cannot: which capabilities
+// Pēdāg already observes things a runtime normally cannot: which capabilities
 // were exercised and which were refused, where labelled data went, who
 // declassified what and on what stated grounds, which contracts were checked,
 // what authority was lent and later revoked. Until now all of that was thrown
@@ -119,7 +119,7 @@ export function buildManifest(interp, {
 
   const manifest = {
     manifest: VERSION,
-    runtime: `sarvm ${runtimeVersion}`,
+    runtime: `pedag ${runtimeVersion}`,
     program: {
       file,
       sha256: sha256(source),

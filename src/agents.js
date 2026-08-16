@@ -1,5 +1,5 @@
 import { NativeFunction } from './values.js';
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
 const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 
@@ -25,7 +25,7 @@ export class AgentTemplate {
     this.handlers = handlers;          // Map<string, {params, body, line}>
     this.line = line;
   }
-  get sarvmType() { return 'agent_template'; }
+  get pedagType() { return 'agent_template'; }
   toString() { return `<agent template ${this.name} handling ${[...this.handlers.keys()].join(', ')}>`; }
 }
 
@@ -38,14 +38,14 @@ export class AgentRef {
     this.handled = 0;
     this.stopped = false;
   }
-  get sarvmType() { return 'agent'; }
+  get pedagType() { return 'agent'; }
   get name() { return this.template.name; }
 
   toString() {
     return `<agent ${this.template.name}#${this.id}${this.stopped ? ' stopped' : ''}, ${this.mailbox.length} queued>`;
   }
 
-  sarvmMembers() {
+  pedagMembers() {
     return {
       id: this.id,
       name: this.template.name,
@@ -57,7 +57,7 @@ export class AgentRef {
       state: nf('state', 1, (a, line) => {
         const key = String(a[0] && a[0].value !== undefined && a[0].labels ? a[0].value : a[0]);
         const slot = this.env.vars.get(key);
-        if (!slot) throw sarvmError('NameError', `agent ${this.template.name} has no state '${key}'`, line);
+        if (!slot) throw pedagError('NameError', `agent ${this.template.name} has no state '${key}'`, line);
         return slot.value;
       }),
       stop: nf('stop', 0, () => { this.stopped = true; return true; }),
@@ -105,7 +105,7 @@ export class Scheduler {
         processed += 1;
         progressed = true;
         if (processed >= maxMessages) {
-          throw sarvmError('AgentError',
+          throw pedagError('AgentError',
             `the agent system delivered ${processed} messages without settling; it is probably looping`, line);
         }
       }

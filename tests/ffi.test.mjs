@@ -5,8 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { Interpreter } from '../src/interpreter.js';
-import { SarvmError } from '../src/errors.js';
-import { toJs, toLume } from '../src/ffi.js';
+import { PedagError } from '../src/errors.js';
+import { toJs, toPēdāg } from '../src/ffi.js';
 import { unwrap } from '../src/values.js';
 import { Tensor } from '../src/tensor.js';
 
@@ -26,7 +26,7 @@ function fails(src, opts = {}) {
   try {
     run(src, opts);
   } catch (e) {
-    if (e instanceof SarvmError) return e;
+    if (e instanceof PedagError) return e;
     throw e;
   }
   throw new Error('expected the program to fail, but it ran cleanly');
@@ -81,8 +81,8 @@ test('a module with self-referencing exports still loads', () => {
   assert.equal(String(value), path.sep);
 });
 
-test('a throwing host function becomes a Sarvm failure, not a crash', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Sarvm-ffi-'));
+test('a throwing host function becomes a Pēdāg failure, not a crash', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Pēdāg-ffi-'));
   fs.writeFileSync(path.join(dir, 'boom.cjs'), 'module.exports = { boom() { throw new Error("kaboom") } }');
   const e = fails('let m = foreign("./boom.cjs")\nm.boom()', { ...FFI, cwd: dir });
   assert.equal(e.kind, 'ForeignError');
@@ -90,7 +90,7 @@ test('a throwing host function becomes a Sarvm failure, not a crash', () => {
 });
 
 test('a promise is refused rather than silently mishandled', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Sarvm-ffi-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Pēdāg-ffi-'));
   fs.writeFileSync(path.join(dir, 'async.cjs'), 'module.exports = { later: () => Promise.resolve(1) }');
   const e = fails('let m = foreign("./async.cjs")\nm.later()', { ...FFI, cwd: dir });
   assert.equal(e.kind, 'ForeignError');
@@ -98,7 +98,7 @@ test('a promise is refused rather than silently mishandled', () => {
 });
 
 test('a local CommonJS module loads by relative path', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Sarvm-ffi-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Pēdāg-ffi-'));
   fs.writeFileSync(path.join(dir, 'lib.cjs'),
     'module.exports = { double: (n) => n * 2, name: "lib", nested: { deep: [1, 2] } }');
   const { value } = run(`
@@ -115,7 +115,7 @@ test('a local CommonJS module loads by relative path', () => {
 // ---------------------------------------------------------------------------
 
 test('a list crosses as a copy, so the host cannot reach back in', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Sarvm-ffi-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Pēdāg-ffi-'));
   fs.writeFileSync(path.join(dir, 'm.cjs'), 'module.exports = { wreck: (xs) => { xs.push(999); return xs.length } }');
   const { value } = run(`
     let m = foreign("./m.cjs")
@@ -156,11 +156,11 @@ test('host values convert back, including cycles and dates', () => {
   try {
     const cyclic = { a: 1 };
     cyclic.self = cyclic;
-    const converted = toLume(cyclic, interp, 1);
+    const converted = toPēdāg(cyclic, interp, 1);
     assert.equal(converted.get('a'), 1);
     assert.equal(converted.get('self'), '<circular>');
-    assert.match(toLume(new Date(0), interp, 1), /^1970-01-01/);
-    assert.equal(toLume(10n, interp, 1), 10);
+    assert.match(toPēdāg(new Date(0), interp, 1), /^1970-01-01/);
+    assert.equal(toPēdāg(10n, interp, 1), 10);
   } finally {
     interp.devices.shutdown();
   }

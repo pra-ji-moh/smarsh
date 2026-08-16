@@ -1,10 +1,10 @@
-// A tour of Sarvm. Run it with:
-//     node bin/sarvm.mjs run examples/tour.sarvm
+// A tour of Pēdāg. Run it with:
+//     node bin/pedag.mjs run examples/tour.pedag
 // Add --trace to see every probabilistic branch the run took.
 // Nothing here needs a capability, so it runs with no --grant at all.
 print("== 1. the ordinary parts ==================================")
 
-let language = "Sarvm"
+let language = "Pēdāg"
 var count = 0
 while count < 3 {
   count = count + 1
@@ -89,7 +89,7 @@ grounded {
 }
 
 attempt {
-  // sarvm-allow: taint  (deliberate -- this section exists to show the refusal)
+  // pedag-allow: taint  (deliberate -- this section exists to show the refusal)
   grounded {
     print(reply)
   }
@@ -110,7 +110,7 @@ region "eu" {
   print("   inside the eu region:", record)
 }
 attempt {
-  // sarvm-allow: taint  (deliberate)
+  // pedag-allow: taint  (deliberate)
   region "us" {
     print(record)
   }

@@ -1,4 +1,4 @@
-# Sarvm reference
+# Pēdāg reference
 
 Complete list of keywords, block forms and builtins. For what any of it is
 *for*, see the README.
@@ -14,8 +14,8 @@ Complete list of keywords, block forms and builtins. For what any of it is
 | `fn name(a, b) { }` | function |
 | `fn(a, b) { }` | anonymous function (an expression) |
 | `agent Name(args) { var s = ...  on msg(a) { } }` | actor template |
-| `import "./m.sarvm"` | bring a module's top level into scope |
-| `import "./m.sarvm" as m` | bind that top level as a map |
+| `import "./m.pedag"` | bring a module's top level into scope |
+| `import "./m.pedag" as m` | bind that top level as a map |
 | `redefine fn name(...) { }` | replace a live function (validated) |
 | `redefine on Agent.msg(...) { }` | replace a live handler (state survives) |
 
@@ -148,7 +148,7 @@ Optional everywhere. `num` `str` `bool` `nil` `dyn` `dec` `tensor`, `list<T>`,
 ## Standard library
 
 `import "std/list" as list` — resolves to the library shipped with the runtime,
-from anywhere. All four modules are written in Sarvm.
+from anywhere. All four modules are written in Pēdāg.
 
 - **std/list** — `take` `drop` `find` `index_of` `any` `all` `count` `zip`
   `enumerate` `flatten` `unique` `chunk` `windows` `sort_by` `min_by` `max_by`
@@ -171,16 +171,16 @@ Values are converted rather than shared, and everything returned is labelled
 ## Command line
 
 ```
-sarvm run <file> [--seed n] [--grant a,b] [--trace] [--profile]
-sarvm check <file>              types, undefined names, fork races, taint
-sarvm verify <file>             prove contracts for every input
-sarvm test [path]               tests, contracts, types and races together
-sarvm fmt <path> [--check]      one canonical layout, no options
-sarvm explain <code>            a longer explanation of an error code
-sarvm prove <file> [--trials n] [--seed n]
-sarvm build <file> [-o out.mjs]
-sarvm repl [--seed n] [--grant a,b]
-sarvm eval "<source>"
+pedag run <file> [--seed n] [--grant a,b] [--trace] [--profile]
+pedag check <file>              types, undefined names, fork races, taint
+pedag verify <file>             prove contracts for every input
+pedag test [path]               tests, contracts, types and races together
+pedag fmt <path> [--check]      one canonical layout, no options
+pedag explain <code>            a longer explanation of an error code
+pedag prove <file> [--trials n] [--seed n]
+pedag build <file> [-o out.mjs]
+pedag repl [--seed n] [--grant a,b]
+pedag eval "<source>"
 ```
 
 ## Error kinds

@@ -1,4 +1,4 @@
-import { SarvmError } from './errors.js';
+import { PedagError } from './errors.js';
 
 // Rendered diagnostics.
 //
@@ -16,7 +16,7 @@ import { SarvmError } from './errors.js';
 // A diagnostic renders as:
 //
 //   error[E0201]: `writ` is not defined
-//     --> examples/tour.sarvm:12:5
+//     --> examples/tour.pedag:12:5
 //      |
 //   12 |     writ("hello")
 //      |     ^^^^ not found in this scope
@@ -76,7 +76,7 @@ export const KIND_TO_CODE = {
 export const EXPLANATIONS = {
   E0201: `A name was used that is not in scope.
 
-Sarvm resolves names lexically: a name must be declared before the point it is
+Pēdāg resolves names lexically: a name must be declared before the point it is
 used, in the same block or an enclosing one. Builtins live in a scope beneath
 your program's globals, so you may shadow one freely -- but a typo in a builtin
 name reads as an undeclared variable, which is why this error often points at a
@@ -90,14 +90,14 @@ are in scope. An enclosing function's locals are not.`,
 
   E0301: `A value was used where a different type was required.
 
-Sarvm is gradually typed. Annotations are optional, and any expression you have
+Pēdāg is gradually typed. Annotations are optional, and any expression you have
 not annotated has the type \`dyn\`, which is compatible with everything. Where
 you have annotated, the checker holds you to it:
 
     fn area(w: num, h: num) -> num { return w * h }
     area("3", 4)       // error: expected \`num\`, found \`str\`
 
-Run \`Sarvm typecheck\` to see these before the program runs. A program with no
+Run \`Pēdāg typecheck\` to see these before the program runs. A program with no
 annotations at all still type-checks clean -- that is the point of gradual.`,
 
   E0402: `A function tried to use a capability it does not hold.
@@ -139,7 +139,7 @@ being stopped.`,
     fn share(total, n) requires n > 0 ensures result * n == total { ... }
 
 \`requires\` is checked on the way in, \`ensures\` on the way out with \`result\`
-bound. \`sarvm prove\` generates inputs against these same contracts and reports
+bound. \`pedag prove\` generates inputs against these same contracts and reports
 counterexamples, so a contract is a specification and a test suite at once.`,
 
   E0501: `A redefinition was refused.
@@ -260,15 +260,15 @@ export class Diagnostic {
     for (const note of this.notes) out.push(`${paint('1;37', 'note')}: ${note}`);
 
     if (this.code && EXPLANATIONS[this.code]) {
-      out.push(`  run \`sarvm explain ${this.code}\` for a longer explanation`);
+      out.push(`  run \`pedag explain ${this.code}\` for a longer explanation`);
     }
     return out.join('\n');
   }
 }
 
-// Turn a raised SarvmError into a rendered diagnostic. Installed onto
-// SarvmError so every call site keeps using `err.format(source, file)`.
-export function renderSarvmError(err, source, file, options = {}) {
+// Turn a raised PedagError into a rendered diagnostic. Installed onto
+// PedagError so every call site keeps using `err.format(source, file)`.
+export function renderPedagError(err, source, file, options = {}) {
   const code = KIND_TO_CODE[err.kind] ?? null;
   const span = err.span ?? (err.line != null && source != null ? spanOfLine(source, err.line) : null);
   const diagnostic = new Diagnostic({
@@ -288,7 +288,7 @@ export function renderSarvmError(err, source, file, options = {}) {
 
 // Installing it here means anything that imports this module gets rendered
 // errors, and anything that does not still gets the plain fallback.
-SarvmError.renderer = renderSarvmError;
+PedagError.renderer = renderPedagError;
 
 function spanOfLine(source, line) {
   const lines = source.split(/\r?\n/);

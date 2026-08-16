@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { Interpreter } from '../src/interpreter.js';
-import { SarvmError } from '../src/errors.js';
+import { PedagError } from '../src/errors.js';
 import { Tensor } from '../src/tensor.js';
 import { Arena, Weights, topology, pressure, cpuMatmul, DeviceRegistry } from '../src/devices.js';
 
@@ -24,13 +24,13 @@ function fails(src, opts = {}) {
   try {
     run(src, opts);
   } catch (e) {
-    if (e instanceof SarvmError) return e;
+    if (e instanceof PedagError) return e;
     throw e;
   }
   throw new Error('expected the program to fail, but it ran cleanly');
 }
 
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'Sarvm-test-'));
+const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'Pēdāg-test-'));
 
 // ---------------------------------------------------------------------------
 // backends

@@ -1,5 +1,5 @@
 import { NativeFunction } from './values.js';
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
 const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 
@@ -35,7 +35,7 @@ export class Grant {
     this.cell = { revoked: false };
     this.spent = 0;
   }
-  get sarvmType() { return 'grant'; }
+  get pedagType() { return 'grant'; }
 
   // Live only if this link and every link above it is live.
   reasonUnusable(now) {
@@ -76,7 +76,7 @@ export class Grant {
 
   toString() { return `<grant ${this.capability}${this.cell.revoked ? ', revoked' : ''}>`; }
 
-  sarvmMembers(interp) {
+  pedagMembers(interp) {
     return {
       capability: this.capability,
       live: this.isLive(interp.logicalTime),
@@ -93,7 +93,7 @@ export class Grant {
         const uses = read('uses');
         const forTicks = read('for');
         if (uses === null && forTicks === null) {
-          throw sarvmError('ValueError',
+          throw pedagError('ValueError',
             'attenuate needs { "uses": n } or { "for": ticks }, since narrowing to nothing is the same as not delegating', line);
         }
         return this.attenuate({
@@ -112,14 +112,14 @@ export class Revoker {
     this.cell = grant.cell;
     this.capability = grant.capability;
   }
-  get sarvmType() { return 'revoker'; }
+  get pedagType() { return 'revoker'; }
   revoke() {
     const already = this.cell.revoked;
     this.cell.revoked = true;
     return !already;
   }
   toString() { return `<revoker ${this.capability}${this.cell.revoked ? ', used' : ''}>`; }
-  sarvmMembers() {
+  pedagMembers() {
     return {
       capability: this.capability,
       revoked: this.cell.revoked,
@@ -129,7 +129,7 @@ export class Revoker {
 }
 
 export function expectGrant(v, what, line) {
-  const u = v && v.sarvmType === 'grant' ? v : null;
-  if (!u) throw sarvmError('TypeError', `${what} must be a grant`, line);
+  const u = v && v.pedagType === 'grant' ? v : null;
+  if (!u) throw pedagError('TypeError', `${what} must be a grant`, line);
   return u;
 }

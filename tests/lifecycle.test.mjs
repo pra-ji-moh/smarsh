@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Interpreter } from '../src/interpreter.js';
-import { SarvmError } from '../src/errors.js';
+import { PedagError } from '../src/errors.js';
 import { buildCallGraph } from '../src/graph.js';
 import { parse } from '../src/parser.js';
 import { snapshot, restore } from '../src/snapshot.js';
@@ -22,7 +22,7 @@ function fails(src, opts = {}) {
   try {
     run(src, opts);
   } catch (e) {
-    if (e instanceof SarvmError) return e;
+    if (e instanceof PedagError) return e;
     throw e;
   }
   throw new Error('expected the program to fail, but it ran cleanly');

@@ -1,5 +1,5 @@
 import { NativeFunction, unwrap } from './values.js';
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
 const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 
@@ -21,7 +21,7 @@ export class Stamp {
     this.counter = counter;
     this.node = node;
   }
-  get sarvmType() { return 'stamp'; }
+  get pedagType() { return 'stamp'; }
 
   // Total order: counter first, node id as the tiebreak.
   compare(other) {
@@ -31,7 +31,7 @@ export class Stamp {
   }
 
   toString() { return `<stamp ${this.counter}@${this.node}>`; }
-  sarvmMembers() {
+  pedagMembers() {
     return { counter: this.counter, node: this.node };
   }
 }
@@ -41,7 +41,7 @@ export class LogicalClock {
     this.node = node;
     this.counter = 0;
   }
-  get sarvmType() { return 'clock'; }
+  get pedagType() { return 'clock'; }
 
   // A local event.
   tick() {
@@ -62,7 +62,7 @@ export class LogicalClock {
   }
 
   toString() { return `<clock ${this.node} at ${this.counter}>`; }
-  sarvmMembers(interp, line) {
+  pedagMembers(interp, line) {
     return {
       node: this.node,
       counter: this.counter,
@@ -76,7 +76,7 @@ export class LogicalClock {
 function expectStamp(v, line) {
   const u = unwrap(v);
   if (!(u instanceof Stamp)) {
-    throw sarvmError('TypeError', 'this needs a stamp from another clock', line);
+    throw pedagError('TypeError', 'this needs a stamp from another clock', line);
   }
   return u;
 }
@@ -99,7 +99,7 @@ export class Liquid {
     this.halflife = halflife;
     this.anchor = anchor;
   }
-  get sarvmType() { return 'liquid'; }
+  get pedagType() { return 'liquid'; }
 
   at(t) {
     return this.initial * (0.5 ** ((t - this.anchor) / this.halflife));
@@ -113,7 +113,7 @@ export class Liquid {
 
   toString() { return `<liquid ${this.initial} halving every ${this.halflife}>`; }
 
-  sarvmMembers(interp) {
+  pedagMembers(interp) {
     const now = interp.logicalTime;
     return {
       initial: this.initial,

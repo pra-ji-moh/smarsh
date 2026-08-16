@@ -1,5 +1,5 @@
 import { NativeFunction, stringify, unwrap } from './values.js';
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
 const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 
@@ -16,9 +16,9 @@ export class RecordType {
     this.fields = fields;
     this.line = line;
   }
-  get sarvmType() { return 'record_type'; }
+  get pedagType() { return 'record_type'; }
   toString() { return `<record ${this.name}(${this.fields.join(', ')})>`; }
-  sarvmMembers() {
+  pedagMembers() {
     return { name: this.name, fields: [...this.fields] };
   }
 }
@@ -28,7 +28,7 @@ export class RecordValue {
     this.type = type;
     this.values = values;
   }
-  get sarvmType() { return this.type.name; }
+  get pedagType() { return this.type.name; }
 
   get(field) {
     const i = this.type.fields.indexOf(field);
@@ -40,7 +40,7 @@ export class RecordValue {
   with(field, value, line) {
     const i = this.type.fields.indexOf(field);
     if (i === -1) {
-      throw sarvmError('AttributeError', `\`${this.type.name}\` has no field \`${field}\``, line);
+      throw pedagError('AttributeError', `\`${this.type.name}\` has no field \`${field}\``, line);
     }
     const next = this.values.slice();
     next[i] = value;
@@ -52,7 +52,7 @@ export class RecordValue {
     return `${this.type.name}(${parts.join(', ')})`;
   }
 
-  sarvmMembers(interp, line) {
+  pedagMembers(interp, line) {
     const out = {};
     this.type.fields.forEach((f, i) => { out[f] = this.values[i]; });
     out.fields = [...this.type.fields];

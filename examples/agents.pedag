@@ -1,6 +1,6 @@
 // Agents, budgets and static race detection.
-//     node bin/sarvm.mjs run examples/agents.sarvm
-//     node bin/sarvm.mjs check examples/agents.sarvm
+//     node bin/pedag.mjs run examples/agents.pedag
+//     node bin/pedag.mjs check examples/agents.pedag
 print("== agents talk by message, and nothing else ===============")
 
 agent Ledgerkeeper(name) {
@@ -124,10 +124,10 @@ attempt {
 
 print("")
 print("== races found before the program runs ====================")
-print("   run `sarvm check` on this file: the fork below is reported")
+print("   run `pedag check` on this file: the fork below is reported")
 
 var tally = 0
-// sarvm-allow: race  (deliberate -- this is the finding the section demonstrates)
+// pedag-allow: race  (deliberate -- this is the finding the section demonstrates)
 let results = fork 4 {
   tally = tally + 1
   _ * 2

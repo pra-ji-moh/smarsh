@@ -1,5 +1,5 @@
 // Records, pattern matching and string interpolation.
-//     node bin/sarvm.mjs run examples/modern.sarvm
+//     node bin/pedag.mjs run examples/modern.pedag
 print("== records are values, not objects ========================")
 
 record Point(x, y)

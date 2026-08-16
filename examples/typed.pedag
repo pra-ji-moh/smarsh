@@ -1,8 +1,8 @@
 // Types are optional. Where you write them, you are held to them; where you do
 // not, nothing changes. That is the whole bargain of gradual typing.
 //
-//     node bin/sarvm.mjs check examples/typed.sarvm    <- finds nothing here
-//     node bin/sarvm.mjs run examples/typed.sarvm
+//     node bin/pedag.mjs check examples/typed.pedag    <- finds nothing here
+//     node bin/pedag.mjs run examples/typed.pedag
 
 // --- annotated ---------------------------------------------------------------
 fn area(width: num, height: num) -> num {
@@ -63,7 +63,7 @@ print(whatever("a", "b"))
 // --- what the checker would catch --------------------------------------------
 //
 // Each of these is a real error caught before the program runs. Uncomment one
-// and run `sarvm check` to see it.
+// and run `pedag check` to see it.
 //
 //   area("3", 4)              expected `num`, found `str`
 //   area(3)                   `area` takes 2 arguments, but 1 was supplied

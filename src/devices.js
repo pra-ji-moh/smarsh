@@ -6,7 +6,7 @@ import { Worker } from 'node:worker_threads';
 
 import { Tensor } from './tensor.js';
 import { NativeFunction, stringify } from './values.js';
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
 const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -187,7 +187,7 @@ export class DeviceRegistry {
 
   get(name, line) {
     if (!this.backends.has(name)) {
-      throw sarvmError('DeviceError',
+      throw pedagError('DeviceError',
         `no device named '${name}'; this build has ${[...this.backends.keys()].join(', ')}`, line);
     }
     return this.backends.get(name);
@@ -282,7 +282,7 @@ export class Arena {
     this.restored = 0;
     this.lastReclaim = null;
   }
-  get sarvmType() { return 'arena'; }
+  get pedagType() { return 'arena'; }
 
   get resident() {
     let n = 0;
@@ -293,7 +293,7 @@ export class Arena {
   hold(name, tensor, line) {
     const bytes = tensor.data.length * 8;
     if (bytes > this.budget) {
-      throw sarvmError('MemoryError',
+      throw pedagError('MemoryError',
         `'${name}' needs ${bytes} bytes but the whole arena is ${this.budget}`, line);
     }
     this.entries.set(name, { tensor, shape: tensor.shape.slice(), bytes, file: null, clock: this.clock++ });
@@ -311,7 +311,7 @@ export class Arena {
       }
       if (!oldest) return;
       if (!this.spillDir) {
-        throw sarvmError('MemoryError',
+        throw pedagError('MemoryError',
           `the arena is over its ${this.budget}-byte budget and has nowhere to spill; give it a spill directory or raise the budget`, line);
       }
       const file = path.join(this.spillDir, `${encodeURIComponent(oldestName)}.f64`);
@@ -324,7 +324,7 @@ export class Arena {
 
   get(name, line) {
     const e = this.entries.get(name);
-    if (!e) throw sarvmError('NameError', `the arena is not holding '${name}'`, line);
+    if (!e) throw pedagError('NameError', `the arena is not holding '${name}'`, line);
     e.clock = this.clock++;
     if (e.tensor) return e.tensor;
     const buf = fs.readFileSync(e.file);
@@ -363,7 +363,7 @@ export class Arena {
     return `<arena ${this.resident}/${this.budget} bytes, ${this.entries.size} held, ${this.spilled} spilled>`;
   }
 
-  sarvmMembers(interp) {
+  pedagMembers(interp) {
     return {
       budget: this.budget,
       resident: this.resident,
@@ -394,7 +394,7 @@ export class Arena {
 // A weights file is opened, not read. Rows are pulled from disk on demand and
 // kept in a small cache, so a file far larger than memory is usable as long as
 // the working set is not. The tensor it hands back is an ordinary immutable
-// Sarvm tensor.
+// Pēdāg tensor.
 //
 // This is lazy paging, not mmap -- Node has no mmap without a native addon --
 // and it is per-row, so it suits weight matrices and embedding tables rather
@@ -424,7 +424,7 @@ export class Weights {
     this.fd = fs.openSync(file, 'r');
     this.bytes = need;
   }
-  get sarvmType() { return 'weights'; }
+  get pedagType() { return 'weights'; }
 
   row(i) {
     if (!Number.isInteger(i) || i < 0 || i >= this.shape[0]) {
@@ -457,7 +457,7 @@ export class Weights {
     return `<weights ${path.basename(this.file)} [${this.shape.join(', ')}] ${this.dtype}, ${this.cache.size} rows resident>`;
   }
 
-  sarvmMembers() {
+  pedagMembers() {
     return {
       shape: this.shape.slice(),
       dtype: this.dtype,
@@ -469,7 +469,7 @@ export class Weights {
         try {
           return this.row(Math.trunc(Number(a[0])));
         } catch (e) {
-          throw sarvmError('IndexError', e.message, line);
+          throw pedagError('IndexError', e.message, line);
         }
       }),
       close: nf('close', 0, () => { this.close(); return true; }),

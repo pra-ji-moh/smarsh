@@ -1,10 +1,10 @@
 # Security
 
-Sarvm makes security claims that are load-bearing — capability attenuation, taint
+Pēdāg makes security claims that are load-bearing — capability attenuation, taint
 tracking, execution budgets — so it needs a threat model that says what those
 claims actually cover, and an honest list of where they do not.
 
-> **Before you read further:** Sarvm has had **no third-party security audit**,
+> **Before you read further:** Pēdāg has had **no third-party security audit**,
 > has **no production users**, and is **pre-1.0**. Do not put it on a boundary
 > where a compromise matters. The mechanisms below are real and tested; that is
 > not the same as being proven against a motivated attacker.
@@ -23,17 +23,17 @@ report stays private until a fix is out.
   publishing one is a decision for the person who owns it, not a default.
 -->
 
-What to include: a `.sarvm` file that reproduces it, the `--grant` flags used,
+What to include: a `.pedag` file that reproduces it, the `--grant` flags used,
 your Node version, and what you expected the runtime to refuse.
 
 **Response commitment.** This is currently maintained by one person, so the
 honest commitment is: acknowledgement within 7 days, an assessment within 30.
-If that is not fast enough for your situation, Sarvm is not ready for your
+If that is not fast enough for your situation, Pēdāg is not ready for your
 situation.
 
 ## Threat model
 
-Sarvm's guarantees are about **a program's own code and its dependencies**, not
+Pēdāg's guarantees are about **a program's own code and its dependencies**, not
 about the host. It is a language runtime, not a sandbox, and the distinction
 matters.
 
@@ -64,10 +64,10 @@ These are limitations already written down, not discoveries:
   measure you. Timing side channels in these functions are documented behaviour,
   not a report.
 - **`ffi` is a deliberate escape hatch.** Granting it hands control to
-  JavaScript, where none of Sarvm's guarantees apply. That is the whole reason it
+  JavaScript, where none of Pēdāg's guarantees apply. That is the whole reason it
   is a separate capability.
-- **Sarvm does not sandbox the host.** A program granted `fs` can read and write
-  anywhere under the program's directory. Capabilities bound what *Sarvm code*
+- **Pēdāg does not sandbox the host.** A program granted `fs` can read and write
+  anywhere under the program's directory. Capabilities bound what *Pēdāg code*
   reaches, not what the process can do. Use OS-level isolation if you need that.
 - **Resource exhaustion beyond steps and tokens.** `budget` bounds execution
   steps and context tokens. It does not bound heap. A program can still allocate
@@ -93,7 +93,7 @@ including regression tests for defects that were real:
   lineage detecting edits, reordering, truncation and re-signing.
 - `tests/recovery.test.mjs` — taint reaching a sink on paths a run does not take.
 
-If you are reviewing Sarvm, those files are the fastest way to see what is
+If you are reviewing Pēdāg, those files are the fastest way to see what is
 claimed and how it is checked.
 
 ## Cryptographic inventory

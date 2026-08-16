@@ -1,6 +1,6 @@
 import { Tensor } from './tensor.js';
 import { Rng } from './rng.js';
-import { sarvmError, SarvmError, ReturnSignal, BreakSignal, ContinueSignal, BudgetExceeded } from './errors.js';
+import { pedagError, PedagError, ReturnSignal, BreakSignal, ContinueSignal, BudgetExceeded } from './errors.js';
 import { AgentTemplate, Scheduler } from './agents.js';
 import { DeviceRegistry } from './devices.js';
 import { CallGraph } from './graph.js';
@@ -9,7 +9,7 @@ import { RecordType, RecordValue, recordsEqual } from './records.js';
 import { analyze } from './analysis.js';
 import { exercise } from './exercise.js';
 import {
-  LumeFunction, NativeFunction, Tainted, ContextWindow, Ledger,
+  PedagFunction, NativeFunction, Tainted, ContextWindow, Ledger,
   unwrap, retaint, stringify, typeName, truthy, countTokens, freezeDeep, assertMutable,
 } from './values.js';
 import { installBuiltins } from './builtins.js';
@@ -36,12 +36,12 @@ export { Env };
 // Shared, never mutated: the capability set of a function that declares none.
 const EMPTY_CAPS = new Set();
 
-// The interpreter recurses through JS frames, so a runaway Sarvm recursion can
+// The interpreter recurses through JS frames, so a runaway Pēdāg recursion can
 // exhaust the host stack before the interpreter's own depth guard fires.
 // Either way the program gets one answer with one name.
-function asLumeFailure(e, line) {
+function asPedagFailure(e, line) {
   if (e instanceof RangeError && /call stack/i.test(e.message)) {
-    return sarvmError('RecursionError', 'the call stack went too deep', line);
+    return pedagError('RecursionError', 'the call stack went too deep', line);
   }
   return e;
 }
@@ -133,7 +133,7 @@ export class Interpreter {
     try {
       for (const stmt of program.body) last = this.exec(stmt);
     } catch (e) {
-      throw asLumeFailure(e, null);
+      throw asPedagFailure(e, null);
     } finally {
       this.fileStack.pop();
     }
@@ -147,7 +147,7 @@ export class Interpreter {
   // forever underneath a budget that never noticed.
   tick(node) {
     if (++this.steps > this.stepLimit) {
-      throw sarvmError('StepLimitError', `this call ran past ${this.stepLimit} steps and was abandoned`, node.line);
+      throw pedagError('StepLimitError', `this call ran past ${this.stepLimit} steps and was abandoned`, node.line);
     }
     // Almost every program has no budget open; do not walk an empty array
     // several hundred thousand times to discover that.
@@ -206,7 +206,7 @@ export class Interpreter {
       }
 
       case 'FnDecl': {
-        const fn = new LumeFunction(node.fn, this.env);
+        const fn = new PedagFunction(node.fn, this.env);
         this.redeclareIfAllowed(node.fn.name);
         this.env.declare(node.fn.name, fn, false, node.line);
         this.graph.define(node.fn.name, node.fn);
@@ -318,7 +318,7 @@ export class Interpreter {
       case 'Maybe': {
         const p = this.asNumber(this.evaluate(node.prob), 'a maybe probability', node.line);
         if (p < 0 || p > 1) {
-          throw sarvmError('ValueError', `maybe needs a probability in 0..1, got ${p}`, node.line);
+          throw pedagError('ValueError', `maybe needs a probability in 0..1, got ${p}`, node.line);
         }
         const draw = this.rng.next();
         const taken = draw < p;
@@ -338,8 +338,8 @@ export class Interpreter {
         try {
           return this.execBlock(node.body, new Env(this.env));
         } catch (raw) {
-          const e = asLumeFailure(raw, node.line);
-          if (!(e instanceof SarvmError)) throw e;
+          const e = asPedagFailure(raw, node.line);
+          if (!(e instanceof PedagError)) throw e;
           const env = new Env(this.env);
           const info = new Map();
           info.set('kind', e.kind);
@@ -360,12 +360,12 @@ export class Interpreter {
 
       // A hard ceiling on what the code inside may consume. It cannot be
       // raised from inside, and `attempt` inside cannot catch the stop --
-      // BudgetExceeded is not a SarvmError. Only this boundary turns it into an
+      // BudgetExceeded is not a PedagError. Only this boundary turns it into an
       // ordinary failure, for whoever set the budget to handle.
       case 'Budget': {
         const requested = this.asNumber(this.evaluate(node.amount), 'a budget', node.line);
         if (requested <= 0) {
-          throw sarvmError('ValueError', `a budget must be positive, got ${requested}`, node.line);
+          throw pedagError('ValueError', `a budget must be positive, got ${requested}`, node.line);
         }
         // A nested budget can only tighten, never loosen.
         let limit = Math.floor(requested);
@@ -378,7 +378,7 @@ export class Interpreter {
           return this.execBlock(node.body, new Env(this.env));
         } catch (e) {
           if (e instanceof BudgetExceeded && e.budget === budget) {
-            throw sarvmError('BudgetError',
+            throw pedagError('BudgetError',
               `this block was stopped after using its whole budget of ${budget.limit} ${budget.kind}`, node.line);
           }
           throw e;
@@ -440,15 +440,15 @@ export class Interpreter {
       // fails, which is the conservative direction.
       case 'Using': {
         const grant = unwrap(this.evaluate(node.grant));
-        if (!grant || grant.sarvmType !== 'grant') {
-          throw sarvmError('TypeError',
+        if (!grant || grant.pedagType !== 'grant') {
+          throw pedagError('TypeError',
             `\`using\` needs a grant, got ${typeName(grant)}`, node.line)
             .at(node.span)
             .help('`grant("fs")` makes one, from a frame that already holds it');
         }
         const why = grant.reasonUnusable(this.logicalTime);
         if (why) {
-          throw sarvmError('CapabilityError',
+          throw pedagError('CapabilityError',
             `this grant of \`${grant.capability}\` cannot be used: ${why}`, node.line)
             .at(node.span)
             .withLabel('grant is not live');
@@ -470,7 +470,7 @@ export class Interpreter {
       case 'Authority': {
         const who = stringify(unwrap(this.evaluate(node.who)), 0);
         if (!this.grantedAuthority.has(who)) {
-          throw sarvmError('AuthorityError',
+          throw pedagError('AuthorityError',
             `this run does not act for \`${who}\``, node.line)
             .at(node.span)
             .help(`start it with --principal ${who}`)
@@ -518,7 +518,7 @@ export class Interpreter {
         return this.evaluate(node.expr);
 
       default:
-        throw sarvmError('InternalError', `unhandled statement ${node.type}`, node.line);
+        throw pedagError('InternalError', `unhandled statement ${node.type}`, node.line);
     }
   }
 
@@ -534,7 +534,7 @@ export class Interpreter {
   }
 
   unknownName(node) {
-    const err = sarvmError('NameError', `\`${node.name}\` is not defined`, node.line)
+    const err = pedagError('NameError', `\`${node.name}\` is not defined`, node.line)
       .at(node.span)
       .withLabel('not found in this scope');
 
@@ -599,7 +599,7 @@ export class Interpreter {
       }
 
       case 'Fn':
-        return new LumeFunction(node, this.env);
+        return new PedagFunction(node, this.env);
 
       case 'Unary': {
         const v = this.guard(this.evaluate(node.operand), node.line, 'operand');
@@ -649,11 +649,11 @@ export class Interpreter {
       case 'Spawn': {
         const template = unwrap(this.env.get(node.name, node.line));
         if (!(template instanceof AgentTemplate)) {
-          throw sarvmError('TypeError', `'${node.name}' is a ${typeName(template)}, not an agent`, node.line);
+          throw pedagError('TypeError', `'${node.name}' is a ${typeName(template)}, not an agent`, node.line);
         }
         const args = node.args.map((a) => this.evaluate(a));
         if (args.length !== template.params.length) {
-          throw sarvmError('ArityError',
+          throw pedagError('ArityError',
             `agent ${template.name} takes ${template.params.length} argument${template.params.length === 1 ? '' : 's'}, got ${args.length}`, node.line);
         }
 
@@ -711,7 +711,7 @@ export class Interpreter {
           this.env = env;
           try { return this.evaluate(arm.body); } finally { this.env = saved; }
         }
-        throw sarvmError('MatchError',
+        throw pedagError('MatchError',
           `no arm of this match fits ${stringify(unwrap(subject), 1)}`, node.line)
           .at(node.span)
           .withLabel('nothing matched')
@@ -721,10 +721,10 @@ export class Interpreter {
       case 'Choose': {
         const weights = node.arms.map((a) => this.asNumber(this.evaluate(a.weight), 'a choose weight', node.line));
         for (const w of weights) {
-          if (w < 0) throw sarvmError('ValueError', 'choose weights cannot be negative', node.line);
+          if (w < 0) throw pedagError('ValueError', 'choose weights cannot be negative', node.line);
         }
         const total = weights.reduce((a, b) => a + b, 0);
-        if (total <= 0) throw sarvmError('ValueError', 'choose weights must add up to more than 0', node.line);
+        if (total <= 0) throw pedagError('ValueError', 'choose weights must add up to more than 0', node.line);
         const draw = this.rng.next() * total;
         let acc = 0;
         let picked = node.arms.length - 1;
@@ -744,8 +744,8 @@ export class Interpreter {
       // Paths are evaluated in order, not on OS threads -- see README.
       case 'Fork': {
         const n = Math.trunc(this.asNumber(this.evaluate(node.count), 'a fork count', node.line));
-        if (n < 0) throw sarvmError('ValueError', 'cannot fork a negative number of paths', node.line);
-        if (n > 100000) throw sarvmError('ValueError', `refusing to fork ${n} paths`, node.line);
+        if (n < 0) throw pedagError('ValueError', 'cannot fork a negative number of paths', node.line);
+        if (n > 100000) throw pedagError('ValueError', `refusing to fork ${n} paths`, node.line);
         const parentRng = this.rng;
         const results = [];
         try {
@@ -763,7 +763,7 @@ export class Interpreter {
       }
 
       default:
-        throw sarvmError('InternalError', `unhandled expression ${node.type}`, node.line);
+        throw pedagError('InternalError', `unhandled expression ${node.type}`, node.line);
     }
   }
 
@@ -788,7 +788,7 @@ export class Interpreter {
         if (!(value instanceof RecordValue)) return false;
         if (value.type.name !== pattern.name) return false;
         if (pattern.fields.length !== value.type.fields.length) {
-          throw sarvmError('MatchError',
+          throw pedagError('MatchError',
             `\`${pattern.name}\` has ${value.type.fields.length} field${value.type.fields.length === 1 ? '' : 's'}, but the pattern lists ${pattern.fields.length}`,
             pattern.line);
         }
@@ -821,36 +821,36 @@ export class Interpreter {
       const obj = unwrap(this.evaluate(t.object));
       const idx = t.indices.map((e) => unwrap(this.evaluate(e)));
       if (obj instanceof Tensor) {
-        throw sarvmError('ImmutableError',
+        throw pedagError('ImmutableError',
           'tensors are immutable; build a new one instead of writing into this one', node.line);
       }
       if (Array.isArray(obj)) {
-        assertMutable(obj, 'this list', node.line, sarvmError);
+        assertMutable(obj, 'this list', node.line, pedagError);
         let i = Math.trunc(this.asNumber(idx[0], 'a list index', node.line));
         if (i < 0) i += obj.length;
         if (i < 0 || i >= obj.length) {
-          throw sarvmError('IndexError', `list index ${idx[0]} out of range (length ${obj.length})`, node.line);
+          throw pedagError('IndexError', `list index ${idx[0]} out of range (length ${obj.length})`, node.line);
         }
         obj[i] = value;
         return value;
       }
       if (obj instanceof Map) {
-        assertMutable(obj, 'this map', node.line, sarvmError);
+        assertMutable(obj, 'this map', node.line, pedagError);
         obj.set(String(idx[0]), value);
         return value;
       }
-      throw sarvmError('TypeError', `cannot index-assign into a ${typeName(obj)}`, node.line);
+      throw pedagError('TypeError', `cannot index-assign into a ${typeName(obj)}`, node.line);
     }
 
     // Member assignment is for maps only; everything else exposes methods, not
     // writable fields.
     const obj = unwrap(this.evaluate(t.object));
     if (obj instanceof Map) {
-      assertMutable(obj, 'this map', node.line, sarvmError);
+      assertMutable(obj, 'this map', node.line, pedagError);
       obj.set(t.name, value);
       return value;
     }
-    throw sarvmError('TypeError', `cannot assign to '.${t.name}' on a ${typeName(obj)}`, node.line);
+    throw pedagError('TypeError', `cannot assign to '.${t.name}' on a ${typeName(obj)}`, node.line);
   }
 
   // --- calls ---------------------------------------------------------------
@@ -861,7 +861,7 @@ export class Interpreter {
     if (node.callee.type === 'Ident' && node.callee.name === 'old') {
       if (this.oldValues && this.oldValues.has(node)) return this.oldValues.get(node);
       if (!this.oldValues) {
-        throw sarvmError('ContractError',
+        throw pedagError('ContractError',
           'old() only means something inside an `ensures` clause', node.line)
           .at(node.span)
           .help('it names the value an expression had when the function was entered');
@@ -892,7 +892,7 @@ export class Interpreter {
     // A record type is called to build one. There is no separate `new`.
     if (callee instanceof RecordType) {
       if (args.length !== callee.fields.length) {
-        throw sarvmError('ArityError',
+        throw pedagError('ArityError',
           `\`${callee.name}\` has ${callee.fields.length} field${callee.fields.length === 1 ? '' : 's'} (${callee.fields.join(', ')}), but ${args.length} ${args.length === 1 ? 'was' : 'were'} supplied`, line);
       }
       const record = new RecordValue(callee, args);
@@ -903,24 +903,24 @@ export class Interpreter {
     if (callee instanceof NativeFunction) {
       this.requireCaps(callee.needs, callee.name, line);
       if (callee.arity >= 0 && args.length !== callee.arity) {
-        throw sarvmError('ArityError',
+        throw pedagError('ArityError',
           `${callee.name} takes ${callee.arity} argument${callee.arity === 1 ? '' : 's'}, got ${args.length}`, line);
       }
       try {
         return callee.fn(args, line, this);
       } catch (e) {
-        if (e instanceof SarvmError && e.line == null) e.line = line;
+        if (e instanceof PedagError && e.line == null) e.line = line;
         throw e;
       }
     }
 
-    if (!(callee instanceof LumeFunction)) {
-      throw sarvmError('TypeError', `${name} is a ${typeName(callee)}, not something that can be called`, line);
+    if (!(callee instanceof PedagFunction)) {
+      throw pedagError('TypeError', `${name} is a ${typeName(callee)}, not something that can be called`, line);
     }
 
     const { decl } = callee;
     if (args.length !== decl.params.length) {
-      throw sarvmError('ArityError',
+      throw pedagError('ArityError',
         `${callee.name} takes ${decl.params.length} argument${decl.params.length === 1 ? '' : 's'}, got ${args.length}`, line);
     }
 
@@ -929,7 +929,7 @@ export class Interpreter {
     this.requireCaps(decl.needs, callee.name, line);
 
     if (this.callDepth >= this.maxCallDepth) {
-      throw sarvmError('RecursionError', `call stack went deeper than ${this.maxCallDepth} frames`, line);
+      throw pedagError('RecursionError', `call stack went deeper than ${this.maxCallDepth} frames`, line);
     }
 
     const env = new Env(callee.closure);
@@ -965,14 +965,14 @@ export class Interpreter {
           // the input is outside the stated domain, not that the body is wrong.
           // Never overwrite a tag set by a deeper frame -- that failure belongs
           // to the inner function, not to this call's inputs.
-          if (e instanceof SarvmError && e.phase === undefined) {
+          if (e instanceof PedagError && e.phase === undefined) {
             e.phase = 'pre';
             e.fn = callee.name;
           }
           throw e;
         }
         if (!held) {
-          const err = sarvmError('ContractError',
+          const err = pedagError('ContractError',
             `${callee.name} requires ${c.src}, which does not hold for this call`, line);
           err.phase = 'pre';
           err.fn = callee.name;
@@ -999,7 +999,7 @@ export class Interpreter {
           for (const c of decl.ensures) {
             this.trace.contracts += 1;
             if (!truthy(this.evaluate(c.expr))) {
-              const err = sarvmError('ContractError',
+              const err = pedagError('ContractError',
                 `${callee.name} promised ${c.src}, but returned ${stringify(result, 1)}`, decl.line);
               err.phase = 'post';
               err.fn = callee.name;
@@ -1016,7 +1016,7 @@ export class Interpreter {
     } catch (e) {
       // Snapshot the stack at the innermost frame that sees the failure, while
       // it is still standing -- the `finally` below is about to unwind it.
-      if (e instanceof SarvmError && e.frames.length === 0) {
+      if (e instanceof PedagError && e.frames.length === 0) {
         e.frames = this.frames.map((f) => ({ ...f }));
       }
       throw e;
@@ -1044,7 +1044,7 @@ export class Interpreter {
       if (!this.caps.has(cap)) {
         const held = this.caps.size ? [...this.caps].join(', ') : 'nothing';
         this.trace.effects.push({ capability: cap, by: name, line, allowed: false });
-        throw sarvmError('CapabilityError',
+        throw pedagError('CapabilityError',
           `${name} needs the '${cap}' capability; this frame holds ${held}`, line);
       }
     }
@@ -1066,7 +1066,7 @@ export class Interpreter {
         this.trace.crossings.push({
           kind: 'release', to, line, allowed: false, label: value.label.toString(),
         });
-        throw sarvmError('LabelError',
+        throw pedagError('LabelError',
           `\`${to}\` may not read this ${what}; its owners permit ${readers.length ? readers.join(', ') : 'nobody'}`, line)
           .withLabel('not a permitted reader')
           .note(`the label is ${value.label}`)
@@ -1079,7 +1079,7 @@ export class Interpreter {
     if (this.groundedDepth > 0) {
       for (const bad of ['ungrounded', 'untrusted']) {
         if (value.labels.has(bad)) {
-          throw sarvmError('TaintError',
+          throw pedagError('TaintError',
             `a grounded block read an ${bad} ${what}; check or launder it with trust() outside the block first`, line);
         }
       }
@@ -1089,7 +1089,7 @@ export class Interpreter {
     if (region) {
       for (const label of value.labels) {
         if (label.startsWith('region:') && label !== `region:${region}`) {
-          throw sarvmError('TaintError',
+          throw pedagError('TaintError',
             `a value restricted to '${label.slice(7)}' was read inside region '${region}'`, line);
         }
       }
@@ -1115,13 +1115,13 @@ export class Interpreter {
     // everything else is relative to the importing file.
     const isStd = node.path.startsWith('std/');
     const resolved = isStd
-      ? path.join(STD_DIR, `${node.path.slice(4)}.sarvm`)
+      ? path.join(STD_DIR, `${node.path.slice(4)}.pedag`)
       : path.resolve(fromDir, node.path);
 
     if (!isStd) {
       const root = path.resolve(this.cwd);
       if (resolved !== root && !resolved.startsWith(root + path.sep)) {
-        throw sarvmError('ImportError',
+        throw pedagError('ImportError',
           `'${node.path}' resolves outside ${root}; imports stay inside the program's directory`, node.line);
       }
     }
@@ -1130,13 +1130,13 @@ export class Interpreter {
     try {
       source = fs.readFileSync(resolved, 'utf8');
     } catch (e) {
-      throw sarvmError('ImportError', `cannot read module '${node.path}': ${e.code ?? e.message}`, node.line);
+      throw pedagError('ImportError', `cannot read module '${node.path}': ${e.code ?? e.message}`, node.line);
     }
 
     const digest = createHash('sha256').update(source).digest('hex');
 
     if (this.moduleLoading.has(digest)) {
-      throw sarvmError('ImportError',
+      throw pedagError('ImportError',
         `'${node.path}' is already being imported further up the chain; modules cannot form a cycle`, node.line);
     }
 
@@ -1185,7 +1185,7 @@ export class Interpreter {
     let count = 0;
     for (const [name, slot] of exported) {
       if (this.env.vars.has(name)) {
-        throw sarvmError('ImportError',
+        throw pedagError('ImportError',
           `'${node.path}' exports '${name}', which is already declared here; import it 'as' a name instead`, node.line);
       }
       this.env.declare(name, slot.value, slot.mutable, node.line);
@@ -1216,28 +1216,28 @@ export class Interpreter {
 
     const name = node.fn.name;
     const slot = this.env.slot(name);
-    if (!slot) throw sarvmError('NameError', `'${name}' is not defined, so there is nothing to redefine`, node.line);
+    if (!slot) throw pedagError('NameError', `'${name}' is not defined, so there is nothing to redefine`, node.line);
 
     const previous = slot.value;
-    if (!(previous instanceof LumeFunction)) {
-      throw sarvmError('TypeError', `'${name}' is a ${typeName(previous)}, not a function`, node.line);
+    if (!(previous instanceof PedagFunction)) {
+      throw pedagError('TypeError', `'${name}' is a ${typeName(previous)}, not a function`, node.line);
     }
 
     if (node.fn.params.length !== previous.decl.params.length) {
-      throw sarvmError('RedefineError',
+      throw pedagError('RedefineError',
         `${name} takes ${previous.decl.params.length} argument${previous.decl.params.length === 1 ? '' : 's'}; the replacement takes ${node.fn.params.length}, which would break every call to it`, node.line);
     }
 
     const escalated = node.fn.needs.filter((c) => !previous.decl.needs.includes(c));
     if (escalated.length > 0) {
-      throw sarvmError('RedefineError',
+      throw pedagError('RedefineError',
         `the replacement asks for ${escalated.join(', ')}, which ${name} did not hold; a rewrite may drop capabilities, never add them`, node.line);
     }
 
     const races = analyze({ type: 'Program', body: [{ type: 'FnDecl', fn: node.fn, line: node.line }] })
       .filter((f) => f.kind === 'race');
     if (races.length > 0) {
-      throw sarvmError('RedefineError',
+      throw pedagError('RedefineError',
         `the replacement has a race: ${races[0].message}`, node.line);
     }
 
@@ -1247,7 +1247,7 @@ export class Interpreter {
       requires: [...previous.decl.requires, ...node.fn.requires],
       ensures: [...previous.decl.ensures, ...node.fn.ensures],
     };
-    const candidate = new LumeFunction(merged, this.globals);
+    const candidate = new PedagFunction(merged, this.globals);
 
     // Install, then test. Installing first means a recursive replacement is
     // checked as itself rather than against the version it is replacing.
@@ -1259,7 +1259,7 @@ export class Interpreter {
         if (bad) {
           // Covers both directions: a promise inherited from the original that
           // the rewrite no longer keeps, and a promise the rewrite made itself.
-          throw sarvmError('RedefineError',
+          throw pedagError('RedefineError',
             `the replacement does not keep the contract ${name} would run under: ${name}(${bad.args}) -> ${bad.message}`, node.line);
         }
       }
@@ -1278,15 +1278,15 @@ export class Interpreter {
   redefineHandler(node) {
     const template = unwrap(this.env.get(node.agentName, node.line));
     if (!(template instanceof AgentTemplate)) {
-      throw sarvmError('TypeError', `'${node.agentName}' is a ${typeName(template)}, not an agent`, node.line);
+      throw pedagError('TypeError', `'${node.agentName}' is a ${typeName(template)}, not an agent`, node.line);
     }
     const existing = template.handlers.get(node.message);
     if (!existing) {
-      throw sarvmError('RedefineError',
+      throw pedagError('RedefineError',
         `agent ${node.agentName} has no '${node.message}' handler to replace`, node.line);
     }
     if (existing.params.length !== node.params.length) {
-      throw sarvmError('RedefineError',
+      throw pedagError('RedefineError',
         `${node.agentName}.${node.message} takes ${existing.params.length} argument${existing.params.length === 1 ? '' : 's'}; the replacement takes ${node.params.length}`, node.line);
     }
     // Live agents share the template, so this reaches them immediately -- with
@@ -1299,7 +1299,7 @@ export class Interpreter {
   rollback(name, line) {
     const history = this.versions.get(name);
     if (!history || history.length < 2) {
-      throw sarvmError('RedefineError', `'${name}' has no earlier version to go back to`, line);
+      throw pedagError('RedefineError', `'${name}' has no earlier version to go back to`, line);
     }
     history.pop();
     const slot = this.env.slot(name);
@@ -1320,12 +1320,12 @@ export class Interpreter {
     if (squeezeA) a = a.reshape([1, a.shape[0]]);
     if (squeezeB) b = b.reshape([b.shape[0], 1]);
     if (a.rank !== 2 || b.rank !== 2) {
-      throw sarvmError('ShapeError', '@ needs rank-1 or rank-2 tensors on both sides', line);
+      throw pedagError('ShapeError', '@ needs rank-1 or rank-2 tensors on both sides', line);
     }
     const [m, k] = a.shape;
     const [k2, n] = b.shape;
     if (k !== k2) {
-      throw sarvmError('ShapeError',
+      throw pedagError('ShapeError',
         `cannot multiply [${x.shape.join(', ')}] @ [${y.shape.join(', ')}]: inner sizes ${k} and ${k2} differ`, line);
     }
     this.cost.tensorOps += m * k * n;
@@ -1353,7 +1353,7 @@ export class Interpreter {
       for (const c of type.invariants) {
         this.trace.contracts += 1;
         if (!truthy(this.evaluate(c.expr))) {
-          throw sarvmError('ContractError',
+          throw pedagError('ContractError',
             `\`${type.name}\` requires \`${c.src}\`, and ${stringify(record, 1)} does not satisfy it`, line)
             .withLabel('invariant broken');
         }
@@ -1378,7 +1378,7 @@ export class Interpreter {
         if (Array.isArray(n)) { n.forEach(scan); return; }
         if (n.type === 'Call' && n.callee.type === 'Ident' && n.callee.name === 'old') {
           if (n.args.length !== 1) {
-            throw sarvmError('ContractError', 'old() takes exactly one expression', n.line);
+            throw pedagError('ContractError', 'old() takes exactly one expression', n.line);
           }
           found.push(n);
         }
@@ -1418,7 +1418,7 @@ export class Interpreter {
     for (const c of node.invariants) {
       this.trace.contracts += 1;
       if (!truthy(this.evaluate(c.expr))) {
-        throw sarvmError('LoopError',
+        throw pedagError('LoopError',
           `the loop invariant \`${c.src}\` does not hold ${when}`, c.line)
           .at(c.expr.span)
           .withLabel('invariant broken');
@@ -1435,12 +1435,12 @@ export class Interpreter {
     const current = this.asNumber(unwrap(value), `the loop variant \`${node.variant.src}\``, node.variant.line);
 
     if (current < 0) {
-      throw sarvmError('LoopError',
+      throw pedagError('LoopError',
         `the loop variant \`${node.variant.src}\` went negative (${current}); a variant is what proves the loop ends, so it may not pass zero`,
         node.variant.line).at(node.variant.expr.span);
     }
     if (loop.previous !== null && current >= loop.previous) {
-      throw sarvmError('LoopError',
+      throw pedagError('LoopError',
         `the loop variant \`${node.variant.src}\` did not decrease (${loop.previous} then ${current}) on pass ${loop.passes + 1}, so this loop is not making progress`,
         node.variant.line)
         .at(node.variant.expr.span)
@@ -1467,18 +1467,18 @@ export class Interpreter {
       if (env === this.agentBoundary) break;
       env = env.parent;
     }
-    throw sarvmError('AgentIsolationError',
+    throw pedagError('AgentIsolationError',
       `an agent may only change its own state, and '${name}' belongs to the scope outside it`, line);
   }
 
   deliverMessage(agent, envelope, line) {
     const handler = agent.template.handlers.get(envelope.message);
     if (!handler) {
-      throw sarvmError('AgentError',
+      throw pedagError('AgentError',
         `agent ${agent.template.name} has no handler for '${envelope.message}'`, line);
     }
     if (handler.params.length !== envelope.args.length) {
-      throw sarvmError('ArityError',
+      throw pedagError('ArityError',
         `${agent.template.name}.${envelope.message} takes ${handler.params.length} argument${handler.params.length === 1 ? '' : 's'}, got ${envelope.args.length}`, handler.line);
     }
 
@@ -1536,25 +1536,25 @@ export class Interpreter {
     const bothCiphers = l instanceof Cipher && r instanceof Cipher;
 
     if (op === '==' || op === '!=') {
-      throw sarvmError('TypeError',
+      throw pedagError('TypeError',
         'ciphertexts cannot be compared: two encryptions of the same value differ. Decrypt, or prove the relation instead', line);
     }
 
     if (bothCiphers) {
-      if (l.n !== r.n) throw sarvmError('TypeError', 'these ciphertexts belong to different keys', line);
+      if (l.n !== r.n) throw pedagError('TypeError', 'these ciphertexts belong to different keys', line);
       if (op === '+') return heAdd(l, r);
       if (op === '-') return heAdd(l, heMulPlain(r, -1n));
       if (op === '*') {
-        throw sarvmError('TypeError',
+        throw pedagError('TypeError',
           'Paillier is additively homomorphic: a ciphertext can be added to a ciphertext, or multiplied by a plaintext, but not by another ciphertext', line);
       }
-      throw sarvmError('TypeError', `operator '${op}' is not defined on ciphertexts`, line);
+      throw pedagError('TypeError', `operator '${op}' is not defined on ciphertexts`, line);
     }
 
     const cipher = l instanceof Cipher ? l : r;
     const plainRaw = l instanceof Cipher ? r : l;
     if (typeof plainRaw !== 'number' || !Number.isInteger(plainRaw)) {
-      throw sarvmError('TypeError',
+      throw pedagError('TypeError',
         `encrypted arithmetic needs a whole number on the other side, got ${typeName(plainRaw)}`, line);
     }
     const plain = BigInt(plainRaw);
@@ -1567,7 +1567,7 @@ export class Interpreter {
         : heAddPlain(heMulPlain(cipher, -1n), plain);
     }
     if (op === '*') return heMulPlain(cipher, plain);
-    throw sarvmError('TypeError', `operator '${op}' is not defined on ciphertexts`, line);
+    throw pedagError('TypeError', `operator '${op}' is not defined on ciphertexts`, line);
   }
 
   binary(op, lv, rv, line) {
@@ -1630,7 +1630,7 @@ export class Interpreter {
       }
       if (Array.isArray(l) && Array.isArray(r)) return retaint([...l, ...r], lv, rv);
       if (l instanceof ContextWindow && typeof r === 'string') {
-        throw sarvmError('TypeError', 'use ctx.push(text) to add to a context window', line);
+        throw pedagError('TypeError', 'use ctx.push(text) to add to a context window', line);
       }
     }
 
@@ -1643,7 +1643,7 @@ export class Interpreter {
         '%': (a, b) => a % b,
         '**': (a, b) => a ** b,
       }[op];
-      if (!fn) throw sarvmError('TypeError', `operator '${op}' is not defined on tensors`, line);
+      if (!fn) throw pedagError('TypeError', `operator '${op}' is not defined on tensors`, line);
       const a = this.toTensor(l, line);
       const b = this.toTensor(r, line);
       return retaint(a.zip(b, fn, line), lv, rv);
@@ -1666,14 +1666,14 @@ export class Interpreter {
       case '-': return retaint(a - b, lv, rv);
       case '*': return retaint(a * b, lv, rv);
       case '/':
-        if (b === 0) throw sarvmError('ZeroDivisionError', 'division by zero', line);
+        if (b === 0) throw pedagError('ZeroDivisionError', 'division by zero', line);
         return retaint(a / b, lv, rv);
       case '%':
-        if (b === 0) throw sarvmError('ZeroDivisionError', 'remainder by zero', line);
+        if (b === 0) throw pedagError('ZeroDivisionError', 'remainder by zero', line);
         return retaint(a % b, lv, rv);
       case '**': return retaint(a ** b, lv, rv);
       default:
-        throw sarvmError('InternalError', `unknown operator '${op}'`, line);
+        throw pedagError('InternalError', `unknown operator '${op}'`, line);
     }
   }
 
@@ -1703,7 +1703,7 @@ export class Interpreter {
     if (obj instanceof Tensor) return obj.at(idx, line);
 
     if (idx.length !== 1) {
-      throw sarvmError('TypeError', `a ${typeName(obj)} takes one index, got ${idx.length}`, line);
+      throw pedagError('TypeError', `a ${typeName(obj)} takes one index, got ${idx.length}`, line);
     }
     const k = idx[0];
 
@@ -1712,7 +1712,7 @@ export class Interpreter {
       const key = typeof k === 'string' ? k : String(k);
       const hit = obj.get(key);
       if (hit !== undefined || obj.has(key)) return hit;
-      throw sarvmError('KeyError', `map has no key '${key}'`, line);
+      throw pedagError('KeyError', `map has no key '${key}'`, line);
     }
     if (Array.isArray(obj) && typeof k === 'number' && k >= 0 && k < obj.length && Number.isInteger(k)) {
       return obj[k];
@@ -1722,7 +1722,7 @@ export class Interpreter {
       let i = Math.trunc(this.asNumber(k, 'a list index', line));
       if (i < 0) i += obj.length;
       if (i < 0 || i >= obj.length) {
-        throw sarvmError('IndexError', `list index ${k} out of range (length ${obj.length})`, line);
+        throw pedagError('IndexError', `list index ${k} out of range (length ${obj.length})`, line);
       }
       return obj[i];
     }
@@ -1731,18 +1731,18 @@ export class Interpreter {
       let i = Math.trunc(this.asNumber(k, 'a string index', line));
       if (i < 0) i += obj.length;
       if (i < 0 || i >= obj.length) {
-        throw sarvmError('IndexError', `string index ${k} out of range (length ${obj.length})`, line);
+        throw pedagError('IndexError', `string index ${k} out of range (length ${obj.length})`, line);
       }
       return obj[i];
     }
 
     if (obj instanceof Map) {
       const key = String(k);
-      if (!obj.has(key)) throw sarvmError('KeyError', `map has no key '${key}'`, line);
+      if (!obj.has(key)) throw pedagError('KeyError', `map has no key '${key}'`, line);
       return obj.get(key);
     }
 
-    throw sarvmError('TypeError', `a ${typeName(obj)} cannot be indexed`, line);
+    throw pedagError('TypeError', `a ${typeName(obj)} cannot be indexed`, line);
   }
 
   native(name, arity, fn, needs = []) {
@@ -1791,13 +1791,13 @@ export class Interpreter {
       switch (name) {
         case 'len': return nf('len', 0, () => obj.length);
         case 'push': return nf('push', 1, (a, l) => {
-          assertMutable(obj, 'this list', l, sarvmError);
+          assertMutable(obj, 'this list', l, pedagError);
           obj.push(a[0]);
           return obj;
         });
         case 'pop': return nf('pop', 0, (_a, l) => {
-          assertMutable(obj, 'this list', l, sarvmError);
-          if (obj.length === 0) throw sarvmError('IndexError', 'pop from an empty list', l);
+          assertMutable(obj, 'this list', l, pedagError);
+          if (obj.length === 0) throw pedagError('IndexError', 'pop from an empty list', l);
           return obj.pop();
         });
         case 'slice': return nf('slice', -1, (a, l) => obj.slice(...this.sliceBounds(a, l)));
@@ -1825,12 +1825,12 @@ export class Interpreter {
         case 'has': return nf('has', 1, (a) => obj.has(String(unwrap(a[0]))));
         case 'get': return nf('get', -1, (a) => (obj.has(String(unwrap(a[0]))) ? obj.get(String(unwrap(a[0]))) : (a.length > 1 ? a[1] : null)));
         case 'set': return nf('set', 2, (a, l) => {
-          assertMutable(obj, 'this map', l, sarvmError);
+          assertMutable(obj, 'this map', l, pedagError);
           obj.set(String(unwrap(a[0])), a[1]);
           return obj;
         });
         case 'remove': return nf('remove', 1, (a, l) => {
-          assertMutable(obj, 'this map', l, sarvmError);
+          assertMutable(obj, 'this map', l, pedagError);
           return obj.delete(String(unwrap(a[0])));
         });
         default:
@@ -1881,26 +1881,26 @@ export class Interpreter {
       }
     }
 
-    if (obj instanceof LumeFunction || obj instanceof NativeFunction) {
+    if (obj instanceof PedagFunction || obj instanceof NativeFunction) {
       if (name === 'name') return obj.name;
       if (name === 'needs') return [...(obj.needs ?? obj.decl?.needs ?? [])];
     }
 
     // Types contributed by later layers expose their own members, so this
     // dispatcher does not grow a case for every one of them.
-    if (obj && typeof obj.sarvmMembers === 'function') {
-      const members = obj.sarvmMembers(this, line);
+    if (obj && typeof obj.pedagMembers === 'function') {
+      const members = obj.pedagMembers(this, line);
       if (Object.prototype.hasOwnProperty.call(members, name)) return members[name];
     }
 
-    throw sarvmError('AttributeError', `a ${typeName(obj)} has no '${name}'`, line);
+    throw pedagError('AttributeError', `a ${typeName(obj)} has no '${name}'`, line);
   }
 
   // slice(n) takes from n to the end; slice(a, b) takes a range. Negative
   // indices count back from the end, as they do everywhere else in the language.
   sliceBounds(args, line) {
     if (args.length < 1 || args.length > 2) {
-      throw sarvmError('ArityError', `slice takes 1 or 2 arguments, got ${args.length}`, line);
+      throw pedagError('ArityError', `slice takes 1 or 2 arguments, got ${args.length}`, line);
     }
     const start = Math.trunc(this.asNumber(unwrap(args[0]), 'a slice start', line));
     if (args.length === 1) return [start];
@@ -1912,7 +1912,7 @@ export class Interpreter {
   asNumber(v, what, line) {
     const u = unwrap(v);
     if (typeof u !== 'number' || Number.isNaN(u)) {
-      throw sarvmError('TypeError', `${what} must be a num, got ${typeName(u)}`, line);
+      throw pedagError('TypeError', `${what} must be a num, got ${typeName(u)}`, line);
     }
     return u;
   }
@@ -1922,7 +1922,7 @@ export class Interpreter {
     if (u instanceof Tensor) return u;
     if (typeof u === 'number') return Tensor.scalar(u);
     if (Array.isArray(u)) return Tensor.fromNested(this.plainNested(u, line), line);
-    throw sarvmError('TypeError', `cannot use a ${typeName(u)} as a tensor`, line);
+    throw pedagError('TypeError', `cannot use a ${typeName(u)} as a tensor`, line);
   }
 
   plainNested(v, line) {
@@ -1930,14 +1930,14 @@ export class Interpreter {
     if (Array.isArray(u)) return u.map((x) => this.plainNested(x, line));
     if (typeof u === 'number') return u;
     if (u instanceof Tensor) return u.toNested();
-    throw sarvmError('ShapeError', `tensor elements must be nums, found ${typeName(u)}`, line);
+    throw pedagError('ShapeError', `tensor elements must be nums, found ${typeName(u)}`, line);
   }
 
   toShape(v, line) {
     const u = unwrap(v);
     if (typeof u === 'number') return [Math.trunc(u)];
     if (Array.isArray(u)) return u.map((x) => Math.trunc(this.asNumber(unwrap(x), 'a shape entry', line)));
-    throw sarvmError('TypeError', `a shape must be a num or a list of nums, got ${typeName(u)}`, line);
+    throw pedagError('TypeError', `a shape must be a num or a list of nums, got ${typeName(u)}`, line);
   }
 
   toIterable(v, line) {
@@ -1946,6 +1946,6 @@ export class Interpreter {
     if (typeof u === 'string') return [...u];
     if (u instanceof Map) return [...u.keys()];
     if (u instanceof Tensor) return Array.from(u.data);
-    throw sarvmError('TypeError', `a ${typeName(u)} cannot be looped over`, line);
+    throw pedagError('TypeError', `a ${typeName(u)} cannot be looped over`, line);
   }
 }

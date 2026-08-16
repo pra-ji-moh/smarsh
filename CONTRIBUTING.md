@@ -1,10 +1,10 @@
-# Contributing to Sarvm
+# Contributing to Pēdāg
 
 ## The one rule
 
 **A feature's name must be true.**
 
-Sarvm ships things that sound impossible — homomorphic arithmetic, zero-knowledge
+Pēdāg ships things that sound impossible — homomorphic arithmetic, zero-knowledge
 proofs, quantum simulation, un-overridable kill switches. They are in the tree
 because each one actually does what its name says, and where a name would
 overclaim, the name changed rather than the claim.
@@ -26,7 +26,7 @@ Node 18 or newer. There are no dependencies to install.
 
 ```bash
 node --test tests/*.test.mjs
-node bin/sarvm.mjs run examples/tour.sarvm
+node bin/pedag.mjs run examples/tour.pedag
 ```
 
 ## What a pull request needs
@@ -37,7 +37,7 @@ node bin/sarvm.mjs run examples/tour.sarvm
 2. **The honest caveat, in the README.** If a feature is partial, bounded, or
    an approximation, the limitation goes in the caveats list in the same PR.
    Not the next one.
-3. **`sarvm check` clean** on any `.sarvm` you add.
+3. **`pedag check` clean** on any `.pedag` you add.
 4. **No dependencies.** The runtime has none and is not going to acquire any.
    `node:` builtins are fine.
 
@@ -61,9 +61,9 @@ about each one:
 
 ```js
 export class Thing {
-  get sarvmType() { return 'thing'; }        // typeName() picks this up
+  get pedagType() { return 'thing'; }        // typeName() picks this up
   toString() { return '<thing>'; }          // print() picks this up
-  sarvmMembers(interp, line) {               // `.field` and `.method()` dispatch
+  pedagMembers(interp, line) {               // `.field` and `.method()` dispatch
     return { size: 3, poke: nf('poke', 0, () => 42) };
   }
 }
@@ -79,8 +79,8 @@ off `builtins.js`.
 
 ## Reporting a security issue
 
-sarvm runs untrusted-ish code by design — capabilities, taint tracking and
+pedag runs untrusted-ish code by design — capabilities, taint tracking and
 budgets are all load-bearing. If you find a way to escape any of them (reach the
 filesystem without `fs`, launder a taint label without `trust()`, or survive a
 `budget` block), that is a security bug. Open an issue with a reproducing
-`.sarvm` file.
+`.pedag` file.

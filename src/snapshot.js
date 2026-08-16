@@ -1,11 +1,11 @@
 import { Tensor } from './tensor.js';
 import {
-  ContextWindow, Ledger, Tainted, LumeFunction, NativeFunction, unwrap, countTokens,
+  ContextWindow, Ledger, Tainted, PedagFunction, NativeFunction, unwrap, countTokens,
 } from './values.js';
 import { Env } from './env.js';
 import { Liquid, LogicalClock, Stamp } from './temporal.js';
 import { AgentRef, AgentTemplate } from './agents.js';
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
 // Moving a running program's state somewhere else.
 //
@@ -71,11 +71,11 @@ function encode(value, skipped, path) {
   }
 
   // Functions and agent templates come back with the program itself.
-  if (v instanceof LumeFunction || v instanceof NativeFunction || v instanceof AgentTemplate) {
+  if (v instanceof PedagFunction || v instanceof NativeFunction || v instanceof AgentTemplate) {
     return null;
   }
 
-  skipped.push(`${path} (${v && v.sarvmType ? v.sarvmType : typeof v})`);
+  skipped.push(`${path} (${v && v.pedagType ? v.pedagType : typeof v})`);
   return null;
 }
 
@@ -118,11 +118,11 @@ function decode(node, agentsById, line) {
     case 'stamp': return new Stamp(node.counter, node.node);
     case 'agentref': {
       const ref = agentsById.get(node.id);
-      if (!ref) throw sarvmError('RestoreError', `the snapshot mentions agent #${node.id}, which is not in it`, line);
+      if (!ref) throw pedagError('RestoreError', `the snapshot mentions agent #${node.id}, which is not in it`, line);
       return ref;
     }
     default:
-      throw sarvmError('RestoreError', `unknown value kind '${node.t}' in the snapshot`, line);
+      throw pedagError('RestoreError', `unknown value kind '${node.t}' in the snapshot`, line);
   }
 }
 
@@ -162,7 +162,7 @@ export function snapshot(interp) {
 
 export function restore(interp, state, line = null) {
   if (!state || state.version !== VERSION) {
-    throw sarvmError('RestoreError',
+    throw pedagError('RestoreError',
       `this snapshot is version ${state ? state.version : 'unknown'}; this runtime reads version ${VERSION}`, line);
   }
 
@@ -172,7 +172,7 @@ export function restore(interp, state, line = null) {
   for (const saved of state.agents) {
     const template = unwrap(interp.globals.slot(saved.template)?.value);
     if (!(template instanceof AgentTemplate)) {
-      throw sarvmError('RestoreError',
+      throw pedagError('RestoreError',
         `the snapshot holds a '${saved.template}' agent, but this program has no such agent`, line);
     }
     const env = new Env(interp.globals);

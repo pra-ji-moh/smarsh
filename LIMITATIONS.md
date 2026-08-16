@@ -14,7 +14,7 @@ Things that behave in a way a reasonable person would not predict.
 
 ### `let` freezes shared structure, including through an alias
 
-```sarvm
+```pedag
 var xs = [1, 2]
 let ys = xs        // freezes the list itself
 xs.push(3)         // ImmutableError, even though xs is a var
@@ -23,13 +23,13 @@ xs.push(3)         // ImmutableError, even though xs is a var
 `let` freezes the *value*, and `xs` and `ys` are the same value. Binding
 something with `let` therefore reaches back and freezes it everywhere. This is
 consistent, and it is not what most people expect. Rust solves this with
-ownership; Sarvm does not have ownership.
+ownership; Pēdāg does not have ownership.
 
 **Workaround:** copy before binding — `let ys = xs.slice(0, xs.len())`.
 
 ### A record is only as immutable as what you put in it
 
-```sarvm
+```pedag
 var items = [1]
 let h = Holder(items)
 items.push(2)          // h.items is now [1, 2]
@@ -40,11 +40,11 @@ stays mutable through the original binding. Records are shallowly immutable.
 
 ### Type errors do not stop a run
 
-`sarvm check` reports them; `sarvm run` executes anyway. A program with a proven
+`pedag check` reports them; `pedag run` executes anyway. A program with a proven
 type error still runs until the value actually misbehaves at runtime. This is
 deliberate for a gradual system but it means `run` is not a gate.
 
-**Workaround:** run `sarvm check` in CI. It exits non-zero.
+**Workaround:** run `pedag check` in CI. It exits non-zero.
 
 ### Determinism is per-version, not forever
 
@@ -61,7 +61,7 @@ surprising if you expected transactional semantics.
 
 ## 2. The verifier
 
-`sarvm verify` is real but narrow. What it cannot do matters as much as what it
+`pedag verify` is real but narrow. What it cannot do matters as much as what it
 can.
 
 ### No interprocedural reasoning — the biggest gap
@@ -69,13 +69,13 @@ can.
 A call is an opaque value. The verifier does **not** use a callee's contract at
 the call site:
 
-```sarvm
+```pedag
 fn callee(n) requires n > 0 ensures result > n { return n + 1 }
 fn caller(n) requires n > 0 ensures result > 1 { return callee(n) }
 //  -> undecided, even though callee's own contract makes it obvious
 ```
 
-Dafny does this and it is the single largest thing standing between Sarvm's
+Dafny does this and it is the single largest thing standing between Pēdāg's
 verifier and usefulness on real code. Anything built from function calls is
 undecidable to it today.
 
@@ -104,7 +104,7 @@ semantics end to end. Reasoning about `dec` is exact, because `dec` is exact.
 
 A refutation says "there is an input for which this does not hold" and does not
 say which. The solver knows the constraint system is satisfiable but does not
-extract a model. `sarvm prove` gives you concrete inputs; `verify` does not.
+extract a model. `pedag prove` gives you concrete inputs; `verify` does not.
 
 ### Hard caps, silently reached
 
@@ -127,7 +127,7 @@ The README says no other language verifies "functional contracts, information
 flow, capability sufficiency and termination in one pass." That is an overclaim
 and it is mine.
 
-`sarvm verify` does contracts and termination. `sarvm check` does information flow
+`pedag verify` does contracts and termination. `pedag check` does information flow
 and races, in a *different engine*, with a different algorithm. They are one
 toolchain, not one pass — the taint analysis is not part of the verification
 condition system and cannot use its solver. Unifying them is real work that has
@@ -173,12 +173,12 @@ not been done.
   in JavaScript leaks timing. Quarantined behind its own capability; still not
   safe against an adversary who can measure you.
 - **`ffi` is a total escape.** Granting it leaves every guarantee behind.
-- **No host sandbox.** Capabilities bound what Sarvm code reaches, not what the
+- **No host sandbox.** Capabilities bound what Pēdāg code reaches, not what the
   process can do. `fs` is scoped to the program directory and that is all.
 - **Budgets do not bound memory.** `steps` and `tokens` only; a program can
   allocate until Node dies.
 - **Only confidentiality labels.** The decentralized label model has integrity
-  labels too; Sarvm implements the confidentiality half.
+  labels too; Pēdāg implements the confidentiality half.
 - **No label inference or polymorphism.** Every label is written by hand.
 - **Static taint is a may-analysis** with crude interprocedural summaries. It
   errs toward reporting, which is the right direction, but it will flag
@@ -216,8 +216,8 @@ partial file IO — `read` and `write` handle whole files only. No networking.
 - **`--profile` prints a table**, with inclusive time only. No flamegraph, no
   allocation profile.
 - **The bundler is bespoke** and handles this codebase, not JavaScript generally.
-- **No coverage tooling for `.sarvm` code** — the 94% figure is coverage of the
-  interpreter, not of programs written in Sarvm.
+- **No coverage tooling for `.pedag` code** — the 94% figure is coverage of the
+  interpreter, not of programs written in Pēdāg.
 
 ---
 

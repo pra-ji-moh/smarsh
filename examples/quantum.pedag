@@ -1,6 +1,6 @@
 // Quantum logic, distributed ordering and decaying value, in the same file as
 // ordinary code.
-//     node bin/sarvm.mjs run examples/quantum.sarvm
+//     node bin/pedag.mjs run examples/quantum.pedag
 print("== superposition and entanglement =========================")
 
 let q = qubits(2)

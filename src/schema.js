@@ -1,6 +1,6 @@
 import { NativeFunction, stringify, unwrap, typeName } from './values.js';
 import { Tensor } from './tensor.js';
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
 const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 
@@ -24,7 +24,7 @@ export class Schema {
     this.name = name;
     this.fields = fields;      // Map<string, {kind, required, fallback}>
   }
-  get sarvmType() { return 'schema'; }
+  get pedagType() { return 'schema'; }
 
   toString() {
     const shown = [...this.fields.entries()]
@@ -51,7 +51,7 @@ export class Schema {
     return out;
   }
 
-  sarvmMembers(interp) {
+  pedagMembers(interp) {
     return {
       name: this.name,
       fields: [...this.fields.keys()],
@@ -121,12 +121,12 @@ const coercible = (a, b) => COERCIONS.has(`${a}->${b}`);
 export function adapt(value, from, to, line) {
   const result = negotiate(from, to);
   if (!result.compatible) {
-    throw sarvmError('SchemaError',
+    throw pedagError('SchemaError',
       `cannot read ${from.name} as ${to.name}: ${result.blocking.join('; ')}`, line);
   }
   const v = unwrap(value);
   if (!(v instanceof Map)) {
-    throw sarvmError('SchemaError', `expected a map to adapt, got ${typeName(v)}`, line);
+    throw pedagError('SchemaError', `expected a map to adapt, got ${typeName(v)}`, line);
   }
 
   const out = new Map();

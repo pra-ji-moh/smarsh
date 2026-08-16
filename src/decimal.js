@@ -1,5 +1,5 @@
 import { NativeFunction } from './values.js';
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
 const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 
@@ -32,13 +32,13 @@ export class Decimal {
     this.c = coefficient;             // BigInt
     this.scale = scale;               // digits after the point
   }
-  get sarvmType() { return 'dec'; }
+  get pedagType() { return 'dec'; }
 
   static parse(text, line = null) {
     const s = String(text).trim();
     const m = /^([+-]?)(\d*)(?:\.(\d*))?(?:[eE]([+-]?\d+))?$/.exec(s);
     if (!m || (m[2] === '' && (m[3] === undefined || m[3] === ''))) {
-      throw sarvmError('ValueError', `\`${s}\` is not a decimal number`, line)
+      throw pedagError('ValueError', `\`${s}\` is not a decimal number`, line)
         .help('write it as text, for example dec("12.50")');
     }
     const [, sign, whole, frac = '', exp] = m;
@@ -53,7 +53,7 @@ export class Decimal {
       }
     }
     if (scale > MAX_SCALE) {
-      throw sarvmError('ValueError',
+      throw pedagError('ValueError',
         `a decimal may carry at most ${MAX_SCALE} digits after the point, this has ${scale}`, line);
     }
     return new Decimal(sign === '-' ? -coefficient : coefficient, scale);
@@ -63,12 +63,12 @@ export class Decimal {
   // imprecision the type exists to keep out.
   static fromInteger(n, line = null) {
     if (!Number.isInteger(n)) {
-      throw sarvmError('TypeError',
+      throw pedagError('TypeError',
         `\`${n}\` is a float, and converting it would carry its imprecision into exact arithmetic`, line)
         .help('write the exact value as text instead, for example dec("0.1")');
     }
     if (!Number.isSafeInteger(n)) {
-      throw sarvmError('ValueError', `\`${n}\` is beyond what a num holds exactly`, line);
+      throw pedagError('ValueError', `\`${n}\` is beyond what a num holds exactly`, line);
     }
     return new Decimal(BigInt(n), 0);
   }
@@ -100,10 +100,10 @@ export class Decimal {
   // `scale` digits, rounded half-to-even, which is the rounding financial
   // reporting expects.
   div(other, scale, line = null) {
-    if (other.c === 0n) throw sarvmError('ZeroDivisionError', 'division by zero', line);
+    if (other.c === 0n) throw pedagError('ZeroDivisionError', 'division by zero', line);
     const target = scale ?? Math.max(this.scale, other.scale, 2);
     if (target > MAX_SCALE) {
-      throw sarvmError('ValueError', `a scale of ${target} is beyond the maximum of ${MAX_SCALE}`, line);
+      throw pedagError('ValueError', `a scale of ${target} is beyond the maximum of ${MAX_SCALE}`, line);
     }
     // Scale the numerator so the integer division lands at `target` digits,
     // with one extra digit kept to decide the rounding.
@@ -138,7 +138,7 @@ export class Decimal {
   toNumber(line = null) {
     const asNumber = Number(this.toString());
     if (!Number.isFinite(asNumber) || Decimal.parse(String(asNumber)).compare(this) !== 0) {
-      throw sarvmError('ValueError',
+      throw pedagError('ValueError',
         `${this.toString()} cannot become a num without losing precision`, line)
         .help('keep it as a dec, or round it first with .round(n)');
     }
@@ -155,7 +155,7 @@ export class Decimal {
     return `${negative ? '-' : ''}${whole}.${frac}`;
   }
 
-  sarvmMembers(interp) {
+  pedagMembers(interp) {
     return {
       scale: this.scale,
       round: nf('round', 1, (a, line) => this.rescale(Math.trunc(interp.asNumber(a[0], 'a scale', line)), line)),
@@ -185,7 +185,7 @@ function roundHalfEven(q) {
 export function expectDec(v, what, line) {
   const u = v && v.value !== undefined && v.labels ? v.value : v;
   if (!(u instanceof Decimal)) {
-    throw sarvmError('TypeError', `${what} must be a dec`, line)
+    throw pedagError('TypeError', `${what} must be a dec`, line)
       .help('`dec("1.50")` builds one from text');
   }
   return u;
@@ -205,11 +205,11 @@ export function decimalBinary(op, l, r, line) {
       return decimalBinary(op, left ? l : lifted, left ? lifted : r, line);
     }
     if (typeof other === 'number') {
-      throw sarvmError('TypeError',
+      throw pedagError('TypeError',
         `cannot mix \`dec\` with the float \`${other}\`; that would put a rounding error into exact arithmetic`, line)
         .help(`write it exactly: \`dec("${other}")\``);
     }
-    throw sarvmError('TypeError', `\`${op}\` is not defined between \`dec\` and this value`, line);
+    throw pedagError('TypeError', `\`${op}\` is not defined between \`dec\` and this value`, line);
   }
 
   switch (op) {
@@ -224,7 +224,7 @@ export function decimalBinary(op, l, r, line) {
     case '>': return left.compare(right) > 0;
     case '>=': return left.compare(right) >= 0;
     default:
-      throw sarvmError('TypeError', `\`${op}\` is not defined on \`dec\``, line)
+      throw pedagError('TypeError', `\`${op}\` is not defined on \`dec\``, line)
         .help('use .div(divisor, scale) when you need to say how to round');
   }
 }

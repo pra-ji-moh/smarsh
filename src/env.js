@@ -1,4 +1,4 @@
-import { sarvmError } from './errors.js';
+import { pedagError } from './errors.js';
 
 // A lexical scope. Its own module so that the interpreter and the snapshot
 // layer can both build one without importing each other.
@@ -11,7 +11,7 @@ export class Env {
 
   declare(name, value, mutable, line) {
     if (this.vars.has(name)) {
-      throw sarvmError('NameError', `'${name}' is already declared in this scope`, line);
+      throw pedagError('NameError', `'${name}' is already declared in this scope`, line);
     }
     this.vars.set(name, { value, mutable });
   }
@@ -38,15 +38,15 @@ export class Env {
 
   get(name, line) {
     const s = this.slot(name);
-    if (!s) throw sarvmError('NameError', `'${name}' is not defined`, line);
+    if (!s) throw pedagError('NameError', `'${name}' is not defined`, line);
     return s.value;
   }
 
   assign(name, value, line) {
     const s = this.slot(name);
-    if (!s) throw sarvmError('NameError', `'${name}' is not defined`, line);
+    if (!s) throw pedagError('NameError', `'${name}' is not defined`, line);
     if (!s.mutable) {
-      throw sarvmError('ImmutableError',
+      throw pedagError('ImmutableError',
         `'${name}' was declared with let and cannot be reassigned (use var if it must change)`, line);
     }
     s.value = value;

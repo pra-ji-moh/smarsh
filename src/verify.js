@@ -5,7 +5,7 @@ import { Diagnostic } from './diagnostics.js';
 
 // Proving contracts instead of testing them.
 //
-// `sarvm prove` throws generated inputs at a contract and reports what breaks.
+// `pedag prove` throws generated inputs at a contract and reports what breaks.
 // That finds real bugs and it is what most languages offer. It cannot tell you
 // a contract *holds* — only that a few hundred inputs did not break it.
 //
@@ -463,7 +463,7 @@ export function formatVerification(results, file) {
     } else {
       unknown += 1;
       lines.push(`  undecided ${r.fn}: ${r.name}`);
-      lines.push(`            beyond linear arithmetic; \`sarvm prove\` will still test it`);
+      lines.push(`            beyond linear arithmetic; \`pedag prove\` will still test it`);
     }
   }
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 
 import { Interpreter } from '../src/interpreter.js';
-import { SarvmError } from '../src/errors.js';
+import { PedagError } from '../src/errors.js';
 import { stringify } from '../src/values.js';
 import { proveSource, formatReports } from '../src/prove.js';
 import { analyze, formatFindings } from '../src/analysis.js';
@@ -21,17 +21,17 @@ import { generateKeypair, verifyMessage } from '../src/crypto.js';
 
 const VERSION = '0.3.0';
 
-const HELP = `Sarvm ${VERSION} -- a language for programs that reason under uncertainty
+const HELP = `Pēdāg ${VERSION} -- a language for programs that reason under uncertainty
 
 usage:
-  sarvm run <file.sarvm> [options]     run a program
-  sarvm check <file.sarvm>             static checks, without running anything
-  sarvm build <file.sarvm> [-o out]    one self-contained .mjs, no dependencies
-  sarvm prove <file.sarvm> [options]   generate inputs and check every contract
-  sarvm verify <file.sarvm>            prove contracts hold for every input
-  sarvm audit <manifest.json>          read back a run record and check it is intact
-  sarvm repl [options]                interactive session
-  sarvm eval "<source>" [options]     run a one-liner
+  pedag run <file.pedag> [options]     run a program
+  pedag check <file.pedag>             static checks, without running anything
+  pedag build <file.pedag> [-o out]    one self-contained .mjs, no dependencies
+  pedag prove <file.pedag> [options]   generate inputs and check every contract
+  pedag verify <file.pedag>            prove contracts hold for every input
+  pedag audit <manifest.json>          read back a run record and check it is intact
+  pedag repl [options]                interactive session
+  pedag eval "<source>" [options]     run a one-liner
 
 options:
   --seed <n>          seed for all probabilistic control flow (default 0)
@@ -62,8 +62,8 @@ function parseArgs(argv) {
     else if (a === '--version' || a === '-v') opts.version = true;
     else opts.positional.push(a);
   }
-  if (!Number.isFinite(opts.seed)) { console.error('Sarvm: --seed needs a number'); process.exit(2); }
-  if (!Number.isFinite(opts.trials) || opts.trials < 1) { console.error('Sarvm: --trials needs a positive number'); process.exit(2); }
+  if (!Number.isFinite(opts.seed)) { console.error('Pēdāg: --seed needs a number'); process.exit(2); }
+  if (!Number.isFinite(opts.trials) || opts.trials < 1) { console.error('Pēdāg: --trials needs a positive number'); process.exit(2); }
   return opts;
 }
 
@@ -73,7 +73,7 @@ function parseArgs(argv) {
 function readSource(file) {
   const full = path.resolve(process.cwd(), file);
   if (!fs.existsSync(full)) {
-    console.error(`sarvm: no such file: ${file}`);
+    console.error(`pedag: no such file: ${file}`);
     process.exit(2);
   }
   return { full, source: fs.readFileSync(full, 'utf8') };
@@ -82,7 +82,7 @@ function readSource(file) {
 const COLOUR = process.stderr.isTTY && !process.env.NO_COLOR;
 
 function reportError(e, source, file) {
-  if (e instanceof SarvmError) {
+  if (e instanceof PedagError) {
     console.error(e.format(source, file, { colour: COLOUR }));
     return;
   }
@@ -124,7 +124,7 @@ function printProfile(interp) {
 
 function cmdRun(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('Sarvm: run needs a file'); process.exit(2); }
+  if (!file) { console.error('Pēdāg: run needs a file'); process.exit(2); }
   const { full, source } = readSource(file);
 
   // Static findings are worth knowing before the program runs, not instead of.
@@ -148,7 +148,7 @@ function cmdRun(opts) {
   try {
     interp.run(source, file);
   } catch (e) {
-    outcome = e instanceof SarvmError ? `failed: ${e.kind}` : 'failed';
+    outcome = e instanceof PedagError ? `failed: ${e.kind}` : 'failed';
     failure = e;
   }
 
@@ -171,13 +171,13 @@ function cmdRun(opts) {
 // Read back a record someone else produced and check it has not been edited.
 function cmdAudit(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('sarvm: audit needs a manifest file'); process.exit(2); }
+  if (!file) { console.error('pedag: audit needs a manifest file'); process.exit(2); }
 
   let manifest;
   try {
     manifest = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), file), 'utf8'));
   } catch (e) {
-    console.error(`sarvm: cannot read ${file}: ${e.message}`);
+    console.error(`pedag: cannot read ${file}: ${e.message}`);
     process.exitCode = 2;
     return;
   }
@@ -291,12 +291,12 @@ function diagnose(source, file) {
 // specific line and a specific kind, and counted in the summary. A suppression
 // nobody can see is the thing to avoid, not a suppression.
 //
-//     // sarvm-allow: taint  (deliberate: this demonstrates the error)
+//     // pedag-allow: taint  (deliberate: this demonstrates the error)
 //     grounded { print(reply) }
 function applySuppressions(diagnostics, program, source) {
   const pragmas = [];
   for (const c of program.comments ?? []) {
-    const m = /sarvm-allow:\s*([a-z, ]+)/.exec(c.text);
+    const m = /pedag-allow:\s*([a-z, ]+)/.exec(c.text);
     if (!m) continue;
     pragmas.push({ line: c.line, kinds: new Set(m[1].split(',').map((s) => s.trim()).filter(Boolean)) });
   }
@@ -333,7 +333,7 @@ function applySuppressions(diagnostics, program, source) {
 
 function cmdCheck(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('Sarvm: check needs a file'); process.exit(2); }
+  if (!file) { console.error('Pēdāg: check needs a file'); process.exit(2); }
   const { source } = readSource(file);
   let diagnostics;
   try {
@@ -352,7 +352,7 @@ function cmdCheck(opts) {
   // Suppressions are always reported. They are a decision someone made, and a
   // reviewer should be able to see how many were made without reading the file.
   const silenced = diagnostics.suppressed
-    ? ` (${diagnostics.suppressed} suppressed by sarvm-allow)` : '';
+    ? ` (${diagnostics.suppressed} suppressed by pedag-allow)` : '';
   console.log(errors === 0
     ? `${file}: no problems found${silenced}`
     : `${errors} problem${errors === 1 ? '' : 's'} found${silenced}`);
@@ -362,7 +362,7 @@ function cmdCheck(opts) {
 
 function cmdEval(opts) {
   const source = opts.positional[0];
-  if (!source) { console.error('Sarvm: eval needs source text'); process.exit(2); }
+  if (!source) { console.error('Pēdāg: eval needs source text'); process.exit(2); }
   const interp = new Interpreter({ seed: opts.seed, caps: opts.grant });
   try {
     const v = interp.run(source, '<eval>');
@@ -377,7 +377,7 @@ function cmdEval(opts) {
 
 function cmdProve(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('Sarvm: prove needs a file'); process.exit(2); }
+  if (!file) { console.error('Pēdāg: prove needs a file'); process.exit(2); }
   const { source } = readSource(file);
   let reports;
   try {
@@ -402,14 +402,14 @@ function cmdProve(opts) {
 
 function cmdBuild(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('Sarvm: build needs a file'); process.exit(2); }
+  if (!file) { console.error('Pēdāg: build needs a file'); process.exit(2); }
   const { source } = readSource(file);
-  const out = opts.output ?? `${path.basename(file, '.sarvm')}.mjs`;
+  const out = opts.output ?? `${path.basename(file, '.pedag')}.mjs`;
   let bundle;
   try {
     bundle = buildBundle(source, path.basename(file), { seed: opts.seed, caps: opts.grant });
   } catch (e) {
-    console.error(`Sarvm: cannot build: ${e.message}`);
+    console.error(`Pēdāg: cannot build: ${e.message}`);
     process.exitCode = 1;
     return;
   }
@@ -427,12 +427,12 @@ function cmdTest(opts) {
   try {
     files = discover(target);
   } catch (e) {
-    console.error(`Sarvm: cannot read ${target}: ${e.code ?? e.message}`);
+    console.error(`Pēdāg: cannot read ${target}: ${e.code ?? e.message}`);
     process.exitCode = 2;
     return;
   }
   if (files.length === 0) {
-    console.log(`no test files found in ${target} (they are named *_test.sarvm)`);
+    console.log(`no test files found in ${target} (they are named *_test.pedag)`);
     return;
   }
   const results = files.map((f) => runFile(f, { seed: opts.seed, caps: opts.grant, trials: opts.trials }));
@@ -444,7 +444,7 @@ function cmdTest(opts) {
 
 function cmdFmt(opts) {
   const target = opts.positional[0];
-  if (!target) { console.error('Sarvm: fmt needs a file or directory'); process.exit(2); }
+  if (!target) { console.error('Pēdāg: fmt needs a file or directory'); process.exit(2); }
 
   const files = [];
   const collect = (p) => {
@@ -454,13 +454,13 @@ function cmdFmt(opts) {
       if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
       const child = path.join(p, entry.name);
       if (entry.isDirectory()) collect(child);
-      else if (entry.name.endsWith('.sarvm')) files.push(child);
+      else if (entry.name.endsWith('.pedag')) files.push(child);
     }
   };
   try {
     collect(path.resolve(target));
   } catch (e) {
-    console.error(`Sarvm: cannot read ${target}: ${e.code ?? e.message}`);
+    console.error(`Pēdāg: cannot read ${target}: ${e.code ?? e.message}`);
     process.exitCode = 2;
     return;
   }
@@ -494,7 +494,7 @@ function cmdFmt(opts) {
 
 function cmdVerify(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('Sarvm: verify needs a file'); process.exit(2); }
+  if (!file) { console.error('Pēdāg: verify needs a file'); process.exit(2); }
   const { source } = readSource(file);
 
   let program;
@@ -517,7 +517,7 @@ function cmdVerify(opts) {
   console.log(`\n${report.summary}`);
   if (report.unknown > 0) {
     console.log('undecided means the solver could not settle it, not that it is false;');
-    console.log('the runtime still checks every contract, and `sarvm prove` still tests them');
+    console.log('the runtime still checks every contract, and `pedag prove` still tests them');
   }
   process.exitCode = report.failed === 0 ? 0 : 1;
   return;
@@ -526,7 +526,7 @@ function cmdVerify(opts) {
 function cmdExplain(opts) {
   const code = (opts.positional[0] ?? '').toUpperCase();
   if (!code) {
-    console.error('Sarvm: explain needs an error code, e.g. Sarvm explain E0402');
+    console.error('Pēdāg: explain needs an error code, e.g. Pēdāg explain E0402');
     process.exitCode = 2;
     return;
   }
@@ -540,7 +540,7 @@ function cmdExplain(opts) {
     console.log('there is no longer explanation for this code yet');
     return;
   }
-  console.error(`Sarvm: no such error code \`${code}\``);
+  console.error(`Pēdāg: no such error code \`${code}\``);
   const known = Object.keys(CODES).filter((c) => EXPLANATIONS[c]);
   console.error(`codes with a longer explanation: ${known.join(', ')}`);
   process.exitCode = 2;
@@ -551,7 +551,7 @@ function cmdRepl(opts) {
   const interp = new Interpreter({ seed: opts.seed, caps: opts.grant });
   interp.allowRedeclare = true;
 
-  console.log(`Sarvm ${VERSION}  (seed ${opts.seed}, holding: ${opts.grant.length ? opts.grant.join(', ') : 'no capabilities'})`);
+  console.log(`Pēdāg ${VERSION}  (seed ${opts.seed}, holding: ${opts.grant.length ? opts.grant.join(', ') : 'no capabilities'})`);
   console.log('type an expression, or .help / .exit');
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: '>> ' });
@@ -585,7 +585,7 @@ function cmdRepl(opts) {
       if (value !== null && value !== undefined) console.log(stringify(value, 0));
     } catch (e) {
       // An unfinished block is not an error yet -- keep reading.
-      if (e instanceof SarvmError && e.kind === 'SyntaxError' && /end of file/.test(e.message)) {
+      if (e instanceof PedagError && e.kind === 'SyntaxError' && /end of file/.test(e.message)) {
         rl.setPrompt('.. ');
         rl.prompt();
         return;
@@ -617,10 +617,10 @@ function main() {
   if (commands.has(first)) {
     command = first;
     opts.positional.shift();
-  } else if (first && first.endsWith('.sarvm')) {
+  } else if (first && first.endsWith('.pedag')) {
     command = 'run';
   } else {
-    console.error(`Sarvm: unknown command '${first}'\n`);
+    console.error(`Pēdāg: unknown command '${first}'\n`);
     console.log(HELP);
     process.exitCode = 2;
     return;

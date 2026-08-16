@@ -33,7 +33,7 @@ were found, three of which contradicted claims the documentation was making.
   first and refuse the second. A Paillier modulus under 2048 bits is recorded in
   the run trace.
 - **Taint is now checked statically**, over every path, not only the one a run
-  took. `sarvm check` reports a labelled value reaching a `grounded` or `region`
+  took. `pedag check` reports a labelled value reaching a `grounded` or `region`
   sink through call chains, collections, interpolation and branch merges.
 
 ### Breaking
@@ -54,9 +54,9 @@ were found, three of which contradicted claims the documentation was making.
   `dec("0.1") + dec("0.2") == dec("0.3")` is true and a thousand additions of
   `dec("0.01")` is exactly `10.00`. Division states its scale and rounds
   half-to-even. Decimals do not mix with floats implicitly.
-- **`sarvm-allow` suppressions.** A source comment scoped to the statement it
+- **`pedag-allow` suppressions.** A source comment scoped to the statement it
   introduces, counted in the summary so a silenced finding stays visible.
-- Parser error recovery: `sarvm check` reports every syntax error in a file
+- Parser error recovery: `pedag check` reports every syntax error in a file
   rather than stopping at the first.
 
 ### Fixed
@@ -70,13 +70,13 @@ were found, three of which contradicted claims the documentation was making.
 
 - Gradual type system with optional annotations, local bidirectional inference
   and a consistency relation, so unannotated programs check clean.
-- Rendered diagnostics: source spans with carets, error codes, `sarvm explain`,
+- Rendered diagnostics: source spans with carets, error codes, `pedag explain`,
   Damerau-Levenshtein suggestions, and runtime stack traces.
 - Records, pattern matching with guards and destructuring, string interpolation.
 - Standard library — `std/list`, `std/str`, `std/math`, `std/result` — written
-  in Sarvm.
-- `sarvm test` (unit tests, contracts, types and races in one command),
-  `sarvm fmt` (one canonical layout, no options), `sarvm build` (one
+  in Pēdāg.
+- `pedag test` (unit tests, contracts, types and races in one command),
+  `pedag fmt` (one canonical layout, no options), `pedag build` (one
   self-contained `.mjs`).
 - `foreign()` FFI into JavaScript, capability-gated, values converted rather
   than shared, results labelled `untrusted`.
@@ -105,6 +105,6 @@ were found, three of which contradicted claims the documentation was making.
 - `fork` for isolated reasoning paths.
 - Capability security with attenuation.
 - Provenance labels with `grounded` and `region` enforcement.
-- Contracts (`requires` / `ensures`) and `sarvm prove`, which generates inputs
+- Contracts (`requires` / `ensures`) and `pedag prove`, which generates inputs
   from them.
 - Token-accounted context windows, hash-chained ledgers.

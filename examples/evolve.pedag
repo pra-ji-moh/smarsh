@@ -1,6 +1,6 @@
 // Modules, schema evolution, simulation, and rewriting logic while it runs.
-//     node bin/sarvm.mjs run examples/evolve.sarvm
-import "./lib/pricing.sarvm" as pricing
+//     node bin/pedag.mjs run examples/evolve.pedag
+import "./lib/pricing.pedag" as pricing
 
 print("== modules ================================================")
 print("   with_fee(1000, 25) =", pricing["with_fee"](1000, 25))

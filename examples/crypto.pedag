@@ -1,5 +1,5 @@
 // Cryptography that is actually cryptography.
-//     node bin/sarvm.mjs run examples/crypto.sarvm --grant crypto
+//     node bin/pedag.mjs run examples/crypto.pedag --grant crypto
 //
 // Key generation, encryption and proving consume real entropy, which makes a
 // run irreproducible -- so they need the `crypto` capability, the same way
@@ -64,7 +64,7 @@ print("   steps:", chain.steps())
 print("   chain verifies:", chain.verify())
 print("   signed by:", chain.signer.slice(-16))
 
-// There is no way to edit a recorded step from inside Sarvm -- a lineage chain
+// There is no way to edit a recorded step from inside Pēdāg -- a lineage chain
 // exposes record/verify/steps and nothing that writes. Tampering therefore has
 // to happen at the storage layer, and verify() catches it there:
 // tests/crypto.test.mjs edits an entry directly and asserts verify() is false.

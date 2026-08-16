@@ -1,5 +1,5 @@
 // Three things the shallow versions cannot express.
-//     node bin/sarvm.mjs run examples/depth.sarvm --grant fs --principal hr
+//     node bin/pedag.mjs run examples/depth.pedag --grant fs --principal hr
 
 print("== a contract that talks about before and after ===========")
 
