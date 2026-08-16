@@ -53,6 +53,7 @@ let claim = model_assessment(raw)
 print("   labels on the claim: ${labels(claim)}")
 
 attempt {
+  // sarvm-allow: taint  (deliberate -- this section exists to show the refusal)
   grounded {
     print("filing a regulatory report that says: ${claim}")
   }
