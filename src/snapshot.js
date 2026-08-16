@@ -186,7 +186,7 @@ export function restore(interp, state, line = null) {
   for (const saved of state.agents) {
     const ref = agentsById.get(saved.id);
     for (const [k, encoded] of saved.state) {
-      ref.env.vars.set(k, { value: decode(encoded, agentsById, line), mutable: true });
+      ref.env.putSlot(k, { value: decode(encoded, agentsById, line), mutable: true });
     }
     ref.mailbox = saved.mailbox.map((m) => ({
       message: m.message,
@@ -199,7 +199,7 @@ export function restore(interp, state, line = null) {
     const value = decode(saved.value, agentsById, line);
     const slot = interp.globals.vars.get(name);
     if (slot) { slot.value = value; slot.mutable = saved.mutable; }
-    else interp.globals.vars.set(name, { value, mutable: saved.mutable });
+    else interp.globals.putSlot(name, { value, mutable: saved.mutable });
   }
 
   interp.scheduler.nextId = state.nextAgentId;

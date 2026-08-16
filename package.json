@@ -42,6 +42,8 @@
     "prove": "node bin/pedag.mjs prove examples/contracts.pedag",
     "check": "node bin/pedag.mjs check examples/agents.pedag",
     "examples": "node bin/pedag.mjs run examples/quantum.pedag && node bin/pedag.mjs run examples/agents.pedag && node bin/pedag.mjs run examples/devices.pedag && node bin/pedag.mjs run examples/crypto.pedag --grant crypto,unaudited_crypto",
-    "fuzz": "node tools/fuzz.mjs 20000"
+    "fuzz": "node tools/fuzz.mjs 20000",
+    "diff": "node tools/differential.mjs",
+    "bench": "node tools/bench.mjs"
   }
 }

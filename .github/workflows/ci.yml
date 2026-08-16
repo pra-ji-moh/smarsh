@@ -79,6 +79,15 @@ jobs:
       - name: Fuzz the runtime
         run: node tools/fuzz.mjs 20000
 
+      # The compiled engine is only allowed to change how fast a program runs.
+      # Every example, every std module and three thousand generated programs
+      # run on both engines and are compared on stdout, failure, result, step
+      # count, call count and the whole audit trace. `pedag audit` signs a claim
+      # that a run replays from its seed; an engine that quietly diverged would
+      # make that claim false.
+      - name: The compiled engine matches the tree-walker exactly
+        run: node tools/differential.mjs
+
       - name: Every example must type-check clean
         shell: bash
         run: |

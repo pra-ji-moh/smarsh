@@ -39,6 +39,7 @@ options:
   --trace             after the run, print every probabilistic branch taken
   --profile           after the run, print time and steps per function
   --trials <n>        prove: inputs generated per function (default 200)
+  --engine <e>        'fast' (default, compiled) or 'tree' (the reference)
   --version, --help
 
 Every run with the same seed takes the same branches. Nothing reaches the
@@ -61,6 +62,7 @@ function parseArgs(argv) {
     if (a === '--seed') opts.seed = Number(argv[++i]);
     else if (a === '--grant') addList(opts.grant, argv[++i]);
     else if (a === '--principal') addList(opts.principals, argv[++i]);
+    else if (a === '--engine') opts.engine = String(argv[++i] ?? '');
     else if (a === '--trials') opts.trials = Number(argv[++i]);
     else if (a === '--trace') opts.trace = true;
     else if (a === '--profile') opts.profile = true;
@@ -71,6 +73,10 @@ function parseArgs(argv) {
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a === '--version' || a === '-v') opts.version = true;
     else opts.positional.push(a);
+  }
+  if (opts.engine !== undefined && !['fast', 'tree'].includes(opts.engine)) {
+    console.error("Pēdāg: --engine takes 'fast' (the default) or 'tree'");
+    process.exit(2);
   }
   if (!Number.isFinite(opts.seed)) { console.error('Pēdāg: --seed needs a number'); process.exit(2); }
   if (!Number.isFinite(opts.trials) || opts.trials < 1) { console.error('Pēdāg: --trials needs a positive number'); process.exit(2); }
@@ -152,6 +158,10 @@ function cmdRun(opts) {
     cwd: path.dirname(full),
   });
   interp.profiling = Boolean(opts.profile);
+  // `--engine tree` runs the original tree-walker. It is the specification the
+  // compiled engine is checked against, and roughly four times slower; keeping
+  // it reachable is what makes `tools/differential.mjs` possible.
+  if (opts.engine === 'tree') interp.compiled = false;
   interp.entryPath = full;
   let outcome = 'completed';
   let failure = null;

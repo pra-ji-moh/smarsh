@@ -13,6 +13,7 @@ import {
   unwrap, retaint, stringify, typeName, withArticle, truthy, countTokens, freezeDeep, assertMutable,
 } from './values.js';
 import { installBuiltins } from './builtins.js';
+import { runBody, runProgram } from './compile.js';
 import { parse } from './parser.js';
 import { Cipher, Secret, heAdd, heAddPlain, heMulPlain } from './crypto.js';
 import { Liquid } from './temporal.js';
@@ -115,8 +116,32 @@ export class Interpreter {
     this.profiling = false;
     this.profile = new Map();  // function name -> { calls, steps, nanos }
     this.callDepth = 0;
-    this.maxCallDepth = 2000;
+    // Deliberately low, and the reason matters.
+    //
+    // This was 2000, which no run ever reached: both engines exhausted the
+    // JavaScript stack first and surfaced that as a RecursionError. So the real
+    // recursion limit was however many host frames happened to be available,
+    // which differs between the two engines (the compiled one uses fewer frames
+    // per call), between platforms, and even between runs on one machine
+    // depending on how deep the stack already was. Measured here: the
+    // tree-walker died at 422 on one run and 652 on another.
+    //
+    // A language that signs a manifest claiming a run replays from its seed
+    // cannot have a recursion limit that is a property of the machine. 300 is
+    // below the worst host ceiling observed anywhere, so this counter is what
+    // fires, identically, every time.
+    //
+    // Raising it means using fewer host frames per Pēdāg call, not raising the
+    // number. See LIMITATIONS.md.
+    this.maxCallDepth = 300;
     this.frames = [];          // the live call stack, for stack traces
+
+    // Closure compilation. On by default; `--engine tree` turns it off, which
+    // is how the two are compared. The tree-walker remains the specification --
+    // see src/compile.js and tools/differential.mjs.
+    this.compiled = true;
+    this.retval = null;   // the value carried by a compiled `return`
+    this.sigLine = null;  // the line a compiled signal came from
 
     // The REPL redefines names at the top level; a script may not.
     this.allowRedeclare = false;
@@ -158,7 +183,8 @@ export class Interpreter {
     this.fileStack.push(this.entryPath ?? path.resolve(this.cwd, path.basename(file)));
     let last = null;
     try {
-      for (const stmt of program.body) last = this.exec(stmt);
+      if (this.compiled) last = runProgram(this, program);
+      else for (const stmt of program.body) last = this.exec(stmt);
     } catch (e) {
       throw controlFlowEscape(e, null) ?? asPedagFailure(e, null);
     } finally {
@@ -280,7 +306,7 @@ export class Interpreter {
           this.stepLoopContracts(node, loop);
           let env;
           if (fresh) env = new Env(this.env);
-          else if (binds) { shared.vars.clear(); env = shared; }
+          else if (binds) { shared.clearVars(); env = shared; }
           else env = this.env;
           try {
             this.execBlock(node.body, env);
@@ -316,7 +342,7 @@ export class Interpreter {
             env = new Env(this.env);
             env.declare(node.name, item, false, node.line);
           } else {
-            if (binds) { shared.vars.clear(); shared.vars.set(node.name, slot); }
+            if (binds) { shared.clearVars(); shared.putSlot(node.name, slot); }
             slot.value = item;
             env = shared;
           }
@@ -580,7 +606,7 @@ export class Interpreter {
   }
 
   redeclareIfAllowed(name) {
-    if (this.allowRedeclare && this.env === this.globals) this.env.vars.delete(name);
+    if (this.allowRedeclare && this.env === this.globals) this.env.deleteVar(name);
   }
 
   execBlock(block, env) {
@@ -1016,7 +1042,11 @@ export class Interpreter {
 
       let result = null;
       try {
-        this.execBlock(decl.body, env);
+        // The compiled body returns its result directly. The tree-walker
+        // signals it by throwing, which for a recursive function means one
+        // JavaScript exception per call -- 2.7 million of them for fib(30).
+        if (this.compiled) result = runBody(this, decl, env);
+        else this.execBlock(decl.body, env);
       } catch (e) {
         if (e instanceof ReturnSignal) result = e.value;
         // A `break` with no loop around it would otherwise escape the call and
