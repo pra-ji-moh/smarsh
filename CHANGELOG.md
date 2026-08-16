@@ -11,7 +11,73 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
 
 ## [Unreleased]
 
-Nothing yet.
+### Security
+
+- **`budget memory N { }`** — a third budget kind. Allocation is charged at list
+  literals, `.push` and `map.set`, and the block is stopped once the total passes
+  the ceiling. Previously a program could allocate until the host process died
+  and no budget could stop it. The figure is a deterministic estimate, not a
+  reading of the host heap: sampling real memory would make a run depend on what
+  else the machine was doing, and every replay guarantee rests on a run being
+  reproducible from its seed. Its limits are written down in
+  [LIMITATIONS.md](LIMITATIONS.md) §5.
+
+### Fixed
+
+- **Control-flow signals no longer escape as raw JavaScript objects.** `return`
+  outside a function, and `break` or `continue` outside a loop, threw the
+  interpreter's internal signal all the way out to the user — an object with no
+  kind, no line and no message. They are now `ControlFlowError` (`E0604`), and
+  `pedag check` reports them statically, before the program runs.
+
+  The serious case was a `break` inside a function called from a loop: the signal
+  travelled out of the call and was caught by the **caller's** loop, silently
+  ending an iteration the callee had no business ending. That is now an error.
+
+  Found by fuzzing, on 5% of 20,000 generated programs.
+- **Error messages pick the right article** — `an agent has no 'ping'`, not
+  `a agent has no 'ping'`.
+- **Repeated `--grant` and `--principal` flags accumulate.** `--grant fs --grant
+  net` previously kept only `net` and discarded the earlier flag without a word.
+- **CI had never run.** Every step invoked `bin/Pēdāg.mjs`, a path that does not
+  exist — the file is `bin/pedag.mjs`, and a rename script had rewritten the
+  workflow's command lines along with the prose. Nothing in the workflow could
+  have passed. Fixing it exposed three assertions that had quietly gone stale
+  behind it:
+  - the examples were run from a hand-written list that still passed
+    `--grant crypto` after `crypto` was split into `crypto` and
+    `unaudited_crypto`, so `examples/crypto.pedag` had been failing;
+  - the type-check step listed eight examples by hand and had fallen five
+    behind the directory;
+  - the verifier step asserted a non-zero exit on `examples/contracts.pedag`,
+    which the verifier does not produce there: the planted false contracts are
+    nonlinear, so the solver correctly answers `undecided` rather than
+    `refuted`, and `prove` is what catches them.
+
+  Both hand-written lists are gone. Examples are now run by
+  `tools/run-examples.mjs`, which reads each example's own documented command
+  line out of its header, so a new example is covered as soon as it exists and a
+  stale header is a build failure rather than a misleading comment.
+- **`examples/agents.pedag` demonstrates its race again.** The file said "run
+  `pedag check` on this file: the fork below is reported", and then suppressed
+  that exact finding with `pedag-allow`, so a reader saw `no problems found`.
+  The suppression is gone.
+
+### Added
+
+- **`npm run fuzz`** (`tools/fuzz.mjs`) — generates programs from a grammar of
+  fragments and asserts the runtime never surfaces a raw JavaScript error, across
+  the interpreter, the error-recovery parser and the formatter alike. It reports
+  an outcome histogram, so a campaign quietly testing nothing but `NameError` is
+  visible rather than being reported as a clean run — which is how the generator
+  was found to be sending 45% of its cases into the same missing-name path. Last
+  campaign: 150,000 cases, 33,224 running to completion, zero leaks.
+- **20 fuzz regression tests** (`tests/fuzz.test.mjs`), pinning the control-flow
+  fix and the memory budget alongside the existing token-soup, deep-nesting,
+  wrong-type, recursion and cyclic-value cases.
+- **`tools/run-examples.mjs`** — runs every example the way its own header says
+  to run it, and reports how many examples document no invocation at all.
+- **`E0604`** joins the explainable error codes: `pedag explain E0604`.
 
 ## [0.3.0] — unreleased, first public release
 

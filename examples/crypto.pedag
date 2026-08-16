@@ -1,10 +1,17 @@
 // Cryptography that is actually cryptography.
-//     node bin/pedag.mjs run examples/crypto.pedag --grant crypto
+//     node bin/pedag.mjs run examples/crypto.pedag --grant crypto,unaudited_crypto
 //
 // Key generation, encryption and proving consume real entropy, which makes a
 // run irreproducible -- so they need the `crypto` capability, the same way
 // reading the clock does. Verifying, decrypting and committing are
 // deterministic and need nothing.
+//
+// The homomorphic and zero-knowledge parts need `unaudited_crypto` as well.
+// That is a separate capability on purpose: `crypto` covers primitives the
+// platform provides and has audited (Ed25519, SHA-256, OS entropy), while
+// `unaudited_crypto` covers the Paillier, Schnorr and Pedersen code in this
+// repository, which is BigInt arithmetic written here, is not constant time,
+// and has never been reviewed by anyone.
 print("== computing on data you cannot read ======================")
 
 let k = paillier_keygen(512)

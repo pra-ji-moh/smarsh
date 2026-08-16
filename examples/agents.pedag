@@ -127,7 +127,9 @@ print("== races found before the program runs ====================")
 print("   run `pedag check` on this file: the fork below is reported")
 
 var tally = 0
-// pedag-allow: race  (deliberate -- this is the finding the section demonstrates)
+// Deliberately not suppressed. This is the finding the section is here to
+// show, so `pedag check` on this file reports it and exits non-zero -- which
+// is the demonstration working, not the example being broken.
 let results = fork 4 {
   tally = tally + 1
   _ * 2

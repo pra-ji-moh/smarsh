@@ -4,11 +4,24 @@
   "description": "A language for programs that reason under uncertainty: probabilistic control flow, first-class tensors, capability security, provenance tracking, and contracts that generate their own tests.",
   "license": "MIT",
   "type": "module",
-  "bin": { "pedag": "bin/pedag.mjs" },
-  "engines": { "node": ">=18" },
+  "bin": {
+    "pedag": "bin/pedag.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "files": [
-    "bin/", "src/", "std/", "examples/", "docs/",
-    "README.md", "LICENSE", "CHANGELOG.md", "SECURITY.md", "VERSIONING.md", "LIMITATIONS.md"
+    "bin/",
+    "src/",
+    "std/",
+    "examples/",
+    "docs/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "VERSIONING.md",
+    "LIMITATIONS.md"
   ],
   "keywords": [
     "programming-language",
@@ -28,6 +41,7 @@
     "tour": "node bin/pedag.mjs run examples/tour.pedag",
     "prove": "node bin/pedag.mjs prove examples/contracts.pedag",
     "check": "node bin/pedag.mjs check examples/agents.pedag",
-    "examples": "node bin/pedag.mjs run examples/quantum.pedag && node bin/pedag.mjs run examples/agents.pedag && node bin/pedag.mjs run examples/devices.pedag && node bin/pedag.mjs run examples/crypto.pedag --grant crypto"
+    "examples": "node bin/pedag.mjs run examples/quantum.pedag && node bin/pedag.mjs run examples/agents.pedag && node bin/pedag.mjs run examples/devices.pedag && node bin/pedag.mjs run examples/crypto.pedag --grant crypto,unaudited_crypto",
+    "fuzz": "node tools/fuzz.mjs 20000"
   }
 }

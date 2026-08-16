@@ -1,14 +1,19 @@
-﻿node_modules/
+node_modules/
 *.log
 
-# `Pēdāg build` output
+# `pedag build` output. The exceptions have to name every directory that holds
+# real .mjs source -- `tools/` was missing, so the scripts CI runs were being
+# ignored and would never have been committed.
 *.mjs
 !bin/*.mjs
 !src/*.mjs
 !tests/*.mjs
+!tools/*.mjs
 
 # arena spill directories and scratch written by examples
 .pedag-spill/
 scratch/
 note.txt
 out.txt
+examples/report.txt
+examples/export.csv

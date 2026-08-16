@@ -1,0 +1,194 @@
+import { Interpreter } from '../src/interpreter.js';
+import { PedagError, BudgetExceeded } from '../src/errors.js';
+import { parseAll } from '../src/parser.js';
+import { formatSource } from '../src/format.js';
+import { Rng } from '../src/rng.js';
+
+// A fuzzer that finds nothing on its first run is usually not trying hard
+// enough. This is the harder campaign: more cases, longer programs, and
+// grammar-aware generation as well as token soup, so it reaches the evaluator
+// instead of bouncing off the parser.
+
+const PIECES = [
+  '{', '}', '(', ')', '[', ']', ',', ';', '.', ':', '=', '=>', '==', '!=', '<', '>',
+  '+', '-', '*', '/', '%', '@', '**', '!', '"a"', '1', '0', '-1', '1e999', 'true',
+  'nil', 'x', '_', 'let', 'var', 'fn', 'if', 'else', 'while', 'for', 'in', 'return',
+  'match', 'when', 'record', 'agent', 'on', 'spawn', 'using', 'budget', 'steps',
+  'grounded', 'region', 'atomic', 'secret', 'authority', 'attempt', 'rescue',
+  'invariant', 'variant', 'requires', 'ensures', 'needs', 'fork', 'maybe', 'choose',
+  'tensor', 'import', 'as', 'redefine', 'device', '${', '"${x}"', '\\', '#',
+];
+
+// Fragments that parse, so the fuzzer gets past the parser and into evaluation.
+// Soup mostly dies in the lexer, and a crash that only the evaluator can
+// produce is never reached by soup alone.
+//
+// Declarations and uses are kept apart, and every generated program emits its
+// declarations first, each at most once. Shuffling them together instead sent
+// 45% of runs into the same NameError -- lots of cases, almost no coverage.
+const DECLS = [
+  'let a = [1, 2, 3]', 'var b = { "k": 1 }', 'fn f(x) { return x }',
+  'record P(u, v)', 'let t = tensor [[1, 2], [3, 4]]', 'let d = dec("1.5")',
+  'fn g(x) requires x >= 0 ensures result >= x { return x + 1 }',
+  'let u = untrusted("x")', 'let c = classify(1, "o", ["r"])',
+  'agent A(k) { on ping() { return k } }',
+  'let ctx = context(50)', 'let bk = ledger("l")', 'let q = qubits(2)',
+  'let cl = clock("n")', 'let lq = liquid(10, 5)', 'var n = 0',
+];
+
+// Uses, each depending only on names DECLS introduces.
+const USES = [
+  // collections
+  'print(a)', 'a.push(9)', 'b.set("j", 2)', 'print(a[0])', 'print(len(a))',
+  'print(a.map(fn(x) { return x * 2 }))', 'print(a.filter(fn(x) { return x > 1 }))',
+  'print(a.fold(0, fn(s, x) { return s + x }))', 'print(a.sort())', 'print(a.rev())',
+  'print(b.keys())', 'print(b.get("k"))', 'print(a.slice(1, 2))',
+  'print(str(a) + "x")', 'print("${a} ${b}")', 'let p = P(1, 2)', 'print(f(1))',
+  // numeric towers
+  'print(t @ t)', 'print(t.T)', 'print(t.shape)', 'print(d * 2)',
+  'print(d + dec("0.1"))', 'print(2 ** 64)', 'print(7 % 3)', 'print(1 / 3)',
+  // control flow
+  'for i in range(3) { print(i) }', 'while false { }',
+  'if true { print(1) } else { print(2) }', 'match 1 { 1 => "a", _ => "b" }',
+  'match P(1, 2) { P(u, v) => u + v, _ => 0 }',
+  'attempt { 1 / 0 } rescue e { print(e["kind"]) }',
+  'return 1', 'break', 'continue',
+  'while n < 3 invariant n >= 0 variant 3 - n { n = n + 1 }',
+  // provenance and labels
+  'grounded { print(1) }', 'print(labels(u))', 'print(readers_of(c))',
+  'print(trust(u, "reviewed"))', 'release_to "r" { print(1) }',
+  'authority "o" { print(1) }', 'secret { let s = 1 }', 'print(g(1))',
+  'print(declassify(c, "o", "approved"))',
+  // regions, transactions, budgets
+  'region "eu" { let z = 1 }', 'atomic { let z = 1 }',
+  'using grant("fs") { print(1) }',
+  'using grant("fs").attenuate({ "uses": 2 }) { print(1) }',
+  'let pair = caretaker(grant("fs"))', 'budget steps 500 { print(1) }',
+  'budget memory 100000 { print(1) }', 'budget tokens 500 { print(1) }',
+  // concurrency and agents
+  'fork 2 { _ }', 'maybe 0.5 { print(1) } else { print(2) }',
+  'let ag = spawn A(1)', 'send(spawn A(1), "ping")',
+  'send(spawn A(1), "ping")\nrun_agents()', 'print(pending())', 'run_agents()',
+  // runtime subsystems
+  'ctx.push("text")', 'bk.append("e")', 'qh(q, 0)', 'measure_all(q)',
+  'cl.tick()', 'advance(1)', 'print(now())', 'print(sample(1))',
+  'redefine fn f(x) { return x - 1 }', 'print(snapshot())',
+];
+
+const FRAGMENTS = [...DECLS, ...USES];
+
+const acceptable = (e) => e === null
+  || e instanceof PedagError
+  || e instanceof BudgetExceeded
+  || (e instanceof RangeError && /call stack/i.test(e.message));
+
+function generate(rng) {
+  const mode = rng.next();
+  if (mode < 0.25) {
+    const n = 4 + Math.floor(rng.next() * 40);
+    return Array.from({ length: n }, () => PIECES[Math.floor(rng.next() * PIECES.length)]).join(' ');
+  }
+  if (mode < 0.80) {
+    // Declarations first, in order and never repeated, then uses. This is what
+    // actually reaches the evaluator. Every declaration is emitted, not a
+    // random subset: with ~14 uses per program, dropping each one 45% of the
+    // time meant almost every program died on a missing name instead of
+    // running. Programs with names genuinely missing are still generated by
+    // the splice mode below.
+    const lines = [...DECLS];
+    const n = 1 + Math.floor(rng.next() * 14);
+    for (let i = 0; i < n; i++) lines.push(USES[Math.floor(rng.next() * USES.length)]);
+    return lines.join('\n');
+  }
+  // A valid program with soup spliced into it: the shapes most likely to reach
+  // a half-built state in the evaluator.
+  const good = FRAGMENTS[Math.floor(rng.next() * FRAGMENTS.length)];
+  const junk = Array.from({ length: 1 + Math.floor(rng.next() * 6) },
+    () => PIECES[Math.floor(rng.next() * PIECES.length)]).join(' ');
+  return rng.next() < 0.5 ? `${good}\n${junk}` : `${junk}\n${good}`;
+}
+
+const CASES = Number(process.argv[2] ?? 20000);
+const leaks = [];
+let ran = 0;
+let clean = 0;
+// A fuzzer that reports "no leaks" while 95% of its cases die on the same
+// NameError is measuring nothing. The histogram is how that gets noticed.
+const kinds = new Map();
+const tally = (k) => kinds.set(k, (kinds.get(k) ?? 0) + 1);
+
+for (let seed = 0; seed < CASES; seed++) {
+  const rng = new Rng(seed ^ 0x5eed);
+  const source = generate(rng);
+
+  // Capabilities and principals are granted so the guarded paths actually run.
+  // Without them every such fragment stops at the gate and the code behind it
+  // is never fuzzed at all.
+  const interp = new Interpreter({
+    out: () => {},
+    seed: 1,
+    caps: ['fs', 'net', 'clock', 'rand', 'crypto', 'proc'],
+    principals: ['o', 'r', 'hr'],
+  });
+  interp.stepLimit = 5000;
+  try {
+    interp.run(source, 'fuzz.pedag');
+    clean += 1;
+    tally('(ran)');
+  } catch (e) {
+    tally(e instanceof PedagError ? e.kind
+      : e instanceof BudgetExceeded ? 'BudgetExceeded'
+      : `LEAK:${e?.constructor?.name}`);
+    if (!acceptable(e)) {
+      leaks.push({ stage: 'run', seed, source, error: `${e?.constructor?.name}: ${e?.message}` });
+    }
+  } finally {
+    interp.devices.shutdown();
+  }
+
+  // The tools, on the same input.
+  try {
+    parseAll(source, 'fuzz.pedag');
+  } catch (e) {
+    if (!acceptable(e)) leaks.push({ stage: 'recover', seed, source, error: `${e?.constructor?.name}: ${e?.message}` });
+  }
+  try {
+    const out = formatSource(source, 'fuzz.pedag');
+    parseAll(out, 'fuzz.pedag');
+  } catch (e) {
+    if (!(e instanceof PedagError) && !/does not know/.test(e?.message ?? '')) {
+      leaks.push({ stage: 'format', seed, source, error: `${e?.constructor?.name}: ${e?.message}` });
+    }
+  }
+  ran += 1;
+}
+
+console.log(`${ran} cases, ${clean} ran to completion, ${leaks.length} leaks\n`);
+console.log('outcomes:');
+for (const [k, n] of [...kinds].sort((a, b) => b[1] - a[1])) {
+  console.log(`  ${String(n).padStart(6)}  ${(100 * n / ran).toFixed(1).padStart(5)}%  ${k}`);
+}
+console.log();
+const seen = new Set();
+for (const l of leaks) {
+  const key = `${l.stage}|${l.error.slice(0, 90)}`;
+  if (seen.has(key)) continue;
+  seen.add(key);
+  console.log(`\n[${l.stage}] seed ${l.seed}`);
+  console.log(`  ${l.error}`);
+  console.log(`  input: ${JSON.stringify(l.source.slice(0, 160))}`);
+}
+console.log(`\n${seen.size} distinct leaks`);
+
+// A campaign in which almost nothing runs is not a clean run, it is a broken
+// generator: the fuzzer once sent 45% of its cases into the same missing-name
+// path and reported zero leaks, which was true and meaningless. CI should fail
+// on that as loudly as on a leak.
+const ranPct = 100 * clean / ran;
+if (ranPct < 10) {
+  console.log(`\nonly ${ranPct.toFixed(1)}% of cases ran to completion; the generator `
+    + 'is producing programs that die before reaching the evaluator');
+  process.exitCode = 1;
+}
+
+process.exitCode = leaks.length === 0 ? (process.exitCode ?? 0) : 1;

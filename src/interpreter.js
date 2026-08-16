@@ -10,7 +10,7 @@ import { analyze } from './analysis.js';
 import { exercise } from './exercise.js';
 import {
   PedagFunction, NativeFunction, Tainted, ContextWindow, Ledger,
-  unwrap, retaint, stringify, typeName, truthy, countTokens, freezeDeep, assertMutable,
+  unwrap, retaint, stringify, typeName, withArticle, truthy, countTokens, freezeDeep, assertMutable,
 } from './values.js';
 import { installBuiltins } from './builtins.js';
 import { parse } from './parser.js';
@@ -35,6 +35,31 @@ export { Env };
 
 // Shared, never mutated: the capability set of a function that declares none.
 const EMPTY_CAPS = new Set();
+
+// `return`, `break` and `continue` are implemented by throwing, which works
+// only while there is something to catch them. At the top level -- or in a
+// function body with no enclosing loop -- nothing is, and the raw signal
+// escaped to the user as a bare JavaScript object with no kind, no line and no
+// message.
+//
+// Found by fuzzing: 1,060 of 20,000 generated programs leaked one of these
+// three. They become ordinary failures here, and `check` reports them
+// statically before the program is ever run.
+function controlFlowEscape(e, line) {
+  if (e instanceof ReturnSignal) {
+    return pedagError('ControlFlowError', '`return` outside a function', e.line ?? line)
+      .help('the last expression at the top level is already the program\'s result');
+  }
+  if (e instanceof BreakSignal) {
+    return pedagError('ControlFlowError', '`break` outside a loop', e.line ?? line)
+      .help('`break` needs an enclosing `while` or `for` to leave');
+  }
+  if (e instanceof ContinueSignal) {
+    return pedagError('ControlFlowError', '`continue` outside a loop', e.line ?? line)
+      .help('`continue` needs an enclosing `while` or `for` to continue');
+  }
+  return null;
+}
 
 // The interpreter recurses through JS frames, so a runaway Pēdāg recursion can
 // exhaust the host stack before the interpreter's own depth guard fires.
@@ -73,6 +98,8 @@ export class Interpreter {
     this.secretScopes = [];    // open `secret` blocks and what they must shred
     this.logicalTime = 0;      // advanced only by advance(); never a wall clock
     this.oldValues = null;     // pre-state captured for old(), during `ensures`
+    this.allocated = 0;        // estimated bytes the program has grown
+    this.hasMemoryBudget = false;
 
     // The decentralized label model: principals this run may act for, those it
     // is acting for right now, and the party data is currently being released to.
@@ -133,7 +160,7 @@ export class Interpreter {
     try {
       for (const stmt of program.body) last = this.exec(stmt);
     } catch (e) {
-      throw asPedagFailure(e, null);
+      throw controlFlowEscape(e, null) ?? asPedagFailure(e, null);
     } finally {
       this.fileStack.pop();
     }
@@ -307,10 +334,10 @@ export class Interpreter {
       }
 
       case 'Return':
-        throw new ReturnSignal(node.value ? this.evaluate(node.value) : null);
+        throw new ReturnSignal(node.value ? this.evaluate(node.value) : null, node.line);
 
-      case 'Break': throw new BreakSignal();
-      case 'Continue': throw new ContinueSignal();
+      case 'Break': throw new BreakSignal(node.line);
+      case 'Continue': throw new ContinueSignal(node.line);
 
       case 'Block':
         return this.execBlock(node, this.scopeFor(node));
@@ -374,6 +401,8 @@ export class Interpreter {
         }
         const budget = { kind: node.kind, limit: Math.max(limit, 0), used: 0, line: node.line };
         this.budgets.push(budget);
+        const savedMemoryFlag = this.hasMemoryBudget;
+        if (node.kind === 'memory') this.hasMemoryBudget = true;
         try {
           return this.execBlock(node.body, new Env(this.env));
         } catch (e) {
@@ -384,6 +413,7 @@ export class Interpreter {
           throw e;
         } finally {
           this.budgets.pop();
+          this.hasMemoryBudget = savedMemoryFlag;
         }
       }
 
@@ -583,7 +613,11 @@ export class Interpreter {
         return slot.value;
       }
 
-      case 'ListLit': return node.elements.map((e) => this.evaluate(e));
+      case 'ListLit': {
+        const items = node.elements.map((e) => this.evaluate(e));
+        this.spendMemory(32 + items.length * 8);
+        return items;
+      }
 
       case 'MapLit': {
         const m = new Map();
@@ -649,7 +683,7 @@ export class Interpreter {
       case 'Spawn': {
         const template = unwrap(this.env.get(node.name, node.line));
         if (!(template instanceof AgentTemplate)) {
-          throw pedagError('TypeError', `'${node.name}' is a ${typeName(template)}, not an agent`, node.line);
+          throw pedagError('TypeError', `'${node.name}' is ${withArticle(template)}, not an agent`, node.line);
         }
         const args = node.args.map((a) => this.evaluate(a));
         if (args.length !== template.params.length) {
@@ -839,7 +873,7 @@ export class Interpreter {
         obj.set(String(idx[0]), value);
         return value;
       }
-      throw pedagError('TypeError', `cannot index-assign into a ${typeName(obj)}`, node.line);
+      throw pedagError('TypeError', `cannot index-assign into ${withArticle(obj)}`, node.line);
     }
 
     // Member assignment is for maps only; everything else exposes methods, not
@@ -850,7 +884,7 @@ export class Interpreter {
       obj.set(t.name, value);
       return value;
     }
-    throw pedagError('TypeError', `cannot assign to '.${t.name}' on a ${typeName(obj)}`, node.line);
+    throw pedagError('TypeError', `cannot assign to '.${t.name}' on ${withArticle(obj)}`, node.line);
   }
 
   // --- calls ---------------------------------------------------------------
@@ -915,7 +949,7 @@ export class Interpreter {
     }
 
     if (!(callee instanceof PedagFunction)) {
-      throw pedagError('TypeError', `${name} is a ${typeName(callee)}, not something that can be called`, line);
+      throw pedagError('TypeError', `${name} is ${withArticle(callee)}, not something that can be called`, line);
     }
 
     const { decl } = callee;
@@ -985,7 +1019,10 @@ export class Interpreter {
         this.execBlock(decl.body, env);
       } catch (e) {
         if (e instanceof ReturnSignal) result = e.value;
-        else throw e;
+        // A `break` with no loop around it would otherwise escape the call and
+        // be caught by whatever loop happened to be running in the *caller*,
+        // silently breaking a loop the function cannot see.
+        else throw controlFlowEscape(e, line) ?? e;
       }
 
       if (decl.ensures.length > 0) {
@@ -1220,7 +1257,7 @@ export class Interpreter {
 
     const previous = slot.value;
     if (!(previous instanceof PedagFunction)) {
-      throw pedagError('TypeError', `'${name}' is a ${typeName(previous)}, not a function`, node.line);
+      throw pedagError('TypeError', `'${name}' is ${withArticle(previous)}, not a function`, node.line);
     }
 
     if (node.fn.params.length !== previous.decl.params.length) {
@@ -1278,7 +1315,7 @@ export class Interpreter {
   redefineHandler(node) {
     const template = unwrap(this.env.get(node.agentName, node.line));
     if (!(template instanceof AgentTemplate)) {
-      throw pedagError('TypeError', `'${node.agentName}' is a ${typeName(template)}, not an agent`, node.line);
+      throw pedagError('TypeError', `'${node.agentName}' is ${withArticle(template)}, not an agent`, node.line);
     }
     const existing = template.handlers.get(node.message);
     if (!existing) {
@@ -1494,7 +1531,9 @@ export class Interpreter {
     try {
       this.execBlock(handler.body, env);
     } catch (e) {
-      if (!(e instanceof ReturnSignal)) throw e;
+      // A handler body is a function body: `return` ends it, and a stray
+      // `break` must not travel back out into the dispatcher's loop.
+      if (!(e instanceof ReturnSignal)) throw controlFlowEscape(e, handler.line) ?? e;
     } finally {
       this.agentBoundary = savedBoundary;
     }
@@ -1509,6 +1548,29 @@ export class Interpreter {
       if (b.used > b.limit) throw new BudgetExceeded(b);
     }
     return n;
+  }
+
+  // Allocation, charged where a program actually grows something.
+  //
+  // `steps` bounds how long a program runs; `tokens` bounds what it puts into a
+  // context window. Neither bounded memory, so `while true { xs.push(1) }` was
+  // an unpatched way to take the process down: the loop makes progress, spends
+  // its steps slowly, and exhausts the heap long before any other limit.
+  //
+  // The figure is a deterministic estimate of the bytes a value occupies, not a
+  // reading from the host. That is deliberate — sampling real heap usage would
+  // make the same program stop in a different place on each run and destroy
+  // replay, which every other guarantee here depends on. An estimate that is
+  // always the same is worth more than a measurement that is not.
+  spendMemory(bytes) {
+    this.allocated += bytes;
+    if (!this.hasMemoryBudget) return bytes;
+    for (const b of this.budgets) {
+      if (b.kind !== 'memory') continue;
+      b.used += bytes;
+      if (b.used > b.limit) throw new BudgetExceeded(b);
+    }
+    return bytes;
   }
 
   // --- transactions and secrets -------------------------------------------
@@ -1703,7 +1765,7 @@ export class Interpreter {
     if (obj instanceof Tensor) return obj.at(idx, line);
 
     if (idx.length !== 1) {
-      throw pedagError('TypeError', `a ${typeName(obj)} takes one index, got ${idx.length}`, line);
+      throw pedagError('TypeError', `${withArticle(obj)} takes one index, got ${idx.length}`, line);
     }
     const k = idx[0];
 
@@ -1742,7 +1804,7 @@ export class Interpreter {
       return obj.get(key);
     }
 
-    throw pedagError('TypeError', `a ${typeName(obj)} cannot be indexed`, line);
+    throw pedagError('TypeError', `${withArticle(obj)} cannot be indexed`, line);
   }
 
   native(name, arity, fn, needs = []) {
@@ -1792,6 +1854,7 @@ export class Interpreter {
         case 'len': return nf('len', 0, () => obj.length);
         case 'push': return nf('push', 1, (a, l) => {
           assertMutable(obj, 'this list', l, pedagError);
+          this.spendMemory(8);
           obj.push(a[0]);
           return obj;
         });
@@ -1826,6 +1889,7 @@ export class Interpreter {
         case 'get': return nf('get', -1, (a) => (obj.has(String(unwrap(a[0]))) ? obj.get(String(unwrap(a[0]))) : (a.length > 1 ? a[1] : null)));
         case 'set': return nf('set', 2, (a, l) => {
           assertMutable(obj, 'this map', l, pedagError);
+          this.spendMemory(48);
           obj.set(String(unwrap(a[0])), a[1]);
           return obj;
         });
@@ -1893,7 +1957,7 @@ export class Interpreter {
       if (Object.prototype.hasOwnProperty.call(members, name)) return members[name];
     }
 
-    throw pedagError('AttributeError', `a ${typeName(obj)} has no '${name}'`, line);
+    throw pedagError('AttributeError', `${withArticle(obj)} has no '${name}'`, line);
   }
 
   // slice(n) takes from n to the end; slice(a, b) takes a range. Negative
@@ -1922,7 +1986,7 @@ export class Interpreter {
     if (u instanceof Tensor) return u;
     if (typeof u === 'number') return Tensor.scalar(u);
     if (Array.isArray(u)) return Tensor.fromNested(this.plainNested(u, line), line);
-    throw pedagError('TypeError', `cannot use a ${typeName(u)} as a tensor`, line);
+    throw pedagError('TypeError', `cannot use ${withArticle(u)} as a tensor`, line);
   }
 
   plainNested(v, line) {
@@ -1946,6 +2010,6 @@ export class Interpreter {
     if (typeof u === 'string') return [...u];
     if (u instanceof Map) return [...u.keys()];
     if (u instanceof Tensor) return Array.from(u.data);
-    throw pedagError('TypeError', `a ${typeName(u)} cannot be looped over`, line);
+    throw pedagError('TypeError', `${withArticle(u)} cannot be looped over`, line);
   }
 }

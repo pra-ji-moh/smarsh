@@ -44,6 +44,7 @@ export const CODES = {
   E0601: 'index out of range',
   E0602: 'division by zero',
   E0603: 'recursion too deep',
+  E0604: 'control flow has no target',
 };
 
 // Runtime error kinds mapped onto codes, so every failure a program can hit is
@@ -62,6 +63,7 @@ export const KIND_TO_CODE = {
   SecretError: 'E0403',
   AgentIsolationError: 'E0404',
   BudgetError: 'E0405',
+  ControlFlowError: 'E0604',
   RedefineError: 'E0501',
   ImportError: 'E0502',
   RestoreError: 'E0502',
@@ -133,6 +135,19 @@ rescue its own stop, cannot raise its own ceiling, and a nested budget can only
 tighten. Only the boundary converts it into an ordinary error, for whoever set
 the budget to handle -- a runaway agent must not be able to talk its way out of
 being stopped.`,
+
+  E0604: `A control-flow keyword had nothing to act on.
+
+    break                            // error: no loop around it
+    fn f() { while true { break } }  // fine
+
+\`return\` needs a function, \`break\` and \`continue\` need a \`while\` or \`for\`.
+Enclosing constructs that are not loops -- \`atomic\`, \`grounded\`, \`region\`,
+\`fork\` -- are transparent, so a \`break\` inside one leaves the loop outside it.
+A function body is not: a \`break\` with no loop inside the function is an error
+rather than something that reaches into the caller's loop.
+
+\`pedag check\` reports this before the program runs.`,
 
   E0401: `A function's stated contract did not hold.
 

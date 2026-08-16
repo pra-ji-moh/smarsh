@@ -283,10 +283,10 @@ export class Parser {
 
     // budget steps 50000 { ... }  -- cannot be raised or caught from inside
     if (this.matchSoft('budget', 'ident')) {
-      const kindTok = this.expect('ident', undefined, "'steps' or 'tokens'");
-      if (kindTok.value !== 'steps' && kindTok.value !== 'tokens') {
+      const kindTok = this.expect('ident', undefined, "'steps', 'tokens' or 'memory'");
+      if (!['steps', 'tokens', 'memory'].includes(kindTok.value)) {
         throw pedagError('SyntaxError',
-          `a budget is measured in 'steps' or 'tokens', not '${kindTok.value}'`, kindTok.line);
+          `a budget is measured in 'steps', 'tokens' or 'memory', not '${kindTok.value}'`, kindTok.line);
       }
       const amount = this.expression();
       return { type: 'Budget', kind: kindTok.value, amount, body: this.block(), line };

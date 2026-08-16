@@ -39,6 +39,83 @@ function declaredWithin(node) {
   return names;
 }
 
+// `return` needs a function around it, `break` and `continue` need a loop.
+// Without one the interpreter throws a signal that nothing catches. The runtime
+// turns that into a ControlFlowError at its boundaries, but a misplaced keyword
+// is decidable from the syntax alone, so `check` should say so before the
+// program is ever run.
+//
+// Only `Fn` and the two loops are treated as scopes. Every other construct is
+// transparent, which is what the interpreter does -- `break` inside `atomic`,
+// `grounded` or `fork` really does leave the enclosing loop.
+function controlFlowFindings(program) {
+  const found = [];
+
+  const scan = (node, inFn, inLoop) => {
+    if (node === null || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const child of node) scan(child, inFn, inLoop);
+      return;
+    }
+
+    switch (node.type) {
+      case 'Return':
+        if (!inFn) {
+          found.push({
+            line: node.line, span: node.span, kind: 'control flow',
+            message: '`return` here has no function to return from',
+            hint: 'at the top level the last expression is already the result',
+          });
+        }
+        break;
+      case 'Break':
+      case 'Continue':
+        if (!inLoop) {
+          const word = node.type === 'Break' ? 'break' : 'continue';
+          found.push({
+            line: node.line, span: node.span, kind: 'control flow',
+            message: `\`${word}\` here has no loop to ${word === 'break' ? 'leave' : 'continue'}`,
+            hint: 'it needs an enclosing `while` or `for`',
+          });
+        }
+        break;
+      case 'Fn':
+        // A function body starts fresh: a loop outside it is not reachable
+        // from within, because the call boundary catches the signal.
+        scan(node.body, true, false);
+        return;
+      case 'While':
+        scan(node.test, inFn, inLoop);
+        scan(node.body, inFn, true);
+        scan(node.invariants, inFn, inLoop);
+        scan(node.variant, inFn, inLoop);
+        return;
+      case 'For':
+        scan(node.iter, inFn, inLoop);
+        scan(node.body, inFn, true);
+        scan(node.invariants, inFn, inLoop);
+        scan(node.variant, inFn, inLoop);
+        return;
+      case 'AgentDecl':
+        // Handlers live in a Map, so the generic walk never reaches them.
+        // Each body is a function body of its own.
+        scan(node.stateDecls, inFn, inLoop);
+        for (const handler of node.handlers.values()) scan(handler.body, true, false);
+        return;
+      default:
+        break;
+    }
+
+    for (const [key, child] of Object.entries(node)) {
+      if (CHILD_KEYS.has(key) && typeof child !== 'object') continue;
+      scan(child, inFn, inLoop);
+    }
+  };
+
+  scan(program, false, false);
+  return found;
+}
+
 function baseIdentifier(node) {
   let cur = node;
   while (cur && (cur.type === 'Index' || cur.type === 'Member')) cur = cur.object;
@@ -46,7 +123,7 @@ function baseIdentifier(node) {
 }
 
 export function analyze(program) {
-  const findings = [];
+  const findings = controlFlowFindings(program);
 
   walk(program, (node) => {
     if (node.type === 'Fork') {

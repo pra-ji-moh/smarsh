@@ -34,14 +34,14 @@ variant must stay at or above zero and strictly decrease on every pass.
 | `if e { } else { }` | conditional |
 | `while e { }` | loop |
 | `for x in e { }` | iterate a list, string, map's keys, or tensor |
-| `break` / `continue` / `return e` | control flow |
+| `break` / `continue` / `return e` | control flow; a keyword with no enclosing loop or function is an error, reported by `check` |
 | `attempt { } rescue e { }` | catch a failure; `e` is a map of `kind`/`message`/`line` |
 | `maybe p { } else { }` | take the branch with probability `p` |
 | `grounded { }` | refuse to read `ungrounded` or `untrusted` values |
 | `region "eu" { }` | refuse to read values restricted elsewhere |
 | `atomic { }` | every ledger append inside lands, or none does |
 | `secret { }` | shred every secret created inside on exit |
-| `budget steps N { }` / `budget tokens N { }` | hard ceiling; not catchable from inside |
+| `budget steps N { }` / `budget tokens N { }` / `budget memory N { }` | hard ceiling; not catchable from inside |
 | `using grant { }` | hold a delegated capability, for this block only |
 | `authority "alice" { }` | act for a principal (needs `--principal alice`) |
 | `release_to "bob" { }` | data leaving to a party; labels are checked here |
@@ -190,4 +190,29 @@ pedag eval "<source>"
 `RecursionError` `AssertError` `IOError` `ContractError` `CapabilityError`
 `TaintError` `SecretError` `CryptoError` `AgentError` `AgentIsolationError`
 `BudgetError` `RedefineError` `RestoreError` `ImportError` `SchemaError`
-`DeviceError` `MemoryError` `StepLimitError`
+`DeviceError` `MemoryError` `StepLimitError` `ControlFlowError`
+
+## Budgets
+
+A `budget` block sets a ceiling that the code inside cannot raise, cannot catch
+and cannot talk its way out of. A nested budget may only tighten. Only the
+boundary turns the stop into an ordinary `BudgetError`, for whoever set it.
+
+| Kind | Counts |
+|---|---|
+| `steps` | statements and loop iterations executed |
+| `tokens` | tokens counted through context windows |
+| `memory` | estimated bytes of growth: list literals, `.push`, `map.set` |
+
+`memory` is a deterministic estimate, not a reading of the host heap. Sampling
+real memory would make a run depend on what else the machine was doing, and
+every replay guarantee in Pēdāg rests on a run being reproducible from its seed.
+The figure is therefore a fixed charge per allocating operation: it bounds
+runaway growth, and it is not a profiler.
+
+```
+budget memory 20000 {
+  var xs = []
+  while true { xs.push(1) }     // BudgetError, not an out-of-memory kill
+}
+```

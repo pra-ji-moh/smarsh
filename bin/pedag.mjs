@@ -44,13 +44,23 @@ options:
 Every run with the same seed takes the same branches. Nothing reaches the
 filesystem or the clock without --grant.`;
 
+// A comma list, added to what is already there. Repeating the flag used to
+// overwrite it, so `--grant fs --grant net` silently held only `net` -- the
+// flag the user typed first was discarded without a word.
+const addList = (into, raw) => {
+  for (const s of String(raw ?? '').split(',').map((t) => t.trim()).filter(Boolean)) {
+    if (!into.includes(s)) into.push(s);
+  }
+  return into;
+};
+
 function parseArgs(argv) {
-  const opts = { seed: 0, grant: [], trace: false, trials: 200, positional: [] };
+  const opts = { seed: 0, grant: [], principals: [], trace: false, trials: 200, positional: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--seed') opts.seed = Number(argv[++i]);
-    else if (a === '--grant') opts.grant = String(argv[++i] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-    else if (a === '--principal') opts.principals = String(argv[++i] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    else if (a === '--grant') addList(opts.grant, argv[++i]);
+    else if (a === '--principal') addList(opts.principals, argv[++i]);
     else if (a === '--trials') opts.trials = Number(argv[++i]);
     else if (a === '--trace') opts.trace = true;
     else if (a === '--profile') opts.profile = true;
@@ -263,13 +273,13 @@ function diagnose(source, file) {
   });
   for (const f of analyze(program)) {
     out.push(Object.assign(new Diagnostic({
-      code: 'E0404',
+      code: f.kind === 'race' ? 'E0404' : 'E0604',
       message: f.message,
       span: f.span,
       file,
       label: f.kind,
       helps: f.hint ? [f.hint] : [],
-    }), { kind: 'race' }));
+    }), { kind: f.kind }));
   }
   for (const f of analyseTaint(program)) {
     out.push(Object.assign(new Diagnostic({

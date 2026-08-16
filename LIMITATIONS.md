@@ -175,8 +175,15 @@ not been done.
 - **`ffi` is a total escape.** Granting it leaves every guarantee behind.
 - **No host sandbox.** Capabilities bound what Pēdāg code reaches, not what the
   process can do. `fs` is scoped to the program directory and that is all.
-- **Budgets do not bound memory.** `steps` and `tokens` only; a program can
-  allocate until Node dies.
+- **`budget memory N` is an estimate, not a measurement.** It charges a fixed
+  number of bytes per allocating operation — list literals, `.push`, `map.set` —
+  and stops the block once the total passes the ceiling. It does not read the
+  host heap: a run whose outcome depended on the machine's actual memory would
+  not replay, and replay is what the audit manifest rests on. So it bounds
+  runaway growth in the operations it knows about, and a program that grows
+  memory some other way — deep recursion building closures, one very long
+  string, a tensor allocated in a single step — is not covered. Outside a
+  `budget` block there is no ceiling at all.
 - **Only confidentiality labels.** The decentralized label model has integrity
   labels too; Pēdāg implements the confidentiality half.
 - **No label inference or polymorphism.** Every label is written by hand.
@@ -218,6 +225,7 @@ partial file IO — `read` and `write` handle whole files only. No networking.
 - **The bundler is bespoke** and handles this codebase, not JavaScript generally.
 - **No coverage tooling for `.pedag` code** — the 94% figure is coverage of the
   interpreter, not of programs written in Pēdāg.
+- **The fuzzer is grammar-based, not coverage-guided.** See §10.
 
 ---
 
@@ -257,7 +265,20 @@ partial file IO — `read` and `write` handle whole files only. No networking.
 
 Zero users. No third-party audit. One maintainer. Not published. No formal
 language specification — `docs/reference.md` is a description, not a spec, and
-there is no conformance suite. No fuzzing of the interpreter itself.
+there is no conformance suite.
+
+**On the fuzzing.** `npm run fuzz` generates programs and asserts the runtime
+never surfaces a raw JavaScript error. It is worth being precise about what that
+does and does not establish. The generator is a fixed grammar of hand-written
+fragments, not a coverage-guided fuzzer: it has no feedback loop, does not
+mutate toward new paths, and cannot discover syntax nobody thought to list. Of
+150,000 generated programs, about 22% run to completion and 43% stop at a syntax
+error, so the parser is fuzzed considerably harder than the evaluator. It found
+one real defect on its first serious run — control-flow signals escaping as bare
+JavaScript objects — and has found nothing since, which is weak evidence of
+robustness and strong evidence that the generator has stopped saying anything
+new. A coverage-guided fuzzer over the real grammar would be worth more than
+another decimal place on the case count.
 
 ---
 

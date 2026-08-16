@@ -65,7 +65,12 @@ export function runFile(file, { seed = 0, caps = [], trials = 60, quiet = true }
   // one function should not hide a passing test in another.
   result.static = [
     ...typecheck(program, { builtins: builtinNames() }),
-    ...analyze(program).map((f) => ({ message: f.message, span: f.span, code: 'E0404', helps: f.hint ? [f.hint] : [] })),
+    ...analyze(program).map((f) => ({
+      message: f.message,
+      span: f.span,
+      code: f.kind === 'race' ? 'E0404' : 'E0604',
+      helps: f.hint ? [f.hint] : [],
+    })),
   ];
 
   const out = [];

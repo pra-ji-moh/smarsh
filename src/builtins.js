@@ -22,7 +22,7 @@ import { Grant, Revoker, expectGrant } from './grants.js';
 import { PedagFunction } from './values.js';
 import {
   NativeFunction, Tainted, ContextWindow, Ledger,
-  unwrap, retaint, stringify, typeName, truthy, countTokens,
+  unwrap, retaint, stringify, typeName, withArticle, truthy, countTokens,
 } from './values.js';
 
 const fmt = (n) => (Number.isInteger(n) ? String(n) : String(Number(n.toPrecision(4))));
@@ -90,7 +90,7 @@ export function installBuiltins(interp) {
       }
       return retaint(n, a[0]);
     }
-    throw pedagError('TypeError', `cannot convert a ${typeName(u)} to a num`, line);
+    throw pedagError('TypeError', `cannot convert ${withArticle(u)} to a num`, line);
   });
 
   def('len', 1, (a, line) => {
@@ -100,7 +100,7 @@ export function installBuiltins(interp) {
     if (u instanceof Tensor) return u.size;
     if (u instanceof ContextWindow) return u.length;
     if (u instanceof Ledger) return u.length;
-    throw pedagError('TypeError', `a ${typeName(u)} has no length`, line);
+    throw pedagError('TypeError', `${withArticle(u)} has no length`, line);
   });
 
   def('type', 1, (a) => typeName(unwrap(a[0])), { transparent: true });

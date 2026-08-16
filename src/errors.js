@@ -37,13 +37,22 @@ PedagError.renderer = null;
 
 export const pedagError = (kind, message, line) => new PedagError(kind, message, line);
 
-// Non-error control flow. These are thrown and caught internally; they never
-// escape to the user.
+// Non-error control flow. These are thrown, and caught by the construct that
+// owns them: a call for `return`, a loop for `break` and `continue`.
+//
+// When that construct is absent the signal has nowhere to land, so each carries
+// the line it was thrown from and the interpreter's outer boundaries turn it
+// into a real ControlFlowError. They used to escape as bare objects with no
+// kind and no line; a fuzzer hit that on 5% of generated programs.
 export class ReturnSignal {
-  constructor(value) { this.value = value; }
+  constructor(value, line = null) { this.value = value; this.line = line; }
 }
-export class BreakSignal {}
-export class ContinueSignal {}
+export class BreakSignal {
+  constructor(line = null) { this.line = line; }
+}
+export class ContinueSignal {
+  constructor(line = null) { this.line = line; }
+}
 
 // A budget running out is deliberately NOT a PedagError, so `attempt` cannot
 // catch it. Code inside a budget block has no way to talk its way out of being

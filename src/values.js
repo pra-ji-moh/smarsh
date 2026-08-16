@@ -273,6 +273,15 @@ export function typeName(v) {
   return 'value';
 }
 
+// `a agent has no 'ping'` is the sort of thing a reader notices and a compiler
+// author does not. Types name themselves through `pedagType`, so the set of
+// vowel-initial names is open and the article has to be derived rather than
+// written into each message.
+export function withArticle(v) {
+  const name = typeName(v);
+  return `${/^[aeiou]/i.test(name) ? 'an' : 'a'} ${name}`;
+}
+
 export const truthy = (v) => {
   const u = unwrap(v);
   if (u === null || u === undefined || u === false) return false;

@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
-import { NativeFunction, Tainted, stringify, typeName, unwrap } from './values.js';
+import { NativeFunction, Tainted, stringify, typeName, withArticle, unwrap } from './values.js';
 import { Tensor } from './tensor.js';
 import { pedagError } from './errors.js';
 
@@ -110,7 +110,7 @@ export function toJs(value, line, seen = new Set()) {
   }
 
   throw pedagError('ForeignError',
-    `a ${typeName(v)} cannot cross into JavaScript`, line)
+    `${withArticle(v)} cannot cross into JavaScript`, line)
     .help('pass it as text, a list, or a map instead');
 }
 

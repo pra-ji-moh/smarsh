@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           pkg=$(node -p "require('./package.json').version")
-          cli=$(node bin/Pēdāg.mjs --version)
+          cli=$(node bin/pedag.mjs --version)
           if [ "$pkg" != "$cli" ]; then
             echo "package.json says $pkg, the CLI says $cli"
             exit 1
@@ -58,52 +58,67 @@ jobs:
           npm init -y > /dev/null
           npm install "$RUNNER_TEMP"/pedag-*.tgz
           printf 'import "std/math" as math\nprint(math.mean([2, 4, 6]))\n' > hello.pedag
-          test "$(npx Pēdāg run hello.pedag)" = "4"
+          test "$(npx pedag run hello.pedag)" = "4"
 
       - name: The standard library's own tests
-        run: node bin/Pēdāg.mjs test std/
+        run: node bin/pedag.mjs test std/
 
       - name: Everything is formatted
-        run: node bin/Pēdāg.mjs fmt examples/ --check
+        run: node bin/pedag.mjs fmt examples/ --check
 
+      # Every example, run the way its own header says to run it. This used to
+      # be a hand-written list here, and it drifted: `crypto` was split into two
+      # capabilities, the list kept saying `--grant crypto`, and the example was
+      # failing unnoticed because this list was the only thing that ran it.
       - name: Run the examples
-        shell: bash
-        run: |
-          node bin/Pēdāg.mjs run examples/tour.pedag
-          node bin/Pēdāg.mjs run examples/quantum.pedag
-          node bin/Pēdāg.mjs run examples/agents.pedag
-          node bin/Pēdāg.mjs run examples/devices.pedag
-          node bin/Pēdāg.mjs run examples/evolve.pedag
-          node bin/Pēdāg.mjs run examples/modern.pedag
-          node bin/Pēdāg.mjs run examples/typed.pedag
-          node bin/Pēdāg.mjs run examples/crypto.pedag --grant crypto
-          node bin/Pēdāg.mjs run examples/interop.pedag --grant ffi
+        run: node tools/run-examples.mjs
+
+      # Nothing else generates programs at this volume, and the one defect it
+      # has found so far -- control-flow signals escaping as raw JavaScript
+      # objects -- was not reachable from any hand-written test.
+      - name: Fuzz the runtime
+        run: node tools/fuzz.mjs 20000
 
       - name: Every example must type-check clean
         shell: bash
         run: |
           # The gradual guarantee is only worth something if it holds on real
-          # code. agents.pedag is excluded: it contains a deliberate race.
-          for f in tour quantum devices evolve modern typed crypto contracts; do
-            node bin/Pēdāg.mjs check "examples/$f.pedag"
+          # code. Every example, not a hand-written subset -- the subset here
+          # had fallen five examples behind the directory.
+          #
+          # agents.pedag is the one exclusion: it contains a deliberate race,
+          # and the step below asserts that the checker still finds it.
+          for f in examples/*.pedag; do
+            [ "$f" = "examples/agents.pedag" ] && continue
+            node bin/pedag.mjs check "$f"
           done
 
-      - name: The verifier must still refute the known-bad contracts
+      - name: The verifier must not overclaim on the known-bad contracts
         shell: bash
         run: |
-          # examples/contracts.pedag contains deliberately false contracts, so a
-          # clean verify would mean the prover stopped working.
-          if node bin/Pēdāg.mjs verify examples/contracts.pedag; then
-            echo "verify proved a file containing known-false contracts"
+          # examples/contracts.pedag contains deliberately false contracts. The
+          # false ones are nonlinear, so the solver cannot settle them and
+          # correctly reports `undecided` rather than `refuted` -- being unable
+          # to decide is the sound answer, and `prove` is the tool that catches
+          # them (the next step). This step used to assert a non-zero exit here,
+          # which the verifier never produces on this file; it went unnoticed
+          # because the whole workflow referenced a binary path that did not
+          # exist, so CI had never run.
+          #
+          # What must hold is that it does not claim to have proved them.
+          out=$(node bin/pedag.mjs verify examples/contracts.pedag)
+          echo "$out"
+          echo "$out" | grep -q "undecided" || {
+            echo "verify settled everything in a file it should not be able to settle"
             exit 1
-          fi
+          }
 
       - name: Contracts must still hold where they are supposed to
         shell: bash
         run: |
           # examples/contracts.pedag ships deliberate counterexamples, so a
           # zero exit here would mean the prover stopped finding them.
-          if node bin/Pēdāg.mjs prove examples/contracts.pedag; then
+          if node bin/pedag.mjs prove examples/contracts.pedag; then
             echo "prove found nothing in a file that contains known-bad contracts"
             exit 1
           fi
@@ -111,16 +126,16 @@ jobs:
       - name: A bundle must run standalone
         shell: bash
         run: |
-          node bin/Pēdāg.mjs build examples/tour.pedag -o ci-tour.mjs
+          node bin/pedag.mjs build examples/tour.pedag -o ci-tour.mjs
           node ci-tour.mjs > ci-bundled.txt
-          node bin/Pēdāg.mjs run examples/tour.pedag > ci-direct.txt
+          node bin/pedag.mjs run examples/tour.pedag > ci-direct.txt
           diff ci-bundled.txt ci-direct.txt
           rm -f ci-tour.mjs ci-bundled.txt ci-direct.txt
 
       - name: The race checker must still see the planted race
         shell: bash
         run: |
-          if node bin/Pēdāg.mjs check examples/agents.pedag; then
+          if node bin/pedag.mjs check examples/agents.pedag; then
             echo "check found no race in a file that contains one"
             exit 1
           fi
