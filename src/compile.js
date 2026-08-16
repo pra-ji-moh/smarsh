@@ -636,7 +636,30 @@ function buildWhile(node) {
   };
 }
 
+// `for i in range(n)` is the most written loop in any language, and until now
+// it allocated. `range` is an ordinary builtin that returns a list, so
+// `range(2000000)` built a two-million-element JavaScript array -- tens of
+// megabytes and a GC bill -- before the first iteration ran.
+//
+// When the loop subject is literally a call to `range`, the list is a pure
+// intermediate: nothing can observe it, because the loop consumes it and throws
+// it away. So it is not built. The loop counts instead.
+//
+// Two things keep this honest. `range` is a normal binding a program may shadow
+// or redefine, so the identity of what the name resolves to is checked on every
+// entry, and anything unexpected takes the ordinary path. And the argument
+// validation below is a copy of the builtin's, so a bad call fails with exactly
+// the same error it would have.
+function countedRange(node) {
+  const call = node.iter;
+  if (!call || call.type !== 'Call') return null;
+  if (!call.callee || call.callee.type !== 'Ident' || call.callee.name !== 'range') return null;
+  if (call.args.length < 1 || call.args.length > 3) return null;
+  return call.args.map(compileExpr);
+}
+
 function buildFor(node) {
+  const rangeArgs = countedRange(node);
   const iter = compileExpr(node.iter);
   const body = compileBlock(node.body);
   const name = node.name;
@@ -646,10 +669,23 @@ function buildFor(node) {
 
   return (itp) => {
     itp.tick(node);
-    const iterable = itp.guard(iter(itp), line, 'loop subject');
-    const seq = itp.toIterable(iterable, line);
-    const fresh = itp.capturesScope(node.body);
 
+    // The counted path: no list is built, the loop counts. Only taken when the
+    // name `range` still means the builtin.
+    let counted = null;
+    if (rangeArgs !== null && itp.env.slot('range') === itp.prelude.vars.get('range')) {
+      const a = new Array(rangeArgs.length);
+      for (let i = 0; i < rangeArgs.length; i++) a[i] = unwrap(rangeArgs[i](itp));
+      // Exactly the builtin's validation, so a bad call fails identically.
+      const start = a.length === 1 ? 0 : itp.asNumber(a[0], 'a range start', line);
+      const stop = a.length === 1 ? itp.asNumber(a[0], 'a range end', line)
+        : itp.asNumber(a[1], 'a range end', line);
+      const step = a.length === 3 ? itp.asNumber(a[2], 'a range step', line) : 1;
+      if (step === 0) throw pedagError('ValueError', 'range step cannot be 0', line);
+      counted = { start, stop, step };
+    }
+
+    const fresh = itp.capturesScope(node.body);
     let shared = null;
     let slot = null;
     if (!fresh) {
@@ -661,8 +697,37 @@ function buildFor(node) {
 
     // One handler for the whole loop, not one per item -- see buildWhile.
     const saved = itp.env;
+
+    // The two loops are written out separately rather than sharing one body
+    // behind an iterator. A generator would have been tidier and would have
+    // undone the point of this: `yield` allocates a result object per step, so
+    // counting through one still costs an allocation per iteration -- which is
+    // what building the list cost in the first place.
     try {
-      for (const item of seq) {
+      if (counted !== null) {
+        const { start, stop, step } = counted;
+        for (let v = start; step > 0 ? v < stop : v > stop; v += step) {
+          itp.tick(node);
+          if (fresh) {
+            itp.env = new Env(saved);
+            itp.env.declare(name, v, false, line);
+          } else {
+            if (binds) { shared.clearVars(); shared.putSlot(name, slot); }
+            slot.value = v;
+            itp.env = shared;
+          }
+          if (contracted) itp.stepLoopContracts(node, loop);
+          const out = body(itp);
+          itp.env = saved;
+          if (out === SIG_BREAK) break;
+          if (out === SIG_RETURN) return SIG_RETURN;
+          if (contracted) itp.checkLoopInvariants(node, 'after a pass');
+        }
+        return null;
+      }
+
+      const iterable = itp.guard(iter(itp), line, 'loop subject');
+      for (const item of itp.toIterable(iterable, line)) {
         itp.tick(node);
         if (fresh) {
           itp.env = new Env(saved);
