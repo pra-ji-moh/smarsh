@@ -223,24 +223,33 @@ partial file IO — `read` and `write` handle whole files only. No networking.
 - **`--profile` prints a table**, with inclusive time only. No flamegraph, no
   allocation profile.
 - **The bundler is bespoke** and handles this codebase, not JavaScript generally.
-- **No coverage tooling for `.pedag` code** — the 94% figure is coverage of the
-  interpreter, not of programs written in Pēdāg.
+- **No coverage tooling for `.pedag` code** — the coverage figures below are of
+  the interpreter, not of programs written in Pēdāg.
 - **The fuzzer is grammar-based, not coverage-guided.** See §10.
 
 ---
 
 ## 8. Architecture
 
-- **`interpreter.js` is a god object** at roughly 1,900 lines, doing evaluation,
+- **`interpreter.js` is a god object** at 2,015 lines, doing evaluation,
   capabilities, taint, agents, transactions, devices, modules, redefinition,
-  contracts and budgets. It should be several files.
+  contracts and budgets. It should be several files. It grows every time
+  anything is added, which is the tell.
 - **238 builtins and methods against 86 standard-library functions.** The
   breadth is welded into the runtime where Java's equivalent is in replaceable
   libraries, so none of it can be versioned, swapped, or deprecated without
   breaking the language.
 - **40 keywords.** Go has 25.
-- **About 20% of interpreter branches are untested**, which is where the next
-  defects are.
+- **13% of branches in `src/` are untested**, which is where the next defects
+  are. `src/` overall is 94.4% of lines and 86.6% of branches; the weak spots
+  are `prove.js` (57.8% of lines), `tensor.js` (82.1%) and `verify.js` (74.4% of
+  branches). Note that the headline figure `node --test` prints is around 63%,
+  because the run writes generated bundles and FFI fixtures into temp
+  directories and counts them as source — the number to read is `src/`.
+- **The CLI itself is barely covered.** `bin/pedag.mjs` is exercised end to end
+  by CI, not by unit tests, so its argument handling had a real defect
+  (repeated `--grant` discarding all but the last) that no test would have
+  caught.
 
 ---
 

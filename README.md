@@ -9,8 +9,8 @@ Pēdāg assumes none of that. A branch can be probabilistic. A value carries whe
 it came from. A function holds only the powers it declared. A function that
 promises something gets checked against generated inputs.
 
-It runs today: a real interpreter in dependency-free JavaScript, with 387
-passing tests.
+It runs today: a real interpreter in dependency-free JavaScript, with 502
+passing tests covering 94% of the lines in `src/`.
 
 **New here?** [docs/getting-started.md](docs/getting-started.md) — twenty
 minutes, assumes nothing.
