@@ -9,8 +9,8 @@ Pēdāg assumes none of that. A branch can be probabilistic. A value carries whe
 it came from. A function holds only the powers it declared. A function that
 promises something gets checked against generated inputs.
 
-It runs today: a real interpreter in dependency-free JavaScript, with 502
-passing tests covering 94% of the lines in `src/`.
+It runs today: a real language in dependency-free JavaScript, with 531 passing
+tests covering 94% of the lines in `src/`.
 
 **New here?** [docs/getting-started.md](docs/getting-started.md) — twenty
 minutes, assumes nothing.
@@ -35,13 +35,29 @@ Other commands: `pedag check <file>` (types and static checks, without running),
 `pedag explain E0301`, `pedag build`, `pedag repl`, `pedag eval "<source>"`. Flags:
 `--seed N`, `--grant fs,clock,crypto`, `--trace`, `--profile`, `--trials N`.
 
-**Speed.** `node bench/run.mjs` runs the benchmark suite. The optimisation pass
-took it from 1037 ms to about 700 ms (~1.5×) by removing per-call and per-block
-allocations. It is an optimised tree-walker and it is still orders of magnitude
-off a JIT — Java is not in reach here, and a bytecode VM is the honest next step
-rather than more micro-tuning. A later pass of micro-optimisations produced no
-measurable change at all and was reverted; run-to-run variance on this hardware
-is about 5%, and a change inside the noise is not an improvement.
+**Speed.** `npm run bench` compares the two engines; `node bench/run.mjs` times
+the current one.
+
+The AST compiles to JavaScript closures once, rather than being re-walked on
+every execution (`src/compile.js`). Against the old tree-walker that is about
+**1.9x overall**, 2.4x on recursion and calls, and 2.2x on tight loops. Three
+things carried it: dispatch decided at compile time instead of per node visit;
+`return` no longer implemented by throwing a JavaScript exception, which
+`fib(30)` did 2.7 million times; and each occurrence of a name caching the slot
+it resolved to.
+
+`for i in range(n)` no longer builds the list first, so a counting loop
+allocates nothing.
+
+It is still an interpreter. Roughly 15-30x off a JIT-compiled language on
+compute-bound code, down from 50-100x. Closing more of that needs a typed value
+representation and escape analysis, which is a much larger change than this was.
+
+`--engine tree` still runs the original tree-walker, and CI proves the two are
+indistinguishable across every example, every standard-library module and 3,000
+generated programs -- compared on output, failures, step counts and the whole
+audit trace, because `pedag audit` signs a claim that a run replays from its
+seed.
 
 ---
 
@@ -140,6 +156,46 @@ nothing says so rather than returning nil.
 word is an ordinary identifier everywhere else. Java made the same call for the
 same reason, and this repository's own agent tests, which have a handler called
 `record`, are why it was noticed here.
+
+## A closed set of cases, and a checker that knows when you missed one
+
+```pedag
+choice Payment {
+  Card(last4, amount)
+  Transfer(iban, amount)
+  Cash(amount)
+  Refused(reason)
+}
+```
+
+Each variant is an ordinary record — same construction, fields, equality,
+printing, `.with()`, invariants and patterns. What a `choice` adds is that the
+set is **closed**, and a closed set is what makes exhaustiveness decidable:
+
+```
+error[E0605]: this match on `Payment` does not handle `Refused`
+ --> billing.pedag:14:10
+   |
+14 |   return match p {
+   |          ^^^^^^^^^ inexhaustive match
+   |
+help: add an arm for it, or `_ => ...` if the rest genuinely need no case
+```
+
+Four unrelated records would run identically — right up until a payment was
+refused in production and nothing had a case for it. `std/result` is built from
+two of these, so `Result` is `Ok | Err` and `Option` is `Some | None`, and
+forgetting the failing case is a build failure rather than a comment nobody read.
+
+The checker stays quiet wherever it cannot be certain: a wildcard, a bare
+binding, arms spanning two choices, a variant name used by more than one choice,
+or a `when` guard — a guarded arm may decline to fire, so it does not close its
+variant.
+
+A variant carrying nothing is a value rather than a constructor: `Pending`, not
+`Pending()`. In a pattern a bare name normally binds anything, so this is a
+deliberate exception — without it, an arm reading `Pending =>` would silently
+swallow every other case that reached it.
 
 ## Money is exact, and floats are not allowed near it
 
