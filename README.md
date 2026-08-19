@@ -1,63 +1,129 @@
 # Pēdāg
 
-A programming language for programs that reason under uncertainty and have to
-be held accountable for it.
+**Software that can prove what it was allowed to do, and what it actually did.**
 
-Java and Python assume the program knows what it is doing: a condition is true
-or false, a value is just a value, and a function may do anything it can reach.
-Pēdāg assumes none of that. A branch can be probabilistic. A value carries where
-it came from. A function holds only the powers it declared. A function that
-promises something gets checked against generated inputs.
+Every system produces logs. Logs are written by the code being audited, after
+the fact, and can be edited by anyone who can edit the code. They are a record
+of what a program *says* it did.
 
-It runs today: a real language in dependency-free JavaScript, with 531 passing
-tests covering 94% of the lines in `src/`.
+Pēdāg produces evidence instead. A program holds only the authority it declared,
+data carries where it came from, and every run emits a hash-chained,
+cryptographically signed manifest of every power exercised — and every one
+**refused**.
+
+```
+== data cannot leave to a party that was not permitted ====
+   refused: `marketing` may not read this argument; its owners permit compliance
+   compliance may read it: DE-4471
+```
+
+That refusal is not a log line. It is enforced by the runtime, and it lands in a
+record the program cannot forge:
+
+```
+$ pedag audit run.json
+
+run of billing.pedag  (pedag 0.3.0, outcome: completed)
+  program sha256   4b1d7412488c8db29cfbda6fa644aacf...
+  replay with      --seed 0 --grant fs
+
+  authority
+    granted        fs
+    actually used  fs
+  data
+    released       0 permitted, 1 refused
+    declassified   0 (each with a stated reason, below)
+    taint cleared  1
+  promises
+    contracts checked 6
+
+  events worth a reviewer's attention
+    line 22   taint.cleared           "reviewed and confirmed by analyst 12"
+    line 74   data.release_refused    marketing
+    line 111  authority.delegated     fs
+    line 119  authority.revoked       fs
+
+INTACT — every event hashes onto the one before it
+         and the head is signed by 0c2dbccf4fea847b
+```
+
+Three properties make that worth something to a reviewer:
+
+- **It records refusals, not just actions.** A log tells you what happened. This
+  tells you what the program *tried* and was stopped from doing — which is the
+  question an incident review actually asks.
+- **It cannot be edited after the run.** Each event hashes onto the one before
+  it and the head is signed. Changing any line breaks the chain.
+- **It replays.** The manifest carries the seed, the granted capabilities and the
+  program's SHA-256. The same run can be reproduced and the claim rechecked,
+  rather than believed.
+
+## The question this exists to answer
+
+> *What was this system allowed to do, what did it actually do, and whose data
+> did it touch?*
+
+If an AI model is in the decision path, that question gets harder and more
+urgent at the same time: the model's output cannot be verified, so the thing
+left worth proving is **authority and provenance** — what the surrounding system
+was permitted to do with the answer.
+
+Nothing mainstream answers it at the language level. Java shipped a capability
+sandbox and gave up: the Security Manager was deprecated in Java 17 and
+[permanently disabled in JDK 24](https://openjdk.org/jeps/486). Python, Go and
+JavaScript never had one. Every function in those languages can reach anything
+the process can reach, and nothing writes down what it reached.
+
+## What the language enforces
+
+| | |
+|---|---|
+| **Capabilities** | A function holds only what it declared with `needs` — never what its caller held. Reading a signature tells you the worst it can do. |
+| **Information flow** | Values carry owner-scoped policies (Myers & Liskov's decentralized label model). Combining data joins the rules; releasing it to a party checks them. |
+| **Declassification** | Removing a restriction requires the owner's authority and a written reason, and both land in the manifest. |
+| **Contracts** | `requires` / `ensures` / `old()` / invariants, in the language. `pedag verify` proves them where it can; `pedag prove` finds counterexamples where it cannot. |
+| **Exhaustiveness** | `choice` gives closed sets, so a `match` that forgets a case is a build failure, not a production incident. |
+| **Exact money** | `dec` is integer coefficient and scale on BigInt. Floats are refused near it, loudly. |
+| **Budgets** | Steps, tokens and memory. Not catchable from inside; a runaway process cannot talk its way out of being stopped. |
+| **Determinism** | Same seed, same run. It is what makes the manifest's replay claim true. |
+
+## Adopting it does not mean rewriting anything
+
+Nobody rewrites a working system to adopt a language, so Pēdāg calls the code
+you already have (`ffi`) and returns its results labelled `untrusted`, because a
+foreign function's output is exactly as trustworthy as anything else from
+outside.
+
+The intended shape is a small policy layer — tens of lines, not thousands —
+around a system that stays where it is, in the language it is already written
+in. The manifest covers the part a reviewer cares about: what was authorised,
+what was refused, and where data went.
+
+## Try the thing above
+
+```bash
+git clone <this repo> && cd pedag
+node bin/pedag.mjs run examples/regulated.pedag   --grant fs --principal compliance --audit run.json --sign
+node bin/pedag.mjs audit run.json
+```
+
+Zero dependencies, Node 18 or later. 531 passing tests over 94% of the lines in
+`src/`.
+
+> **Status: 0.3.0, pre-1.0, no production users, no third-party audit.** Read
+> [LIMITATIONS.md](LIMITATIONS.md) before believing anything above — it is a
+> complete list of what is weaker than it sounds, including a correction to a
+> claim this README used to make. The hand-rolled cryptography behind
+> `unaudited_crypto` has never been reviewed and is not constant time
+> ([SECURITY.md](SECURITY.md)); the signing above uses platform Ed25519, which
+> has been.
 
 **New here?** [docs/getting-started.md](docs/getting-started.md) — twenty
-minutes, assumes nothing.
+minutes, assumes nothing. Or `docs/reference.md` for the whole language.
 
-> **Status: 0.3.0, pre-1.0, no production users.** Pin an exact version
-> ([VERSIONING.md](VERSIONING.md)). The hand-rolled cryptography has never been
-> audited and is not constant time ([SECURITY.md](SECURITY.md)).
-
-```bash
-node bin/pedag.mjs run examples/tour.pedag
-```
-
-```bash
-node bin/pedag.mjs prove examples/contracts.pedag
-```
-
-```bash
-node --test tests/*.test.mjs
-```
-
-Other commands: `pedag check <file>` (types and static checks, without running),
-`pedag explain E0301`, `pedag build`, `pedag repl`, `pedag eval "<source>"`. Flags:
-`--seed N`, `--grant fs,clock,crypto`, `--trace`, `--profile`, `--trials N`.
-
-**Speed.** `npm run bench` compares the two engines; `node bench/run.mjs` times
-the current one.
-
-The AST compiles to JavaScript closures once, rather than being re-walked on
-every execution (`src/compile.js`). Against the old tree-walker that is about
-**1.9x overall**, 2.4x on recursion and calls, and 2.2x on tight loops. Three
-things carried it: dispatch decided at compile time instead of per node visit;
-`return` no longer implemented by throwing a JavaScript exception, which
-`fib(30)` did 2.7 million times; and each occurrence of a name caching the slot
-it resolved to.
-
-`for i in range(n)` no longer builds the list first, so a counting loop
-allocates nothing.
-
-It is still an interpreter. Roughly 15-30x off a JIT-compiled language on
-compute-bound code, down from 50-100x. Closing more of that needs a typed value
-representation and escape analysis, which is a much larger change than this was.
-
-`--engine tree` still runs the original tree-walker, and CI proves the two are
-indistinguishable across every example, every standard-library module and 3,000
-generated programs -- compared on output, failures, step counts and the whole
-audit trace, because `pedag audit` signs a claim that a run replays from its
-seed.
+Other commands: `pedag check` (types, races, taint, exhaustiveness — without
+running), `pedag verify`, `pedag prove`, `pedag test`, `pedag build`,
+`pedag fmt`, `pedag repl`, `pedag explain E0402`.
 
 ---
 
@@ -890,131 +956,33 @@ also printed as warnings on every `run`.
 
 ---
 
-## Status against the 50 features you listed
+## Breadth, and where the names flatter it
 
-Split by what is actually true today, not by what sounds good.
+Pēdāg covers a wide surface, and breadth invites the reasonable suspicion that
+some of it is thin. [docs/capabilities.md](docs/capabilities.md) is the
+accounting: every subsystem, what it actually does, and where the name promises
+more than the implementation delivers — a quantum *simulator* with no speedup, a
+lineage chain that is cryptographic rather than hardware-enforced, `energy()` as
+a disclosed cost model rather than a power reading, unaudited cryptography
+behind its own capability.
 
-### Shipped and working (41)
+Several entries exist purely to stop a name being read as more than it is.
 
-| # | Feature | How it landed |
-|---|---|---|
-| 2 | Non-deterministic control flow | `maybe p {}`, `choose {}`, seeded and replayable |
-| 7 | Semantic error trapping | `requires` / `ensures` — executable intent, checked at the boundary |
-| 8 | Asynchronous mind-forking | `fork n {}`, isolated scope + independent random stream per path |
-| 9 | Vector math first-class | `tensor`, `@`, broadcasting, `softmax`/`relu`/`dot`/`cosine` |
-| 11 | Hallucination sandboxing | `ungrounded()` + `grounded {}` blocks |
-| 12 | Token-based memory accounting | `tokens()`, per-entry accounting on every context |
-| 14 | Cross-border regulatory type-checking | `restrict()` + `region "xx" {}` |
-| 15 | Immutable ledger primitives | `ledger()`, hash-chained, `verify()` detects tampering |
-| 1 | Native context-window memory | `context(budget)` with eviction and pinning |
-| 4 | Real-time state distillation | `distill()` — deterministic structural digest |
-| 35 | Data-sovereignty tainting | same label engine as #14, per-variable, propagating |
-| 37 | Adversarial input isolation | `untrusted()` + taint reaching a sink |
-| 40 | Capability-based access control | `needs`, deny-by-default, real attenuation |
-| 43 | Compiler-driven synthetic test generation | `pedag prove` |
-| 34 | Homomorphic encryption runtime | Paillier; `+`, `-`, `*`-by-plaintext on ciphertexts as ordinary operators |
-| 21 | Zero-knowledge math integration | Schnorr proofs and Pedersen commitments over a verified 2048-bit group |
-| 38 | Cryptographic provenance | Ed25519 `sign` / `verify_signature`, no third-party package |
-| 17 | Data lineage | `lineage()` — hash-chained *and* per-step signed; see the caveat below |
-| 39 | Ephemeral secret shredding | `secret { }` scopes, zeroed buffers, secrets never print |
-| 18 | Atomic cross-ledger execution | `atomic { }`, all-or-nothing, correctly nested |
-| 31 | Quantum-classical hybrid | State-vector simulator, seeded and replayable |
-| 42 | Deterministic distributed timestamps | Logical clocks — a total order with no wall clock to drift |
-| 20 | Dynamic liquidity typings | `liquid(value, halflife)`, decay on logical time |
-| 5 | Agent-to-agent primitives | `agent` / `spawn` / `send`, private state, enforced isolation |
-| 33 | Autonomous kill-switch | `budget steps N { }` — not raisable or catchable from inside |
-| 44 | Deep observability | `--profile`: calls, steps and inclusive time per function, no instrumentation |
-| 19 | Predictive race blocking | `pedag check` finds shared writes across forked paths before running |
-| 25 | Dynamic kernel slicing | matmul split across OS threads over SharedArrayBuffers |
-| 26 | Race safety at the slicing level | each thread owns a disjoint band of output rows, so collisions are impossible by construction |
-| 27 | Memory eviction instead of crashing | `arena(bytes, dir)` spills least-recently-used tensors to disk and reads them back |
-| 3 | Large immutable weights | `weights(file, shape, dtype)` pages rows from disk; the file never becomes resident |
-| 6 | Safe self-modifying code | `redefine`, validated against shape, capabilities and inherited contracts |
-| 10 | Execution graph recompilation | the call graph is rederived on every redefinition; `dependents()` says what is affected |
-| 41 | Zero-downtime hot swap | `redefine on Agent.msg` reaches live agents with their state intact |
-| 47 | Stateful migration | `snapshot()` / `restore()` move values, agents, mail and the RNG position |
-| 36 | Leak detection | `watch()` / `leaks()` report structures that grew at every sample |
-| 48 | Self-documenting API evolution | `schema` / `negotiate` / `adapt` — structural, no version strings |
-| 22 | Live re-typing | `migrate()` reshapes records in memory through the same path as the wire |
-| 46 | Binary-level de-duplication | modules are cached by content hash, so identical files are one instance |
-| 16 | Macro and micro in one block | `schedule` / `simulate` — one event queue, any mix of timescales |
-| 49 | Cost-aware compilation | `energy()` with a disclosed weight table |
+**Speed.** `npm run bench` compares the two engines. The AST compiles to
+JavaScript closures once rather than being re-walked (`src/compile.js`): about
+**1.9x overall** against the old tree-walker, 2.4x on recursion and calls, 2.2x
+on tight loops. `for i in range(n)` no longer builds the list first.
 
-Caveats that matter, and none of them are hidden in the code:
+It is still an interpreter, and slower than CPython — `fib(27)` measured at
+688 ms against CPython's 89 ms and Node's 20 ms on the same machine. That is the
+tier it is in, and the design above is why it matters less than it looks: policy
+code runs once per decision, not in a hot loop.
 
-- **#1** is a bounded token-accounted buffer, not an LLM context addressed as
-  RAM — no model is attached.
-- **#4** is structural, not semantic. It never calls a model, so it never
-  invents anything.
-- **#12** uses a deterministic token estimate (within roughly 10–15% of BPE
-  counts on prose), not a real vocabulary.
-- **#7** checks stated intent. It does not read minds.
-- **#37** is now checked statically as well as at runtime — `pedag check` reports
-  a labelled value reaching a sink on any path.
-- **#17** is the honest half of what you asked for. The chain proves *who
-  asserted each step* and that the sequence has not been edited, reordered or
-  truncated. It cannot prove anything about hardware, or about a byte that
-  crossed a machine you do not control. "Cryptographic lineage", not
-  "hardware-enforced".
-- **#31** is a simulator. Superposition, entanglement, interference and
-  measurement statistics are all real; the speedup is not, and cannot be.
-- **#42** achieves drift-free ordering by not using wall clocks at all. If you
-  need to correlate with human time you need `now()` and the `clock`
-  capability, and those readings do drift.
-- **#34** is additively homomorphic only. Fully homomorphic encryption exists
-  but is thousands of times slower and is not what this ships.
-- Paillier, Schnorr and Pedersen are **unaudited and not constant time**. They
-  sit behind their own capability for that reason, and a modulus under 2048 bits
-  is recorded in the run trace. Do not put them in front of an adversary who can
-  measure you.
-- Taint analysis is a may-analysis. It reports what *can* happen, so it can
-  report a path that is unreachable for a reason it cannot see. It will not stay
-  quiet about a path that is reachable.
-- **#5** is in-process. Agents are isolated, message-passing and deterministic,
-  which is the semantic content of the feature — but they share one thread, and
-  there is no cross-machine transport yet. "Socket protocols between machines"
-  is not done.
-- **#19** is a single static check (shared writes from forked paths) plus arity.
-  It is not a general race detector, and it says nothing about market
-  front-running, which is not a property a compiler can see.
-- **#44** reports inclusive time, so a caller's number contains its callees'.
-
-### Shipped, but smaller than you asked for (6)
-
-These work, and the gap between what they do and what the original line said is
-named rather than blurred.
-
-| # | You asked for | What ships | The gap |
-|---|---|---|---|
-| 23 | CPU/GPU unified memory | `device "x" { }` blocks; one syntax, backend chosen at the block | Backends are `cpu` and `workers`. No GPU, so no host/device transfer to elide. |
-| 24 | NVIDIA / AMD / ASIC from one source | a backend registry a new backend plugs into | Nothing implements a GPU backend. A registry with no GPU in it is a seam, not silicon agnosticism. |
-| 28 | Silicon topology awareness | real core count, model, clock, memory, load | No NUMA distances, no cache hierarchy, no interconnect map. Node cannot see them. |
-| 29 | Asymmetric compute pipelining | small jobs stay on the calling thread, large ones go wide | Routing by size, not by matrix-core vs general-core. There is no second core type to route to. |
-| 50 | one universal native binary | `pedag build` → one `.mjs`, no dependencies, no install | It needs Node. Universal binaries are per-target builds in a wrapper; this is the honest version of the idea. |
-| 13 | deterministic nanosecond GC | `arena.reclaim()` — you choose the moment, and it reports the pause it caused in nanoseconds | Not a collector, and not pause-free. It measures the pause instead of promising there isn't one. |
-
-### Not achievable as stated (4)
-
-- **#30 Thermal-aware clock throttling.** No portable way to read die
-  temperature from a runtime. `pressure()` reports CPU load and free memory,
-  which is what is actually observable — it is not a thermal reading, and it is
-  not named as one.
-- **#32 On-chip interconnect primitives.** Addressing a chip-to-chip bridge
-  needs a driver, not a language.
-- **#45 Infinite horizontal elasticity, 1 to 10,000 servers, no config.** A
-  language cannot conjure servers. `snapshot`/`restore` is the migration half;
-  the provisioning half is somebody's infrastructure either way.
-- **#17's "hardware-enforced" half.** The signed, hash-chained lineage above is
-  the achievable part; see the caveats.
-
-That is 41 + 6 + 3 = all 50, with #17 appearing twice on purpose: the
-cryptographic half shipped, the hardware half cannot.
-
-The honest summary of what stays out of reach on Node: anything that must
-address a GPU, an ASIC, or a thermal sensor directly. Everything else on the
-list either works or works smaller, and the difference is written down.
-
----
+`--engine tree` runs the original tree-walker, and CI proves the two are
+indistinguishable across every example, every standard-library module and 3,000
+generated programs — compared on output, failures, step counts and the entire
+audit trace, because `pedag audit` signs a claim that a run replays from its
+seed.
 
 ## What is honest about this
 
@@ -1089,6 +1057,7 @@ that adds the feature.
 | [Reference](docs/reference.md) | Every keyword, builtin and command |
 | [Security](SECURITY.md) | Threat model, what is audited and what is not |
 | [Versioning](VERSIONING.md) | What is stable, what can move under you |
+| [Capabilities](docs/capabilities.md) | Every subsystem, and where its name flatters it |
 | [Limitations](LIMITATIONS.md) | Everything known to be wrong, missing, or weaker than it sounds |
 | [Changelog](CHANGELOG.md) | What changed, including every break |
 | [Contributing](CONTRIBUTING.md) | How to add something without overclaiming |
