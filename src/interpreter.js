@@ -135,6 +135,7 @@ export class Interpreter {
     // number. See LIMITATIONS.md.
     this.maxCallDepth = 300;
     this.frames = [];          // the live call stack, for stack traces
+    this.frameTop = 0;         // how many of them are live; the rest are pooled
 
     // Closure compilation. On by default; `--engine tree` turns it off, which
     // is how the two are compared. The tree-walker remains the specification --
@@ -1050,13 +1051,27 @@ export class Interpreter {
 
     const profStart = this.profiling ? process.hrtime.bigint() : 0n;
     const profSteps = this.steps;
-    this.frames.push({ name: callee.name, line });
+    // The stack is only ever read when something throws, so the records are
+    // pooled and mutated in place rather than allocated per call. fib(29) makes
+    // 1.6 million calls; that was 1.6 million short-lived objects and the GC
+    // time to match.
+    if (this.frames.length <= this.frameTop) this.frames.push({ name: callee.name, line });
+    else {
+      const f = this.frames[this.frameTop];
+      f.name = callee.name;
+      f.line = line;
+    }
+    this.frameTop += 1;
 
     try {
       this.env = env;
+      // The overwhelming majority of calls are to a function with no contract
+      // at all. Those pay for nothing here: no scan for `old(...)`, no loop
+      // over an empty list, no second Env for `result`.
+      const contracted = decl.requires.length !== 0 || decl.ensures.length !== 0;
       // `old(expr)` in a postcondition means the value on the way in, so the
       // arguments have to be captured before the body runs and can change them.
-      const oldValues = this.captureOldValues(decl, env);
+      const oldValues = contracted ? this.captureOldValues(decl, env) : null;
       for (const c of decl.requires) {
         this.trace.contracts += 1;
         let held;
@@ -1126,11 +1141,12 @@ export class Interpreter {
       // Snapshot the stack at the innermost frame that sees the failure, while
       // it is still standing -- the `finally` below is about to unwind it.
       if (e instanceof PedagError && e.frames.length === 0) {
-        e.frames = this.frames.map((f) => ({ ...f }));
+        // Copied, because the pool below is about to be reused.
+        e.frames = this.frames.slice(0, this.frameTop).map((f) => ({ ...f }));
       }
       throw e;
     } finally {
-      this.frames.pop();
+      this.frameTop -= 1;
       this.callDepth -= 1;
       this.caps = savedCaps;
       this.env = savedEnv;

@@ -995,10 +995,25 @@ JavaScript closures once rather than being re-walked (`src/compile.js`): about
 **1.9x overall** against the old tree-walker, 2.4x on recursion and calls, 2.2x
 on tight loops. `for i in range(n)` no longer builds the list first.
 
-It is still an interpreter, and slower than CPython — `fib(27)` measured at
-688 ms against CPython's 89 ms and Node's 20 ms on the same machine. That is the
-tier it is in, and the design above is why it matters less than it looks: policy
-code runs once per decision, not in a hot loop.
+It is still an interpreter, and slower than CPython. `fib(27)`, best of five
+runs each in a fresh process on one machine:
+
+| | |
+|---|---|
+| Node 24 (V8 JIT) | 5 ms |
+| CPython 3.14 | 79 ms |
+| **Pēdāg** | **531 ms** |
+
+Roughly 6.7× behind CPython and 100× behind a JIT. That is the tier it is in,
+and stating it plainly is worth more than omitting it. `bench/fib.mjs` takes one
+sample per process on purpose: timings taken inside a single long-lived process
+drifted from 644 ms to 1029 ms across seven iterations, measuring accumulated
+heap state rather than the code under test, and an earlier version of this
+section quoted numbers from that broken method.
+
+Closing the remaining gap needs compile-time frame slots and a typed value
+representation — architecture, not tuning. The design above is why it matters
+less than it looks: policy code runs once per decision, not in a hot loop.
 
 `--engine tree` runs the original tree-walker, and CI proves the two are
 indistinguishable across every example, every standard-library module and 3,000
