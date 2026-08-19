@@ -47,7 +47,7 @@ INTACT — every event hashes onto the one before it
          and the head is signed by 0c2dbccf4fea847b
 ```
 
-Three properties make that worth something to a reviewer:
+Four properties make that worth something to a reviewer:
 
 - **It records refusals, not just actions.** A log tells you what happened. This
   tells you what the program *tried* and was stopped from doing — which is the
@@ -57,6 +57,22 @@ Three properties make that worth something to a reviewer:
 - **It replays.** The manifest carries the seed, the granted capabilities and the
   program's SHA-256. The same run can be reproduced and the claim rechecked,
   rather than believed.
+- **You do not have to trust us to check it.**
+  [`tools/verify-manifest.mjs`](tools/verify-manifest.mjs) is 98 lines, imports
+  nothing but `node:crypto`, and is short enough to read before you run it. The
+  signature is Ed25519 in SPKI DER and the keys are PKCS#8 PEM, so `openssl` and
+  every HSM already read them. Evidence only its own producer can verify is not
+  evidence.
+
+```bash
+pedag keygen -o compliance.pem                 # an identity, kept
+pedag run app.pedag --audit run.json --key compliance.pem
+node tools/verify-manifest.mjs run.json compliance.pem.pub
+```
+
+Without `--key` the record is signed by a throwaway key, which proves it was not
+edited but says nothing about who produced it — and the tool says so rather than
+letting it be assumed.
 
 ## The question this exists to answer
 

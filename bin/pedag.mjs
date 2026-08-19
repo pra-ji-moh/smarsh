@@ -19,7 +19,7 @@ import { verifyProgram, formatVerification } from '../src/verify.js';
 import { discover, runFile, format } from '../src/testrunner.js';
 import { formatSource } from '../src/format.js';
 import { buildManifest, verifyManifest, summarise } from '../src/audit.js';
-import { generateKeypair, verifyMessage } from '../src/crypto.js';
+import { generateKeypair, verifyMessage, exportKeypair, loadKeypair } from '../src/crypto.js';
 
 const VERSION = '0.3.0';
 
@@ -33,6 +33,7 @@ usage:
   pedag prove <file.pedag> [options]   generate inputs and check every contract
   pedag verify <file.pedag>            prove contracts hold for every input
   pedag audit <manifest.json>          read back a run record and check it is intact
+  pedag keygen [-o key.pem]            a signing identity to bind records to
   pedag repl [options]                interactive session
   pedag eval "<source>" [options]     run a one-liner
 
@@ -71,6 +72,7 @@ function parseArgs(argv) {
     else if (a === '--profile') opts.profile = true;
     else if (a === '--audit') opts.audit = argv[++i] ?? 'audit.json';
     else if (a === '--sign') opts.sign = true;
+    else if (a === '--key') { opts.key = argv[++i]; opts.sign = true; }
     else if (a === '-o' || a === '--out') opts.output = argv[++i];
     else if (a === '--check') opts.check = true;
     else if (a === '--help' || a === '-h') opts.help = true;
@@ -237,20 +239,39 @@ function cmdAudit(opts) {
   return;
 }
 
-function writeManifest(interp, { file, source, opts, outcome }) {
-  let key = null;
-  if (opts.sign) {
-    key = generateKeypair();
+// A key the operator kept, or a throwaway. The difference is what the
+// signature is able to claim, so it is stated rather than left to be assumed.
+function signingKey(opts) {
+  if (!opts.sign) return null;
+  if (!opts.key) return { key: generateKeypair(), persistent: false };
+  const full = path.resolve(process.cwd(), opts.key);
+  if (!fs.existsSync(full)) {
+    console.error(`pedag: no such key file: ${opts.key}  (make one with \`pedag keygen\`)`);
+    process.exit(2);
   }
+  try {
+    return { key: loadKeypair(fs.readFileSync(full, 'utf8')), persistent: true };
+  } catch (e) {
+    console.error(`pedag: cannot use ${opts.key}: ${e.message}`);
+    process.exit(2);
+  }
+}
+
+function writeManifest(interp, { file, source, opts, outcome }) {
+  const signer = signingKey(opts);
+  const key = signer ? signer.key : null;
   const manifest = buildManifest(interp, {
     file, source, runtimeVersion: VERSION, signWith: key, outcome,
   });
   fs.writeFileSync(path.resolve(process.cwd(), opts.audit), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
   console.error(`\nwrote ${opts.audit} — ${manifest.events.length} events, head ${manifest.head.slice(0, 16)}`);
-  if (key) {
-    console.error(`signed with an ephemeral key ${key.publicHex.slice(-16)}`);
-    console.error('note: an ephemeral key proves the record was not edited after this run, '
-      + 'not who produced it. Bind a persistent key to claim that.');
+  if (key && signer.persistent) {
+    console.error(`signed by ${key.publicHex.slice(-16)} (from ${opts.key})`);
+  } else if (key) {
+    console.error(`signed with a throwaway key ${key.publicHex.slice(-16)}`);
+    console.error('note: a throwaway key proves the record was not edited after this run, '
+      + 'not who produced it. Use --key with a kept identity to claim that, '
+      + 'and `pedag keygen` to make one.');
   }
 }
 
@@ -634,7 +655,7 @@ function main() {
   const first = opts.positional[0];
   const commands = new Set([
     'run', 'prove', 'repl', 'eval', 'check', 'build', 'explain', 'test', 'fmt', 'verify', 'audit',
-    'demo',
+    'demo', 'keygen',
   ]);
 
   let command;
@@ -651,6 +672,7 @@ function main() {
   }
 
   if (command === 'demo') cmdDemo(opts);
+  else if (command === 'keygen') cmdKeygen(opts);
   else if (command === 'run') cmdRun(opts);
   else if (command === 'check') cmdCheck(opts);
   else if (command === 'eval') cmdEval(opts);
@@ -670,6 +692,26 @@ function main() {
 // to be seen to mean anything. So this runs a real program with real
 // capabilities, and then shows the signed record it left, which is the thing
 // worth evaluating.
+// A signing identity, in the formats every other tool already reads.
+function cmdKeygen(opts) {
+  const out = opts.output ?? 'pedag-key.pem';
+  const full = path.resolve(process.cwd(), out);
+  if (fs.existsSync(full)) {
+    console.error(`pedag: ${out} already exists; refusing to overwrite a signing key`);
+    process.exitCode = 2;
+    return;
+  }
+  const key = generateKeypair();
+  const { privatePem, publicPem } = exportKeypair(key);
+  fs.writeFileSync(full, privatePem, { mode: 0o600 });
+  fs.writeFileSync(`${full}.pub`, publicPem);
+  console.log(`wrote ${out} (private, keep it) and ${out}.pub (public, hand it out)`);
+  console.log(`fingerprint ${key.publicHex.slice(-16)}`);
+  console.log('');
+  console.log('  sign a run   pedag run app.pedag --audit run.json --key ' + out);
+  console.log('  PKCS#8 and SPKI PEM, so openssl and every HSM already read these.');
+}
+
 function cmdDemo(opts) {
   const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'examples', 'demo.pedag');
   if (!fs.existsSync(file)) {

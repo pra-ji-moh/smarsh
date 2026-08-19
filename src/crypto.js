@@ -1,6 +1,7 @@
 import {
   generateKeyPairSync, sign as nodeSign, verify as nodeVerify,
   createPublicKey, createHash, randomBytes,
+  createPrivateKey,
 } from 'node:crypto';
 
 import { modpow, modinv, lcm, randomPrime, randomBits, bigFromHex, bitLength } from './bigmath.js';
@@ -212,6 +213,33 @@ export class KeyPair {
 export function generateKeypair() {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   return new KeyPair(publicKey, privateKey);
+}
+
+// --- persistent identity -----------------------------------------------------
+//
+// A run signed with a key generated at startup proves the record was not edited
+// afterwards. It cannot prove who produced it, because the key existed for the
+// length of one process and nobody ever saw it before.
+//
+// An audit record that nobody can attribute is half an artifact, so a key can
+// be kept. These read and write PKCS#8 / SPKI PEM -- the formats openssl, the
+// JVM, Python's `cryptography` and every HSM already speak -- because evidence
+// nobody else's tools can check is not evidence.
+
+export function exportKeypair(kp) {
+  if (!kp.canSign) throw new Error('this is a public key; there is no private half to export');
+  return {
+    privatePem: kp.privateKey.export({ type: 'pkcs8', format: 'pem' }),
+    publicPem: kp.publicKey.export({ type: 'spki', format: 'pem' }),
+  };
+}
+
+export function loadKeypair(privatePem) {
+  const privateKey = createPrivateKey({ key: privatePem, format: 'pem', type: 'pkcs8' });
+  if (privateKey.asymmetricKeyType !== 'ed25519') {
+    throw new Error(`this key is ${privateKey.asymmetricKeyType}, and signing here is ed25519`);
+  }
+  return new KeyPair(createPublicKey(privateKey), privateKey);
 }
 
 export function signMessage(kp, message) {
