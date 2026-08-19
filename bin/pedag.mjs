@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
+import { fileURLToPath } from 'node:url';
 
 import { Interpreter } from '../src/interpreter.js';
 import { PedagError } from '../src/errors.js';
@@ -24,6 +26,7 @@ const VERSION = '0.3.0';
 const HELP = `Pēdāg ${VERSION} -- a language for programs that reason under uncertainty
 
 usage:
+  pedag demo                           see what it does, in 30 seconds
   pedag run <file.pedag> [options]     run a program
   pedag check <file.pedag>             static checks, without running anything
   pedag build <file.pedag> [-o out]    one self-contained .mjs, no dependencies
@@ -631,6 +634,7 @@ function main() {
   const first = opts.positional[0];
   const commands = new Set([
     'run', 'prove', 'repl', 'eval', 'check', 'build', 'explain', 'test', 'fmt', 'verify', 'audit',
+    'demo',
   ]);
 
   let command;
@@ -646,7 +650,8 @@ function main() {
     return;
   }
 
-  if (command === 'run') cmdRun(opts);
+  if (command === 'demo') cmdDemo(opts);
+  else if (command === 'run') cmdRun(opts);
   else if (command === 'check') cmdCheck(opts);
   else if (command === 'eval') cmdEval(opts);
   else if (command === 'prove') cmdProve(opts);
@@ -657,6 +662,74 @@ function main() {
   else if (command === 'test') cmdTest(opts);
   else if (command === 'fmt') cmdFmt(opts);
   else if (command === 'repl') cmdRepl(opts);
+}
+
+// `pedag demo` -- no arguments, no file to write, nothing to read first.
+//
+// The point of the language is an artifact, not a syntax, and an artifact has
+// to be seen to mean anything. So this runs a real program with real
+// capabilities, and then shows the signed record it left, which is the thing
+// worth evaluating.
+function cmdDemo(opts) {
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'examples', 'demo.pedag');
+  if (!fs.existsSync(file)) {
+    console.error('Pēdāg: the demo program is missing from this installation');
+    process.exitCode = 2;
+    return;
+  }
+  const source = fs.readFileSync(file, 'utf8');
+  const manifestPath = path.join(os.tmpdir(), `pedag-demo-${process.pid}.json`);
+
+  const interp = new Interpreter({
+    seed: opts.seed,
+    caps: ['fs'],
+    principals: ['compliance'],
+    cwd: path.dirname(file),
+  });
+  interp.entryPath = file;
+
+  let outcome = 'completed';
+  try {
+    interp.run(source, 'demo.pedag');
+  } catch (e) {
+    outcome = e instanceof PedagError ? `failed: ${e.kind}` : 'failed';
+    reportError(e, source, 'demo.pedag');
+  }
+
+  // The record. This is the part that does not exist anywhere else -- and it
+  // is signed, because an unsigned chain proves only that the file is
+  // self-consistent, not that it is the one this run produced.
+  const key = generateKeypair();
+  const manifest = buildManifest(interp, {
+    file: 'demo.pedag', source, runtimeVersion: VERSION, signWith: key, outcome,
+  });
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+  console.log('  ---------------------------------------------------------------');
+  console.log('  None of that was printed by the program on trust.');
+  console.log('  Every line of it is in a signed record the program cannot edit:');
+  console.log('');
+  console.log(summarise(manifest).split(String.fromCharCode(10)).map((l) => `  ${l}`).join(String.fromCharCode(10)));
+
+  const { ok, problems } = verifyManifest(manifest);
+  const signed = verifyMessage(manifest.signature.public_key, manifest.head, manifest.signature.value);
+  console.log('');
+  if (ok && signed) {
+    console.log('  INTACT -- every event hashes onto the one before it,');
+    console.log(`            and the head is signed by ${key.publicHex.slice(-16)}`);
+  } else {
+    console.log(`  BROKEN -- ${problems.join('; ') || 'the signature does not match the head'}`);
+    process.exitCode = 1;
+  }
+  console.log('');
+  console.log('  ---------------------------------------------------------------');
+  console.log(`  The record is at ${manifestPath}`);
+  console.log('  Edit any line of it and run `pedag audit` on it: the chain breaks.');
+  console.log('');
+  console.log('  The program that produced this is examples/demo.pedag -- 90 lines.');
+  console.log('  Nothing in it is narration; every refusal above was enforced.');
+  console.log('');
+  interp.devices.shutdown();
 }
 
 main();

@@ -103,9 +103,15 @@ what was refused, and where data went.
 
 ```bash
 git clone <this repo> && cd pedag
-node bin/pedag.mjs run examples/regulated.pedag   --grant fs --principal compliance --audit run.json --sign
-node bin/pedag.mjs audit run.json
+node bin/pedag.mjs demo
 ```
+
+One command, no arguments, nothing to write first. It runs a real program with
+real capabilities and prints the signed record it left. The record is a file —
+edit any line of it, run `pedag audit` on it, and the chain breaks. That claim
+is [tested](tests/demo.test.mjs), not asserted: seven edits an interested party
+would actually want to make, including deleting the inconvenient event and
+attaching the record to a different program.
 
 Zero dependencies, Node 18 or later. 531 passing tests over 94% of the lines in
 `src/`.

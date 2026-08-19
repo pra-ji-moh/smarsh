@@ -32,8 +32,19 @@ const VERSION = 1;
 const ZERO = '0'.repeat(64);
 const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 
-function chain(entries) {
-  let head = ZERO;
+// The chain is anchored in the header rather than in a constant.
+//
+// It used to start from ZERO, which meant the header sat outside the chain and
+// outside the signature: the program's sha256, the seed, the capabilities
+// granted and the outcome could all be rewritten while `pedag audit` still
+// reported INTACT. That is the one edit an interested party most wants to make
+// -- attach a benign run's evidence to a different program, or change which
+// capabilities the record says were granted.
+//
+// Anchoring on a digest of the header makes every event depend on it, so any
+// change to it breaks event 0 and everything after.
+function chain(entries, genesis = ZERO) {
+  let head = genesis;
   const out = [];
   for (let i = 0; i < entries.length; i++) {
     const payload = JSON.stringify(entries[i]);
@@ -113,11 +124,12 @@ export function buildManifest(interp, {
   // events that have no line last.
   events.sort((a, b) => (a.line ?? 1e9) - (b.line ?? 1e9));
 
-  const chained = chain(events);
   const granted = [...interp.grantedCaps].sort();
   const exercised = [...new Set(t.effects.filter((e) => e.allowed).map((e) => e.capability))].sort();
 
-  const manifest = {
+  // The identifying header: what ran, and what it would take to run it again.
+  // These are the fields the chain is anchored on.
+  const identity = {
     manifest: VERSION,
     runtime: `pedag ${runtimeVersion}`,
     program: {
@@ -132,6 +144,16 @@ export function buildManifest(interp, {
       note: 'a run with no clock, crypto or ffi capability replays identically on this runtime version',
     },
     outcome,
+  };
+
+  const genesis = sha256(JSON.stringify(identity));
+  const chained = chain(events, genesis);
+
+  const manifest = {
+    ...identity,
+    // The value every event hashes back to. A reviewer does not need it, but
+    // it makes the anchoring visible rather than implicit.
+    genesis,
     authority: {
       granted,
       exercised,
@@ -180,7 +202,16 @@ export function verifyManifest(manifest) {
     return { ok: false, problems: ['not a manifest this runtime can read'] };
   }
 
-  let head = ZERO;
+  // Recompute the anchor from the header as it stands now. If any identifying
+  // field was edited, this differs from the genesis the events were built on,
+  // and event 0 fails to follow it.
+  const { manifest: v, runtime, program, replay, outcome } = manifest;
+  const expectedGenesis = sha256(JSON.stringify({ manifest: v, runtime, program, replay, outcome }));
+  if (manifest.genesis !== undefined && manifest.genesis !== expectedGenesis) {
+    problems.push('the record header has been altered');
+  }
+
+  let head = manifest.genesis ?? ZERO;
   manifest.events.forEach((e, i) => {
     const { seq, prev, hash, ...payload } = e;
     if (seq !== i) problems.push(`event ${i} is numbered ${seq}`);

@@ -1,0 +1,93 @@
+// The demo: an AI agent handling customer data, and the receipt it leaves.
+//     pedag demo
+//     pedag run examples/demo.pedag --grant fs --principal compliance
+//
+// Nothing below is narration. Every refusal is enforced by the runtime, and
+// every one of them lands in a signed record the program cannot edit.
+
+record Customer(id, region, balance) invariant balance >= dec("0")
+
+// The agent's tools. `summarise` stands in for a model call: whatever comes
+// back is a claim, not a finding, so it is labelled at the source.
+fn summarise(customer) {
+  return ungrounded("customer ${customer.id} looks low-risk")
+}
+
+fn charge(customer, fee)
+  requires fee >= dec("0")
+  ensures result.balance == old(customer.balance) - fee
+{
+  return customer.with("balance", customer.balance - fee)
+}
+
+print("")
+print("  An AI support agent, handling one customer record.")
+print("  Every refusal below is enforced by the runtime, not logged by it.")
+print("")
+
+let raw = Customer("DE-4471", "eu", dec("1250.00"))
+
+// Two parties independently govern this value. Readers are the intersection,
+// so neither owner can widen it alone.
+let account = classify(raw.id, "customer", ["customer", "compliance", "support"])
+let governed = classify(account, "regulator", ["regulator", "compliance"])
+
+print("  1. WHO MAY READ THIS RECORD")
+print("     owners     ${owners_of(governed)}")
+print("     readers    ${readers_of(governed)}")
+print("     support was permitted by the customer, and refused by the regulator.")
+print("")
+
+print("  2. THE AGENT TRIES TO SEND IT TO MARKETING")
+attempt {
+  release_to "marketing" {
+    print("     leaked: ${governed}")
+  }
+} rescue e {
+  let why = e["message"]
+  print("     REFUSED    ${why}")
+}
+release_to "compliance" {
+  print("     allowed    compliance may read it: ${governed}")
+}
+print("")
+
+print("  3. THE MODEL'S OUTPUT CANNOT BECOME A FINDING BY ACCIDENT")
+let claim = summarise(raw)
+print("     labels     ${labels(claim)}")
+attempt {
+  // pedag-allow: taint  (deliberate -- this is the refusal being demonstrated)
+  grounded {
+    print("     filed to the regulator: ${claim}")
+  }
+} rescue e {
+  print("     REFUSED    a checked context will not read an unverified claim")
+}
+let reviewed = trust(claim, "read and confirmed by analyst 12")
+print("     allowed    after human review, and the reason is recorded")
+print("")
+
+print("  4. THE MONEY IS EXACT, AND THE PROMISE IS CHECKED")
+let charged = charge(raw, dec("12.50"))
+print("     1250.00 - 12.50 = ${charged.balance}   (not 1237.4999999999998)")
+attempt {
+  charge(raw, dec("9999.00"))
+} rescue e {
+  print("     REFUSED    the invariant will not let the balance go negative")
+}
+print("")
+
+print("  5. AUTHORITY IS LENT, AND TAKEN BACK")
+let pair = caretaker(grant("fs", "the export worker"))
+using pair["grant"] {
+  print("     allowed    the worker exported one file")
+}
+revoke(pair["revoker"])
+attempt {
+  using pair["grant"] {
+    print("     exported again")
+  }
+} rescue e {
+  print("     REFUSED    the grant was revoked; it cannot be used again")
+}
+print("")

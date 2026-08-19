@@ -33,20 +33,40 @@ const ALL_SOURCES = [
   ...allSourceFiles(path.join(ROOT, 'std')),
 ].sort();
 
-// Runnable without capabilities and without side effects, so behaviour can be
-// compared before and after formatting.
-const NEEDS_GRANTS = new Set([
-  'crypto.pedag', 'interop.pedag', 'devices.pedag', 'depth.pedag', 'regulated.pedag',
-]);
-const RUNNABLE = ALL_SOURCES.filter((f) => {
-  const name = path.basename(f);
-  return f.includes('examples') && !NEEDS_GRANTS.has(name)
-    && !['contracts.pedag', 'agents.pedag'].includes(name);
-});
+// What each example needs to run is read out of its own header, not kept in a
+// list here. The list drifted -- a new example that needed capabilities was
+// simply run without them and failed, and the same pattern had already been
+// removed from CI for the same reason.
+const INVOCATION = /^\/\/\s*(?:node\s+bin\/pedag\.mjs|pedag)\s+run\s+\S+(.*)$/;
+
+function grantsFor(source) {
+  const caps = [];
+  const principals = [];
+  for (const raw of source.split(/\r?\n/).slice(0, 14)) {
+    const line = raw.trim();
+    if (!line.startsWith('//')) continue;
+    const m = INVOCATION.exec(line);
+    if (!m) continue;
+    const flags = m[1].split(/\s+/);
+    for (let i = 0; i < flags.length; i++) {
+      if (flags[i] === '--grant') caps.push(...(flags[++i] ?? '').split(','));
+      if (flags[i] === '--principal') principals.push(...(flags[++i] ?? '').split(','));
+    }
+  }
+  return { caps: caps.filter(Boolean), principals: principals.filter(Boolean) };
+}
+
+// Excluded on purpose: these do not produce comparable output twice.
+// contracts.pedag ships deliberate failures; agents.pedag contains a planted
+// race; crypto and devices read entropy and machine state.
+const NOT_COMPARABLE = new Set(['contracts.pedag', 'agents.pedag', 'crypto.pedag', 'devices.pedag']);
+const RUNNABLE = ALL_SOURCES.filter((f) => f.includes('examples')
+  && !NOT_COMPARABLE.has(path.basename(f)));
 
 function runSource(source, file, cwd) {
   const out = [];
-  const interp = new Interpreter({ out: (s) => out.push(s), cwd });
+  const { caps, principals } = grantsFor(source);
+  const interp = new Interpreter({ out: (s) => out.push(s), cwd, caps, principals });
   interp.entryPath = file;
   try {
     interp.run(source, path.basename(file));
