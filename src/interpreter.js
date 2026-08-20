@@ -72,6 +72,35 @@ function asPedagFailure(e, line) {
   return e;
 }
 
+// Can a call's frame outlive the call?
+//
+// Only if something inside the body captures it. A function or agent declared
+// in the body closes over the frame; everything else -- calls, blocks, loops --
+// either gets its own scope or is finished before the call returns. When
+// nothing captures it, the frame is reusable and a call need not allocate one.
+//
+// Computed once per declaration and cached on it.
+function framesEscape(decl) {
+  if (decl.framesEscape !== undefined) return decl.framesEscape;
+  let found = false;
+  const walk = (n) => {
+    if (found || n === null || typeof n !== 'object') return;
+    if (Array.isArray(n)) { for (const c of n) walk(c); return; }
+    if (n.type === 'Fn' || n.type === 'FnDecl' || n.type === 'AgentDecl' || n.type === 'Spawn') {
+      found = true;
+      return;
+    }
+    for (const v of Object.values(n)) if (v !== null && typeof v === 'object') walk(v);
+  };
+  walk(decl.body);
+  // A contract runs in a child scope whose parent is the frame, and `old()`
+  // captures values before the body. Neither outlives the call, but the
+  // machinery is intricate enough that a contracted function is left alone.
+  if (decl.requires.length !== 0 || decl.ensures.length !== 0) found = true;
+  decl.framesEscape = found;
+  return found;
+}
+
 export class Interpreter {
   constructor({
     seed = 0, caps = [], principals = [],
@@ -1039,15 +1068,59 @@ export class Interpreter {
       throw pedagError('RecursionError', `call stack went deeper than ${this.maxCallDepth} frames`, line);
     }
 
-    const env = new Env(callee.closure);
-    // Built rather than declared into, one binding per parameter, sharing the
-    // declaration's names array and leaving the epoch alone. See Env.adoptFrame
-    // -- a frame nothing has looked through yet cannot invalidate a cache.
+    // The frame. Built rather than declared into, one binding per parameter,
+    // sharing the declaration's names array and bumping no versions -- see
+    // Env.adoptFrame; a frame nothing has looked through cannot invalidate a
+    // cache.
+    //
+    // And, where the body creates no closure, kept and written over next time.
+    // Nothing outside the call can hold a reference to a scope only that call
+    // could see, so recursion and tight call loops allocate no frame at all.
+    // The pool is indexed by depth, so a recursive call never reuses the frame
+    // its own caller is standing in.
     const arity = decl.params.length;
-    if (arity !== 0) {
-      const slots = new Array(arity);
-      for (let i = 0; i < arity; i++) slots[i] = { value: args[i], mutable: false };
-      env.adoptFrame(decl.params, slots);
+    let env;
+    if (framesEscape(decl)) {
+      env = new Env(callee.closure);
+      if (arity !== 0) {
+        const slots = new Array(arity);
+        for (let i = 0; i < arity; i++) slots[i] = { value: args[i], mutable: false };
+        env.adoptFrame(decl.params, slots);
+      }
+    } else {
+      const pool = decl.framePool ?? (decl.framePool = { closure: callee.closure, envs: [] });
+      if (pool.closure !== callee.closure) {
+        // Two function values from one declaration, closing over different
+        // scopes -- a `fn` created inside a loop, say. Reusing a frame across
+        // them would move its parent, and compiled code caches the slot a name
+        // resolved to keyed on the scope it looked through. Same scope object,
+        // different parent, and the cache answers for the wrong one: closures
+        // made in a loop all reported the first iteration's value.
+        //
+        // Rather than make every cache check the whole chain, this declaration
+        // simply stops being poolable. Named functions -- which is nearly all
+        // of them, and all the hot ones -- have exactly one closure and keep
+        // the fast path.
+        decl.framesEscape = true;
+        decl.framePool = null;
+        env = new Env(callee.closure);
+        if (arity !== 0) {
+          const slots = new Array(arity);
+          for (let i = 0; i < arity; i++) slots[i] = { value: args[i], mutable: false };
+          env.adoptFrame(decl.params, slots);
+        }
+      } else {
+        env = pool.envs[this.callDepth];
+        if (env === undefined || !env.reusable) {
+          env = new Env(callee.closure);
+          const slots = new Array(arity);
+          for (let i = 0; i < arity; i++) slots[i] = { value: args[i], mutable: false };
+          env.adoptFrame(decl.params, slots);
+          pool.envs[this.callDepth] = env;
+        } else {
+          env.reuseFrame(decl.params, args);
+        }
+      }
     }
 
     const savedCaps = this.caps;

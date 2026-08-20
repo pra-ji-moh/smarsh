@@ -114,6 +114,46 @@ export class Env {
     this._sharedNames = true;
   }
 
+  // Reuse a frame from a previous call at the same depth.
+  //
+  // A call allocated an Env, a slots array, and one slot object per parameter.
+  // None of it can outlive the call when the body creates no closure, because
+  // nothing else can be holding a reference to a scope that only that call
+  // could see. So the whole frame is kept and written over next time --
+  // recursion and tight call loops then allocate nothing at all.
+  //
+  // The body may have declared names of its own into the frame; those are
+  // dropped, and their versions bumped, because the next call must not see the
+  // last one's locals.
+  reuseFrame(names, args) {
+    const arity = names.length;
+    if (this._count > arity) {
+      // Locals the last call left behind.
+      if (this._vers !== null) {
+        for (let i = arity; i < this._count; i++) this._vers[i].v += 1;
+      } else {
+        for (let i = arity; i < this._count; i++) bump(this._names[i]);
+      }
+    }
+    if (!this._sharedNames) {
+      // The body copied the names array in order to add to it; put the
+      // declaration's own back.
+      this._names = names;
+      this._vers = null;
+      this._sharedNames = true;
+    }
+    const slots = this._slots;
+    for (let i = 0; i < arity; i++) slots[i].value = args[i];
+    this._count = arity;
+  }
+
+  // Can this frame be reused? Only if it still holds exactly the parameters it
+  // was built with, in the same storage -- a frame that grew past SMALL and
+  // converted to a Map, or that something asked to iterate, is not eligible.
+  get reusable() {
+    return this._map === null && this._slots !== null;
+  }
+
   declare(name, value, mutable, line) {
     if (this.has(name)) {
       throw pedagError('NameError', `'${name}' is already declared in this scope`, line);
@@ -177,21 +217,24 @@ export class Env {
       return;
     }
 
+    // Everything is indexed by the live count, never appended.
+    //
+    // The three arrays are not necessarily the same length: restoring a frame
+    // puts back the declaration's own short names array while the slots array
+    // still has room from a previous call. `push` then wrote a slot at the end
+    // of a five-element array while its name went to index two, and a function
+    // returned the previous call's answer -- caught by the standard library's
+    // own tests, since both engines share this code and the differential
+    // harness compares them against each other.
     const at = this._count;
-    if (at < this._names.length) {
-      // Writing over a slot a previous pass used. When the name is the same --
-      // which it is, pass after pass, in a loop -- its counter is already here
-      // and does not need looking up again.
-      if (this._names[at] !== name) {
-        this._names[at] = name;
-        this._vers[at] = versionOf(name);
-      }
-      this._slots[at] = slot;
-    } else {
-      this._names.push(name);
-      this._slots.push(slot);
-      this._vers.push(versionOf(name));
+    if (this._names[at] !== name || this._vers[at] === undefined) {
+      // A different name than the last occupant of this position, so its
+      // counter has to be looked up. When it is the same -- which it is, pass
+      // after pass in a loop -- the counter is already here.
+      this._names[at] = name;
+      this._vers[at] = versionOf(name);
     }
+    this._slots[at] = slot;
     this._vers[at].v += 1;
     this._count = at + 1;
   }
@@ -211,6 +254,11 @@ export class Env {
         this._vers = [];
         for (let k = 0; k < this._count; k++) this._vers.push(versionOf(this._names[k]));
       }
+      // Splicing shifts everything, so trim the spare capacity first or the
+      // three arrays come out of step.
+      this._names.length = this._count;
+      this._slots.length = this._count;
+      this._vers.length = this._count;
       this._names.splice(i, 1);
       this._slots.splice(i, 1);
       this._vers.splice(i, 1);

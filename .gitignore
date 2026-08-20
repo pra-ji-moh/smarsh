@@ -1,14 +1,17 @@
 node_modules/
 *.log
 
-# `pedag build` output. The exceptions have to name every directory that holds
-# real .mjs source -- `tools/` was missing, so the scripts CI runs were being
-# ignored and would never have been committed.
-*.mjs
-!bin/*.mjs
-!src/*.mjs
-!tests/*.mjs
-!tools/*.mjs
+# `pedag build` output.
+#
+# This used to be a bare `*.mjs` with an exception per source directory, and the
+# exception list was a trap: `tools/` was missing, so the scripts CI depends on
+# were silently untracked, and `bench/` was missing too -- the whole benchmark
+# directory had never been committed, including a file the README pointed at.
+#
+# Build output lands in whatever directory the command is run from, which in
+# practice is the repository root. Ignoring only the root means a new source
+# directory is never quietly excluded again.
+/*.mjs
 
 # arena spill directories and scratch written by examples
 .pedag-spill/
@@ -17,3 +20,7 @@ note.txt
 out.txt
 examples/report.txt
 examples/export.csv
+
+# signing keys, which must never be committed by accident
+*.pem
+*.pem.pub

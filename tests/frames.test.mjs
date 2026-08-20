@@ -1,0 +1,176 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+import { Interpreter } from '../src/interpreter.js';
+
+// Frames are reused between calls when nothing can capture them, and scopes
+// reuse their storage between loop passes. Both are invisible when they work
+// and produce wrong answers rather than crashes when they do not, so the shapes
+// that broke while they were being built are pinned here.
+
+function run(source, compiled) {
+  const out = [];
+  const interp = new Interpreter({ out: (s) => out.push(s), seed: 1 });
+  interp.compiled = compiled;
+  interp.stepLimit = 5000000;
+  try {
+    interp.run(source, 't.pedag');
+    return out;
+  } finally {
+    interp.devices.shutdown();
+  }
+}
+
+// Both engines share callValue, so a bug in frame reuse shows up in both and
+// the differential harness cannot see it. These assert the answer itself.
+const bothEngines = (lines) => {
+  const source = lines.join('\n');
+  const fast = run(source, true);
+  const tree = run(source, false);
+  assert.deepEqual(fast, tree, 'the two engines disagree');
+  return fast;
+};
+
+test("a reused frame does not leak the previous call's locals", () => {
+  // Restoring a frame put back the declaration's short names array while the
+  // slots array still had room from a previous call, so a local was written at
+  // one index and named at another, and the function returned the previous
+  // call's answer. The standard library's own tests caught it.
+  assert.deepEqual(bothEngines([
+    'fn zip(xs, ys) {',
+    '  var out = []',
+    '  var i = 0',
+    '  let limit = min(xs.len(), ys.len())',
+    '  while i < limit { out.push([xs[i], ys[i]])',
+    '    i = i + 1 }',
+    '  return out',
+    '}',
+    'print(zip([1, 2, 3], ["a", "b"]))',
+    'print(zip([], [1, 2]))',
+    'print(zip([1, 2, 3], ["a", "b"]))',
+  ]), ['[[1, "a"], [2, "b"]]', '[]', '[[1, "a"], [2, "b"]]']);
+});
+
+test('closures made in a loop each keep their own iteration', () => {
+  // A reused frame can be given a different parent, and compiled code caches
+  // the slot a name resolved to keyed on the scope it looked through. Same
+  // scope object, different parent, and every closure reported the first
+  // iteration's value. Declarations whose function values close over different
+  // scopes are no longer pooled.
+  assert.deepEqual(bothEngines([
+    'var fs = []',
+    'for i in range(4) { fs.push(fn() { return i }) }',
+    'print(fs[0]())',
+    'print(fs[2]())',
+    'print(fs[3]())',
+  ]), ['0', '2', '3']);
+});
+
+test('a closure factory gives each closure its own captured value', () => {
+  assert.deepEqual(bothEngines([
+    'fn make(n) { return fn() { return n * 10 } }',
+    'let a = make(1)',
+    'let b = make(7)',
+    'print(a())',
+    'print(b())',
+    'print(a())',
+  ]), ['10', '70', '10']);
+});
+
+test("recursion sees its own arguments, not an outer frame's", () => {
+  assert.deepEqual(bothEngines([
+    'fn count(n, acc) {',
+    '  if n == 0 { return acc }',
+    '  let step = 1',
+    '  return count(n - step, acc + n)',
+    '}',
+    'print(count(50, 0))',
+    'print(count(3, 0))',
+    'print(count(50, 0))',
+  ]), ['1275', '6', '1275']);
+});
+
+test('mutual recursion keeps its frames apart', () => {
+  assert.deepEqual(bothEngines([
+    'fn even(n) { if n == 0 { return true }',
+    '  let m = n - 1',
+    '  return odd(m) }',
+    'fn odd(n) { if n == 0 { return false }',
+    '  let m = n - 1',
+    '  return even(m) }',
+    'print(even(20))',
+    'print(odd(20))',
+    'print(even(21))',
+  ]), ['true', 'false', 'false']);
+});
+
+test('a loop scope does not leak between passes', () => {
+  // Clearing a scope sets its live count to zero and leaves the storage in
+  // place. Nothing past the count may be visible.
+  assert.deepEqual(bothEngines([
+    'var seen = []',
+    'for i in range(3) {',
+    '  let a = i * 2',
+    '  seen.push(a)',
+    '}',
+    'print(seen)',
+  ]), ['[0, 2, 4]']);
+});
+
+test('an outer binding stays visible when a pass declares another', () => {
+  assert.deepEqual(bothEngines([
+    'let g = 100',
+    'var t = 0',
+    'for i in range(3) { let d = g + i',
+    '  t = t + d }',
+    'print(t)',
+  ]), ['303']);
+});
+
+test('shadowing inside a loop does not outlive the pass', () => {
+  assert.deepEqual(bothEngines([
+    'let g = 5',
+    'var seen = []',
+    'for i in range(3) { let g = i',
+    '  seen.push(g) }',
+    'seen.push(g)',
+    'print(seen)',
+  ]), ['[0, 1, 2, 5]']);
+});
+
+test('a frame that grows past the small-scope limit still works', () => {
+  // Beyond eight bindings a scope converts to a Map. A frame that converted
+  // must not then be reused as if it had not.
+  const decls = Array.from({ length: 12 }, (_, i) => `  let v${i} = ${i} + n`);
+  const sum = Array.from({ length: 12 }, (_, i) => `v${i}`).join(' + ');
+  assert.deepEqual(bothEngines([
+    'fn wide(n) {', ...decls, `  return ${sum}`, '}',
+    'print(wide(0))',
+    'print(wide(10))',
+    'print(wide(0))',
+  ]), ['66', '186', '66']);
+});
+
+test('a frame is not reused while a call is standing in it', () => {
+  // The pool is indexed by depth, so a recursive call must never take the
+  // frame its own caller is using.
+  assert.deepEqual(bothEngines([
+    'fn depth(n) {',
+    '  if n == 0 { return 0 }',
+    '  let here = n',
+    '  let deeper = depth(n - 1)',
+    '  return here + deeper',
+    '}',
+    'print(depth(30))',
+  ]), ['465']);
+});
+
+test('a contracted function is correct across repeated calls', () => {
+  assert.deepEqual(bothEngines([
+    'fn step(x) requires x >= 0 ensures result > x { let one = 1',
+    '  return x + one }',
+    'print(step(0))',
+    'print(step(41))',
+    'print(step(0))',
+  ]), ['1', '42', '1']);
+});
