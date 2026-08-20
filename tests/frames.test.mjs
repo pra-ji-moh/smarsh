@@ -263,3 +263,84 @@ test('a tainted value still taints what its methods return', () => {
     'print(labels(u.upper()))',
   ]), ['["untrusted"]', '["untrusted"]']);
 });
+
+// ---------------------------------------------------------------------------
+// contracts, over a reused frame
+//
+// A contracted function reuses its frame like any other now, and the scope
+// carrying `result` into the postcondition is reused with it. Both are only
+// sound if each call sees its own values.
+// ---------------------------------------------------------------------------
+
+test("a postcondition sees this call's result, not the last one's", () => {
+  assert.deepEqual(bothEngines([
+    'fn bump(x) requires x >= 0 ensures result == x + 1 { return x + 1 }',
+    'print(bump(0))',
+    'print(bump(41))',
+    'print(bump(0))',
+  ]), ['1', '42', '1']);
+});
+
+test("old() captures this call's entry state", () => {
+  assert.deepEqual(bothEngines([
+    'record Acct(balance)',
+    'fn charge(a, fee) requires fee >= 0 ensures result.balance == old(a.balance) - fee {',
+    '  return a.with("balance", a.balance - fee)',
+    '}',
+    'print(charge(Acct(100), 10).balance)',
+    'print(charge(Acct(50), 5).balance)',
+    'print(charge(Acct(100), 10).balance)',
+  ]), ['90', '45', '90']);
+});
+
+test('a broken postcondition still fails, after the same call has succeeded', () => {
+  const interp = new Interpreter({ out: () => {}, seed: 1 });
+  try {
+    assert.throws(() => interp.run([
+      'fn f(x) ensures result > x { if x == 3 { return x }',
+      '  return x + 1 }',
+      'print(f(1))',
+      'print(f(2))',
+      'print(f(3))',
+    ].join('\n'), 't.pedag'), (e) => e.kind === 'ContractError' && /promised/.test(e.message));
+  } finally {
+    interp.devices.shutdown();
+  }
+});
+
+test('a broken precondition still fails on a later call', () => {
+  const interp = new Interpreter({ out: () => {}, seed: 1 });
+  try {
+    assert.throws(() => interp.run([
+      'fn f(x) requires x >= 0 { return x }',
+      'print(f(1))',
+      'print(f(2))',
+      'print(f(0 - 1))',
+    ].join('\n'), 't.pedag'), (e) => e.kind === 'ContractError' && /requires/.test(e.message));
+  } finally {
+    interp.devices.shutdown();
+  }
+});
+
+test('a record invariant holds across repeated construction', () => {
+  assert.deepEqual(bothEngines([
+    'record Pos(v) invariant v > 0',
+    'var t = 0',
+    'for i in range(5) { let p = Pos(i + 1)',
+    '  t = t + p.v }',
+    'print(t)',
+  ]), ['15']);
+});
+
+test('a recursive contracted function keeps each depth separate', () => {
+  assert.deepEqual(bothEngines([
+    'fn down(n) requires n >= 0 ensures result >= 0 {',
+    '  if n == 0 { return 0 }',
+    '  let here = n',
+    '  return here + down(n - 1)',
+    '}',
+    'print(down(10))',
+    'print(down(3))',
+    'print(down(10))',
+  ]), ['55', '6', '55']);
+});

@@ -93,10 +93,10 @@ function framesEscape(decl) {
     for (const v of Object.values(n)) if (v !== null && typeof v === 'object') walk(v);
   };
   walk(decl.body);
-  // A contract runs in a child scope whose parent is the frame, and `old()`
-  // captures values before the body. Neither outlives the call, but the
-  // machinery is intricate enough that a contracted function is left alone.
-  if (decl.requires.length !== 0 || decl.ensures.length !== 0) found = true;
+  // Contracts used to disqualify a function here, out of caution. They do not
+  // need to: `requires` runs in the frame itself, `old()` captures values
+  // rather than scopes, and the `ensures` scope holding `result` has the frame
+  // as its parent and is gone when the call is. None of it outlives the call.
   decl.framesEscape = found;
   return found;
 }
@@ -1167,9 +1167,12 @@ export class Interpreter {
     if (!(callee instanceof PedagFunction)) return false;
     const d = callee.decl;
     if (d.simpleCall === undefined) {
-      // `framesEscape` already refuses contracted functions and any body that
-      // creates a closure, so this adds only the capability condition.
-      d.simpleCall = d.needs.length === 0 && !framesEscape(d);
+      // `callSimple` does not check contracts, so a function that has any is
+      // not eligible however cheap its frame is.
+      d.simpleCall = d.needs.length === 0
+        && d.requires.length === 0
+        && d.ensures.length === 0
+        && !framesEscape(d);
     }
     // Profiling needs the timing and per-function accounting that only
     // `callValue` does, so it turns this path off wholesale.
@@ -1351,8 +1354,21 @@ export class Interpreter {
       }
 
       if (decl.ensures.length > 0) {
-        const post = new Env(env);
-        post.declare('result', result, false, line);
+        // `result` lives in a scope of its own so that a postcondition can name
+        // it without the body being able to. That scope is as reusable as the
+        // frame it hangs off: when the frame is the same object as last time,
+        // so is this, and `result` is written into the slot that is already
+        // there -- which also lets a compiled postcondition keep its cache,
+        // since a fresh scope each call would miss on every one.
+        const posts = decl.postPool ?? (decl.postPool = []);
+        let post = posts[this.callDepth];
+        if (post === undefined || post.parent !== env || !post.reusable) {
+          post = new Env(env);
+          post.declare('result', result, false, line);
+          posts[this.callDepth] = post;
+        } else {
+          post.setOnlyValue(result);
+        }
         const savedInner = this.env;
         const savedOld = this.oldValues;
         this.env = post;

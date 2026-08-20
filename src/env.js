@@ -174,6 +174,16 @@ export class Env {
     this._count = arity;
   }
 
+  // Overwrite the single binding this scope holds, in place.
+  //
+  // Used for the scope that carries `result` into a postcondition. Writing the
+  // slot rather than replacing it keeps a compiled postcondition's cache valid
+  // -- the slot it resolved to is still the right one, and now has this call's
+  // value in it.
+  setOnlyValue(value) {
+    this._slots[0].value = value;
+  }
+
   // Can this frame be reused? Only if it still holds exactly the parameters it
   // was built with, in the same storage -- a frame that grew past SMALL and
   // converted to a Map, or that something asked to iterate, is not eligible.
