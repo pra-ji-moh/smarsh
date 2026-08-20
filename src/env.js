@@ -44,6 +44,45 @@ const bump = (name) => { versionOf(name).v += 1; };
 // for a Map.
 const SMALL = 8;
 
+// The invariants, written down because they are not obvious and because
+// breaking one produced a wrong answer rather than a crash.
+//
+// A scope is in exactly one of two representations:
+//
+//   MAP MODE     `_map` is a Map. `_names`, `_slots` and `_vers` are dead, and
+//                `_count` is 0. Entered when a scope grows past SMALL, or when
+//                anything asks for the `vars` view. Never left.
+//
+//   ARRAY MODE   `_map` is null. `_names[i]`, `_slots[i]` and `_vers[i]`
+//                describe binding `i`, for `i` in `0 .. _count - 1`.
+//
+// In array mode:
+//
+//   * `_count` is the truth, never `.length`. All three arrays may be LONGER
+//     than `_count` -- clearing a scope sets the count to zero and leaves the
+//     storage for the next pass to write over, and restoring a frame puts back
+//     a shorter borrowed names array while the slots array keeps its capacity.
+//     Every read and write is bounded by `_count`; using `.length` instead is
+//     what put a slot at index 5 while its name went to index 2, and made a
+//     function return the previous call's answer.
+//
+//   * `_names` may be BORROWED. When `_sharedNames` is true it is the
+//     declaration's own params array, shared by every call to that function and
+//     never written to. Any write copies it first (`_names.slice(0, _count)`)
+//     and clears the flag.
+//
+//   * `_vers` may be null while `_sharedNames` is true, because a borrowed
+//     frame has not needed version counters yet. Anything that writes builds
+//     them.
+//
+//   * Nothing past `_count` is visible. That is what makes clearing safe
+//     without truncating.
+//
+// And the rule that is not about representation: a structural change must bump
+// the version counter for every name it affects, or a cache somewhere is
+// holding a slot that is no longer the right answer. The two exceptions are
+// deliberate and both are frames nothing can have looked through yet --
+// `adoptFrame` and the parameter half of `reuseFrame`.
 export class Env {
   constructor(parent = null) {
     this.parent = parent;
@@ -58,6 +97,52 @@ export class Env {
     this._sharedNames = false;
     // Large scopes, or any scope something wants to iterate.
     this._map = null;
+  }
+
+  // Assert the invariants above. Not called on any hot path -- the tests call
+  // it after the operations that could break them, which is where a violation
+  // would otherwise sit undetected until it produced a wrong answer.
+  assertInvariants(where = '') {
+    const fail = (why) => {
+      throw new Error(`Env invariant broken${where ? ` (${where})` : ''}: ${why}`);
+    };
+    if (this._map !== null) {
+      if (this._count !== 0) fail('map mode with a non-zero count');
+      if (this._names !== null || this._slots !== null || this._vers !== null) {
+        fail('map mode still holding array storage');
+      }
+      if (this._sharedNames) fail('map mode with borrowed names');
+      return true;
+    }
+    if (this._count < 0) fail('negative count');
+    if (this._count > 0 && (this._names === null || this._slots === null)) {
+      fail('a live binding with no storage for it');
+    }
+    if (this._names !== null && this._count > this._names.length) {
+      fail(`count ${this._count} exceeds ${this._names.length} names`);
+    }
+    if (this._slots !== null && this._count > this._slots.length) {
+      fail(`count ${this._count} exceeds ${this._slots.length} slots`);
+    }
+    if (this._vers !== null && this._count > this._vers.length) {
+      fail(`count ${this._count} exceeds ${this._vers.length} version counters`);
+    }
+    for (let i = 0; i < this._count; i++) {
+      if (typeof this._names[i] !== 'string') fail(`name ${i} is not a string`);
+      const slot = this._slots[i];
+      if (slot === null || typeof slot !== 'object') fail(`slot ${i} is not a slot`);
+      if (!('value' in slot) || !('mutable' in slot)) fail(`slot ${i} is malformed`);
+      if (this._vers !== null && typeof this._vers[i]?.v !== 'number') {
+        fail(`version counter ${i} is missing`);
+      }
+    }
+    // Duplicate names would make one of them permanently unreachable.
+    for (let i = 0; i < this._count; i++) {
+      for (let j = i + 1; j < this._count; j++) {
+        if (this._names[i] === this._names[j]) fail(`\`${this._names[i]}\` bound twice`);
+      }
+    }
+    return true;
   }
 
   // The Map view, for the code that walks a scope -- the module loader, the
@@ -349,4 +434,42 @@ export class Env {
     }
     s.value = value;
   }
+}
+
+// Debug mode.
+//
+// Setting PEDAG_DEBUG_ENV checks the invariants above after every operation
+// that could break one, for every scope in the program. It is how you find the
+// operation that corrupted a scope rather than the read that later noticed.
+//
+// It is a wrap at load time rather than a branch inside each method on purpose:
+// with the variable unset nothing here runs, and the methods keep the exact
+// shape the optimiser saw before. `slot` and `get` are the hottest functions in
+// the interpreter and neither can afford a check they will never need.
+//
+// It is slow -- the duplicate-name scan alone is quadratic -- so it is for
+// debugging one program, not for running a suite.
+if (typeof process !== 'undefined' && process.env?.PEDAG_DEBUG_ENV) {
+  const MUTATORS = [
+    'adoptFrame', 'reuseFrame', 'reuseFrameArgs', 'setOnlyValue',
+    'declare', 'clearVars', 'putSlot', 'deleteVar', 'assign',
+  ];
+  for (const name of MUTATORS) {
+    const original = Env.prototype[name];
+    Env.prototype[name] = function checked(...args) {
+      const result = original.apply(this, args);
+      this.assertInvariants(name);
+      return result;
+    };
+  }
+  // The getter converts the scope, so it is a mutation too.
+  const view = Object.getOwnPropertyDescriptor(Env.prototype, 'vars');
+  Object.defineProperty(Env.prototype, 'vars', {
+    ...view,
+    get() {
+      const map = view.get.call(this);
+      this.assertInvariants('vars');
+      return map;
+    },
+  });
 }

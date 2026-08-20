@@ -77,6 +77,28 @@ See the layout table in the README. The short version: `src/lexer.js` →
 `src/parser.js` → `src/interpreter.js` is the spine, and everything else hangs
 off `builtins.js`.
 
+## When a scope goes wrong
+
+`src/env.js` is the sharpest edge in the codebase. It keeps a scope in one of
+two representations, across six fields, and the rules between them are written
+at the top of the class. Breaking one does not usually crash -- it has already
+produced a function that returned the *previous* call's answer, which took a
+while to find.
+
+If you touch it, or if you are chasing a wrong answer that looks like a scoping
+problem, run with the checks on:
+
+```
+PEDAG_DEBUG_ENV=1 npm test
+PEDAG_DEBUG_ENV=1 node bin/pedag.mjs run the-program.pedag
+```
+
+Every operation that could break an invariant then checks all of them, for every
+scope, and fails at the operation that did it rather than at the read that later
+noticed. It is quadratic and slow; it is for debugging one program, not for
+running a suite. Unset, none of it is even installed -- the methods keep the
+shape the optimiser saw.
+
 ## Reporting a security issue
 
 pedag runs untrusted-ish code by design — capabilities, taint tracking and
