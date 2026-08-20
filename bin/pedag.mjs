@@ -13,7 +13,7 @@ import { analyze, formatFindings } from '../src/analysis.js';
 import { parse, parseAll } from '../src/parser.js';
 import { analyseTaint } from '../src/taint.js';
 import { buildBundle } from '../src/bundle.js';
-import { CODES, EXPLANATIONS, Diagnostic, positionOf } from '../src/diagnostics.js';
+import { CODES, EXPLANATIONS, KIND_TO_CODE, Diagnostic, positionOf } from '../src/diagnostics.js';
 import { typecheck } from '../src/types.js';
 import { verifyProgram, formatVerification } from '../src/verify.js';
 import { discover, runFile, format } from '../src/testrunner.js';
@@ -44,6 +44,7 @@ options:
   --profile           after the run, print time and steps per function
   --trials <n>        prove: inputs generated per function (default 200)
   --engine <e>        'fast' (default, compiled) or 'tree' (the reference)
+  --json              machine-readable output, for a program driving this one
   --version, --help
 
 Every run with the same seed takes the same branches. Nothing reaches the
@@ -75,6 +76,7 @@ function parseArgs(argv) {
     else if (a === '--key') { opts.key = argv[++i]; opts.sign = true; }
     else if (a === '-o' || a === '--out') opts.output = argv[++i];
     else if (a === '--check') opts.check = true;
+    else if (a === '--json') opts.json = true;
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a === '--version' || a === '-v') opts.version = true;
     else opts.positional.push(a);
@@ -156,11 +158,15 @@ function cmdRun(opts) {
     // A parse error here will be reported properly by the run below.
   }
 
+  // Under --json the program's own output is collected rather than printed, so
+  // that what reaches stdout is one JSON document a caller can parse.
+  const collected = [];
   const interp = new Interpreter({
     seed: opts.seed,
     caps: opts.grant,
     principals: opts.principals,
     cwd: path.dirname(full),
+    ...(opts.json ? { out: (line) => collected.push(line) } : {}),
   });
   interp.profiling = Boolean(opts.profile);
   // `--engine tree` runs the original tree-walker. It is the specification the
@@ -182,6 +188,32 @@ function cmdRun(opts) {
   // see, so writing the manifest only on success would defeat the purpose.
   if (opts.audit) writeManifest(interp, { file, source, full, opts, outcome });
 
+  // A program that generates Pedag needs the failure as data: what kind, where,
+  // and what to read about it. Scraping that back out of a rendered caret is
+  // the thing that makes an automated fix loop brittle.
+  if (opts.json) {
+    console.log(JSON.stringify({
+      ok: !failure,
+      command: 'run',
+      file,
+      outcome,
+      stdout: collected,
+      failure: failure ? failureJSON(failure, source, file) : null,
+      replay: {
+        seed: opts.seed,
+        capabilities: [...interp.grantedCaps].sort(),
+        principals: [...interp.grantedAuthority].sort(),
+      },
+      work: {
+        steps: interp.steps,
+        calls: interp.trace.calls,
+        contracts_checked: interp.trace.contracts,
+      },
+    }, null, 2));
+    process.exitCode = failure ? 1 : 0;
+    return;
+  }
+
   if (failure) {
     reportError(failure, source, file);
     if (opts.trace) printTrace(interp);
@@ -191,6 +223,39 @@ function cmdRun(opts) {
   }
   if (opts.trace) printTrace(interp);
   if (opts.profile) printProfile(interp);
+}
+
+// A runtime failure, as data. Mirrors Diagnostic.toJSON so that a caller sees
+// one shape whether the problem was found by `check` or by running.
+function failureJSON(e, source, file) {
+  if (!(e instanceof PedagError)) {
+    return {
+      severity: 'error',
+      code: null,
+      kind: e && e.constructor ? e.constructor.name : typeof e,
+      message: String(e && e.message ? e.message : e),
+      file,
+      line: null,
+    };
+  }
+  const code = KIND_TO_CODE[e.kind] ?? null;
+  const at = (e.span && source != null) ? positionOf(source, Math.max(0, e.span[0])) : null;
+  return {
+    severity: 'error',
+    code,
+    title: code ? (CODES[code] ?? null) : null,
+    kind: e.kind,
+    message: e.message,
+    file,
+    line: at ? at.line : e.line,
+    column: at ? at.column : null,
+    span: e.span ?? null,
+    helps: e.helps ?? [],
+    notes: e.notes ?? [],
+    // Innermost last, the way a person reads a stack.
+    stack: (e.frames ?? []).map((f) => ({ function: f.name, line: f.line })),
+    explain: code ? `pedag explain ${code}` : null,
+  };
 }
 
 // Read back a record someone else produced and check it has not been edited.
@@ -387,12 +452,28 @@ function cmdCheck(opts) {
     process.exitCode = 1;
     return;
   }
+  const errors = diagnostics.filter((d) => d.severity === 'error').length;
+
+  // Most Pedag will be written by a program, and a program cannot act on a
+  // caret drawn under a span with box characters. Same diagnostics, as data.
+  if (opts.json) {
+    for (const d of diagnostics) d.file = file;
+    console.log(JSON.stringify({
+      ok: errors === 0,
+      command: 'check',
+      file,
+      suppressed: diagnostics.suppressed ?? 0,
+      diagnostics: diagnostics.map((d) => d.toJSON(source)),
+    }, null, 2));
+    process.exitCode = errors === 0 ? 0 : 1;
+    return;
+  }
+
   for (const d of diagnostics) {
     d.file = file;
     console.log(d.render(source, { colour: process.stdout.isTTY && !process.env.NO_COLOR }));
     console.log('');
   }
-  const errors = diagnostics.filter((d) => d.severity === 'error').length;
   // Suppressions are always reported. They are a decision someone made, and a
   // reviewer should be able to see how many were made without reading the file.
   const silenced = diagnostics.suppressed
@@ -480,6 +561,51 @@ function cmdTest(opts) {
     return;
   }
   const results = files.map((f) => runFile(f, { seed: opts.seed, caps: opts.grant, trials: opts.trials }));
+
+  // What a program driving this one needs: which tests failed, why, and what
+  // the failing test printed on its way there.
+  if (opts.json) {
+    const failed = results.reduce((n, r) => n + r.failed.length, 0);
+    const counterexamples = results.reduce(
+      (n, r) => n + r.proved.reduce((m, p) => m + p.violations.length + p.crashes.length, 0), 0);
+    const staticProblems = results.reduce((n, r) => n + r.static.length, 0);
+    console.log(JSON.stringify({
+      ok: failed === 0 && counterexamples === 0 && staticProblems === 0,
+      command: 'test',
+      files: results.map((r) => ({
+        file: r.file,
+        passed: r.passed.map((t) => t.name),
+        failed: r.failed.map((t) => ({
+          name: t.name,
+          ...failureJSON(t.error, r.source, r.file),
+          stdout: t.output ?? [],
+        })),
+        skipped: r.skipped,
+        static: r.static.map((d) => ({
+          code: d.code ?? null,
+          message: d.message,
+          helps: d.helps ?? [],
+        })),
+        contracts: r.proved.map((p) => ({
+          name: p.name,
+          inputs_tried: p.accepted,
+          counterexamples: [...p.violations, ...p.crashes].map((b) => ({
+            arguments: b.args,
+            message: b.message,
+          })),
+        })),
+      })),
+      totals: {
+        passed: results.reduce((n, r) => n + r.passed.length, 0),
+        failed,
+        counterexamples,
+        static_problems: staticProblems,
+      },
+    }, null, 2));
+    process.exitCode = (failed === 0 && counterexamples === 0 && staticProblems === 0) ? 0 : 1;
+    return;
+  }
+
   const { text, ok } = format(results, { colour: COLOUR });
   console.log(text);
   process.exitCode = ok ? 0 : 1;

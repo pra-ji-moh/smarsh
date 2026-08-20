@@ -262,6 +262,44 @@ export class Diagnostic {
     this.severity = severity;
   }
 
+  // The same diagnostic, for a reader that is not a person.
+  //
+  // `render` draws a caret under a span with box characters and colour, which
+  // is right for a terminal and useless to anything that has to act on it. A
+  // program generating Pēdāg -- which is most of what will generate Pēdāg --
+  // needs the code, the position and the suggestion as data, not as art it has
+  // to parse back out.
+  //
+  // Positions are 1-based line and column, because that is what every editor,
+  // language server and error reporter already speaks. The raw span is included
+  // as well for anything doing its own slicing.
+  toJSON(source) {
+    const at = (source != null && this.span)
+      ? positionOf(source, clamp(this.span[0], 0, Math.max(0, source.length - 1)))
+      : null;
+    const end = (source != null && this.span)
+      ? positionOf(source, clamp(this.span[1], 0, Math.max(0, source.length - 1)))
+      : null;
+    return {
+      severity: this.severity,
+      code: this.code ?? null,
+      title: this.code ? (CODES[this.code] ?? null) : null,
+      message: this.message,
+      file: this.file ?? null,
+      line: at ? at.line : this.line,
+      column: at ? at.column : null,
+      endLine: end ? end.line : null,
+      endColumn: end ? end.column : null,
+      span: this.span ?? null,
+      label: this.label ?? null,
+      helps: this.helps ?? [],
+      notes: this.notes ?? [],
+      // What to run to read the long explanation, so a tool does not have to
+      // know how this CLI is spelled.
+      explain: this.code ? `pedag explain ${this.code}` : null,
+    };
+  }
+
   render(source, { colour = false } = {}) {
     const paint = (open, text) => (colour ? `[${open}m${text}[0m` : text);
     const red = (t) => paint(this.severity === 'error' ? '1;31' : '1;33', t);
