@@ -58,6 +58,17 @@ export const SIG_RETURN = { signal: 'return' };
 export const SIG_BREAK = { signal: 'break' };
 export const SIG_CONTINUE = { signal: 'continue' };
 
+// `guard` enforces the label and taint rules, and it is called on every operand,
+// every argument, every index and every loop subject. For anything that is not
+// an object it is the identity function: `Labelled` and `Tainted` are both
+// classes, so a number, string, boolean or nil can never be either, and `guard`
+// returns it untouched after two failed `instanceof` checks.
+//
+// So the type test is done at the call site instead, and the call is skipped
+// entirely for primitives. Equivalent by construction -- everything that could
+// possibly be labelled or tainted still goes through `guard` unchanged -- and in
+// arithmetic-heavy code it removes most of the calls.
+
 const isSignal = (v) => v === SIG_RETURN || v === SIG_BREAK || v === SIG_CONTINUE;
 
 // --- compilation cache -------------------------------------------------------
@@ -136,15 +147,19 @@ function buildExpr(node) {
       const fast = FAST_BINARY[op];
       if (fast) {
         return (itp) => {
-          const l = itp.guard(left(itp), line, 'operand');
-          const r = itp.guard(right(itp), line, 'operand');
+          const lv = left(itp);
+          const l = (lv !== null && typeof lv === 'object') ? itp.guard(lv, line, 'operand') : lv;
+          const rv = right(itp);
+          const r = (rv !== null && typeof rv === 'object') ? itp.guard(rv, line, 'operand') : rv;
           if (typeof l === 'number' && typeof r === 'number') return fast(l, r);
           return itp.binary(op, l, r, line);
         };
       }
       return (itp) => {
-        const l = itp.guard(left(itp), line, 'operand');
-        const r = itp.guard(right(itp), line, 'operand');
+        const lv = left(itp);
+        const l = (lv !== null && typeof lv === 'object') ? itp.guard(lv, line, 'operand') : lv;
+        const rv = right(itp);
+        const r = (rv !== null && typeof rv === 'object') ? itp.guard(rv, line, 'operand') : rv;
         return itp.binary(op, l, r, line);
       };
     }
@@ -408,7 +423,8 @@ function buildCall(node) {
     const args = new Array(n);
     for (let i = 0; i < n; i++) {
       const v = argNodes[i](itp);
-      args[i] = transparent ? v : itp.guard(v, line, 'argument');
+      args[i] = (transparent || v === null || typeof v !== 'object')
+        ? v : itp.guard(v, line, 'argument');
     }
     return itp.callValue(fn, args, line, name);
   };

@@ -995,21 +995,19 @@ JavaScript closures once rather than being re-walked (`src/compile.js`): about
 **1.9x overall** against the old tree-walker, 2.4x on recursion and calls, 2.2x
 on tight loops. `for i in range(n)` no longer builds the list first.
 
-It is still an interpreter, and slower than CPython. `fib(27)`, best of five
-runs each in a fresh process on one machine:
+It is still an interpreter, and slower than CPython. On `fib(27)` it runs about
+**5–7× behind CPython** and **~110× behind a JIT**. `npm run bench:compare`
+measures all three in one session and reports ratios, because absolute
+milliseconds are not portable — the same unchanged code measured 531 ms and,
+an hour later on a busier machine, 1202 ms.
 
-| | |
-|---|---|
-| Node 24 (V8 JIT) | 5 ms |
-| CPython 3.14 | 79 ms |
-| **Pēdāg** | **531 ms** |
-
-Roughly 6.7× behind CPython and 100× behind a JIT. That is the tier it is in,
-and stating it plainly is worth more than omitting it. `bench/fib.mjs` takes one
-sample per process on purpose: timings taken inside a single long-lived process
-drifted from 644 ms to 1029 ms across seven iterations, measuring accumulated
-heap state rather than the code under test, and an earlier version of this
-section quoted numbers from that broken method.
+Getting that number right took three attempts, and the wrong ones reached this
+file. Timings inside one long-lived process climbed run over run (644 → 1029 ms
+across seven iterations of identical code) because each run left heap state the
+next one paid for. Fresh processes fixed that but were still incomparable across
+minutes. `tools/ab.mjs` is what is actually trustworthy: it builds a tree from
+HEAD and one from the working copy and interleaves them, so machine load hits
+both sides equally.
 
 Closing the remaining gap needs compile-time frame slots and a typed value
 representation — architecture, not tuning. The design above is why it matters
