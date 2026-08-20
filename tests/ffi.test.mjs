@@ -10,7 +10,11 @@ import { toJs, toPēdāg } from '../src/ffi.js';
 import { unwrap } from '../src/values.js';
 import { Tensor } from '../src/tensor.js';
 
-const FFI = { caps: ['ffi'] };
+// `ffi` says a program may cross the boundary at all; `--foreign` says
+// where to. These tests exercise the crossing itself rather than the
+// allowlist, so they open it wide -- tests/foreign.test.mjs is where the
+// allowlist is checked.
+const FFI = { caps: ['ffi'], foreign: ['*'] };
 
 function run(src, opts = {}) {
   const out = [];

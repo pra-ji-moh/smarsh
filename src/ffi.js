@@ -156,7 +156,37 @@ export function toPēdāg(value, interp, line, depth = 0, seen = new Map()) {
 
 // --- loading -----------------------------------------------------------------
 
+// Which foreign modules this run may open.
+//
+// `ffi` used to be a single yes: granting it opened every module on the machine,
+// which makes it the one capability whose name tells you nothing about what it
+// reaches. It is now named the way every other authority is -- `--foreign
+// node:path,./helpers.cjs` -- and granting `ffi` without saying what it is for
+// opens nothing.
+//
+// `--foreign '*'` restores the old behaviour explicitly, and the run record
+// says the boundary was unbounded, because that is exactly the fact a reviewer
+// needs and the one an unbounded default would have hidden.
+export function foreignAllowed(specifier, interp) {
+  const allowed = interp.allowedForeign;
+  if (!allowed || allowed.size === 0) return false;
+  if (allowed.has('*')) return true;
+  return allowed.has(specifier);
+}
+
 export function loadForeign(specifier, interp, line) {
+  if (!foreignAllowed(specifier, interp)) {
+    const named = [...(interp.allowedForeign ?? [])];
+    interp.trace.effects.push({ capability: 'ffi', by: specifier, line, allowed: false });
+    throw pedagError('CapabilityError',
+      `this run may not load \`${specifier}\``, line)
+      .withLabel('not a permitted foreign module')
+      .note(named.length
+        ? `it may load: ${named.join(', ')}`
+        : 'no foreign module has been permitted')
+      .help(`start it with \`--foreign ${specifier}\`, or \`--foreign '*'\` for anything`);
+  }
+
   // Relative paths resolve against the program; bare names against the host's
   // module resolution, so an installed package works the way it normally would.
   const target = specifier.startsWith('.')

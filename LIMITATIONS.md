@@ -210,7 +210,15 @@ not been done.
 - **`unaudited_crypto` is unaudited and not constant time.** BigInt arithmetic
   in JavaScript leaks timing. Quarantined behind its own capability; still not
   safe against an adversary who can measure you.
-- **`ffi` is a total escape.** Granting it leaves every guarantee behind.
+- **`ffi` is still an escape, but a named one.** Granting it opens nothing on
+  its own: `--foreign node:path` says where the boundary may be crossed, and
+  the run record states what was permitted rather than only what was used, so
+  a run that loaded one harmless module while allowed to load anything is
+  distinguishable from one that could not. `--foreign '*'` is the old
+  behaviour, stated explicitly and marked UNBOUNDED in the manifest.
+  Inside a permitted module every guarantee is still gone: there is no
+  membrane, so a value handed across can be retained and mutated by host code
+  the runtime cannot see.
 - **No host sandbox.** Capabilities bound what Pēdāg code reaches, not what the
   process can do. `fs` is scoped to the program directory and that is all.
 - **`budget memory N` is an estimate, not a measurement.** It charges a fixed

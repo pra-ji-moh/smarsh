@@ -1,5 +1,10 @@
 // Calling the code you already have.
-//     node bin/pedag.mjs run examples/interop.pedag --grant ffi
+//     node bin/pedag.mjs run examples/interop.pedag \
+//       --grant ffi --foreign node:os,node:path,node:util,node:querystring
+//
+// `--grant ffi` says a program may cross the boundary at all; `--foreign`
+// says where to. Granting `ffi` alone opens nothing, so the reach of a run
+// is written down rather than implied.
 //
 // Nobody rewrites a working system to adopt a language, so this is the bridge.
 // It needs the `ffi` capability, because a foreign call leaves everything Pēdāg

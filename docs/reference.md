@@ -78,7 +78,7 @@ declared, never what its caller held.
 | `clock` | `now` |
 | `crypto` | Ed25519 keypairs, signing, OS entropy — platform-backed |
 | `unaudited_crypto` | Paillier, Schnorr, Pedersen — hand-rolled, not constant time |
-| `ffi` | `foreign` — calling JavaScript |
+| `ffi` | `foreign` — calling JavaScript. Also needs `--foreign a,b` naming which modules; `'*'` for any |
 
 ## Builtins
 
@@ -165,7 +165,8 @@ from anywhere. All four modules are written in Pēdāg.
 
 ## Interop
 
-`foreign("node:os")` loads a JavaScript module. Needs the `ffi` capability.
+`foreign("node:os")` loads a JavaScript module. Needs the `ffi` capability
+*and* the module named by `--foreign`; granting `ffi` alone opens nothing.
 Values are converted rather than shared, and everything returned is labelled
 `untrusted`.
 

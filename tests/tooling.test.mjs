@@ -42,18 +42,36 @@ const INVOCATION = /^\/\/\s*(?:node\s+bin\/pedag\.mjs|pedag)\s+run\s+\S+(.*)$/;
 function grantsFor(source) {
   const caps = [];
   const principals = [];
-  for (const raw of source.split(/\r?\n/).slice(0, 14)) {
-    const line = raw.trim();
+  const foreign = [];
+  const lines = source.split(/\r?\n/).slice(0, 16);
+  for (let n = 0; n < lines.length; n++) {
+    const line = lines[n].trim();
     if (!line.startsWith('//')) continue;
     const m = INVOCATION.exec(line);
     if (!m) continue;
-    const flags = m[1].split(/\s+/);
+
+    // A wrapped command line, continued on the next comment line. Same rule as
+    // tools/run-examples.mjs, which is what actually runs them.
+    let rest = m[1];
+    while (rest.trimEnd().endsWith('\\')) {
+      rest = rest.trimEnd().slice(0, -1);
+      const next = (lines[++n] ?? '').trim();
+      if (!next.startsWith('//')) break;
+      rest += ` ${next.replace(/^\/\/\s*/, '')}`;
+    }
+
+    const flags = rest.split(/\s+/);
     for (let i = 0; i < flags.length; i++) {
       if (flags[i] === '--grant') caps.push(...(flags[++i] ?? '').split(','));
       if (flags[i] === '--principal') principals.push(...(flags[++i] ?? '').split(','));
+      if (flags[i] === '--foreign') foreign.push(...(flags[++i] ?? '').split(','));
     }
   }
-  return { caps: caps.filter(Boolean), principals: principals.filter(Boolean) };
+  return {
+    caps: caps.filter(Boolean),
+    principals: principals.filter(Boolean),
+    foreign: foreign.filter(Boolean),
+  };
 }
 
 // Excluded on purpose: these do not produce comparable output twice.
@@ -65,8 +83,8 @@ const RUNNABLE = ALL_SOURCES.filter((f) => f.includes('examples')
 
 function runSource(source, file, cwd) {
   const out = [];
-  const { caps, principals } = grantsFor(source);
-  const interp = new Interpreter({ out: (s) => out.push(s), cwd, caps, principals });
+  const { caps, principals, foreign } = grantsFor(source);
+  const interp = new Interpreter({ out: (s) => out.push(s), cwd, caps, principals, foreign });
   interp.entryPath = file;
   try {
     interp.run(source, path.basename(file));

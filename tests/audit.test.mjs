@@ -88,7 +88,7 @@ test('delegation and revocation are both recorded', () => {
 });
 
 test('crossing the FFI boundary is recorded', () => {
-  const { manifest } = record('let o = foreign("node:os")\no.platform()', { caps: ['ffi'] });
+  const { manifest } = record('let o = foreign("node:os")\no.platform()', { caps: ['ffi'], foreign: ['*'] });
   assert.deepEqual(manifest.data.foreign_modules, ['node:os']);
   assert.equal(events(manifest, 'boundary.crossed').length, 1);
 });

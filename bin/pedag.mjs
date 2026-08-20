@@ -44,6 +44,7 @@ options:
   --profile           after the run, print time and steps per function
   --trials <n>        prove: inputs generated per function (default 200)
   --engine <e>        'fast' (default, compiled) or 'tree' (the reference)
+  --foreign <a,b>     which foreign modules ffi may open ('*' for any)
   --json              machine-readable output, for a program driving this one
   --version, --help
 
@@ -61,12 +62,16 @@ const addList = (into, raw) => {
 };
 
 function parseArgs(argv) {
-  const opts = { seed: 0, grant: [], principals: [], trace: false, trials: 200, positional: [] };
+  const opts = {
+    seed: 0, grant: [], principals: [], foreign: [],
+    trace: false, trials: 200, positional: [],
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--seed') opts.seed = Number(argv[++i]);
     else if (a === '--grant') addList(opts.grant, argv[++i]);
     else if (a === '--principal') addList(opts.principals, argv[++i]);
+    else if (a === '--foreign') addList(opts.foreign, argv[++i]);
     else if (a === '--engine') opts.engine = String(argv[++i] ?? '');
     else if (a === '--trials') opts.trials = Number(argv[++i]);
     else if (a === '--trace') opts.trace = true;
@@ -174,6 +179,7 @@ function cmdRun(opts) {
     seed: opts.seed,
     caps: opts.grant,
     principals: opts.principals,
+    foreign: opts.foreign,
     cwd: path.dirname(full),
     ...(opts.json ? { out: (line) => collected.push(line) } : {}),
   });

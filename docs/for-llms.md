@@ -169,7 +169,9 @@ region "eu" { }
 ```
 
 Capabilities: `fs clock crypto unaudited_crypto ffi net`. Granted with
-`--grant a,b`, principals with `--principal p`.
+`--grant a,b`, principals with `--principal p`. `ffi` also needs
+`--foreign node:path` naming what it may open; granting it alone opens
+nothing.
 
 ## Blocks
 

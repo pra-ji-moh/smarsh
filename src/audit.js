@@ -168,6 +168,11 @@ export function buildManifest(interp, {
       declassifications: (t.declassifications ?? []).length,
       taint_cleared: (t.laundered ?? []).length,
       foreign_modules: t.foreignModules ?? [],
+      // What the boundary was allowed to reach, not only what it did.
+      // `*` means unbounded, and a reviewer should see that plainly --
+      // a run that loaded one harmless module while permitted to load
+      // anything is not the same as one that could only load that module.
+      foreign_permitted: [...(interp.allowedForeign ?? [])].sort(),
     },
     promises: {
       contracts_checked: t.contracts,
@@ -254,6 +259,12 @@ export function summarise(manifest) {
   lines.push(`    taint cleared  ${d.taint_cleared}`);
   if (d.foreign_modules.length) {
     lines.push(`    left the runtime via ${d.foreign_modules.join(', ')}`);
+  }
+  const permitted = d.foreign_permitted ?? [];
+  if (permitted.includes('*')) {
+    lines.push('    foreign boundary  UNBOUNDED -- any module could have been loaded');
+  } else if (permitted.length) {
+    lines.push(`    foreign boundary  limited to ${permitted.join(', ')}`);
   }
 
   lines.push('  promises');

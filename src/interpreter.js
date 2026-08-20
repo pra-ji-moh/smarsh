@@ -103,7 +103,7 @@ function framesEscape(decl) {
 
 export class Interpreter {
   constructor({
-    seed = 0, caps = [], principals = [],
+    seed = 0, caps = [], principals = [], foreign = [],
     out = (s) => process.stdout.write(`${s}\n`), cwd = process.cwd(),
   } = {}) {
     this.seed = seed;
@@ -133,6 +133,9 @@ export class Interpreter {
 
     // The decentralized label model: principals this run may act for, those it
     // is acting for right now, and the party data is currently being released to.
+    // Which foreign modules this run may open. `ffi` says a program may cross
+    // the boundary at all; this says where to. Empty means nowhere.
+    this.allowedForeign = new Set(foreign);
     this.grantedAuthority = new Set(principals);
     this.authority = new Set();
     this.releaseStack = [];
