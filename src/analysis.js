@@ -311,6 +311,126 @@ function capabilityFindings(program, builtinNeeds) {
   return findings;
 }
 
+// Mutating something bound with `let`.
+//
+// `let` freezes the value, all the way down, and it freezes the *value* rather
+// than the binding -- so this fails, and the second line is the surprising one:
+//
+//     let xs = []
+//     xs.push(1)          // ImmutableError
+//
+//     var ys = [1, 2]
+//     let alias = ys
+//     ys.push(3)          // also ImmutableError, though `ys` is a var
+//
+// The guarantee is worth keeping: blocking rebinding while leaving the contents
+// writable is the weaker promise people assume they are getting and are not.
+// What is not worth keeping is finding out at run time, on whichever branch
+// happens to execute. It is decidable from the syntax, so `check` says it.
+//
+// Conservative in the usual way. A name declared more than once anywhere is
+// skipped entirely, because two bindings of the same name may be a `let` and a
+// `var` in different scopes and this pass does not resolve scopes.
+const MUTATING_METHODS = new Set(['push', 'pop', 'remove', 'set']);
+
+// Only a list or a map can be frozen.
+//
+// `freezeDeep` leaves everything else alone: a record, a tensor and a decimal
+// are already immutable, and a context window, a ledger or an agent is a live
+// handle whose identity is the point -- freezing one would break the thing it
+// refers to. So `let ctx = context(50)` followed by `ctx.push(...)` is correct
+// code, and an earlier version of this check called it an error.
+//
+// The value therefore has to be known to be a collection, which it is only when
+// the initialiser says so outright.
+const isCollectionLiteral = (node) => node
+  && (node.type === 'ListLit' || node.type === 'MapLit');
+
+function frozenFindings(program) {
+  // How many times each name is declared, and what it was declared from.
+  const declaredCount = new Map();
+  const declaredFrom = new Map();
+  const bump = (name) => declaredCount.set(name, (declaredCount.get(name) ?? 0) + 1);
+  walk(program, (n) => {
+    if (n.type === 'Declare') { bump(n.name); declaredFrom.set(n.name, n); }
+    else if (n.type === 'For') bump(n.name);
+    else if (n.type === 'Attempt') bump(n.name);
+    else if (n.type === 'FnDecl') bump(n.fn.name);
+    else if (n.type === 'Fn') for (const param of n.params) bump(param);
+  });
+  const once = (name) => (declaredCount.get(name) ?? 0) === 1;
+
+  // A name is frozen if it was bound with `let` to a collection, or if a `let`
+  // bound a collection *through* it -- `let alias = xs` freezes what `xs` is.
+  const frozen = new Map();   // name -> { line, via }
+  walk(program, (n) => {
+    if (n.type !== 'Declare' || n.mutable) return;
+
+    if (once(n.name) && isCollectionLiteral(n.value)) {
+      frozen.set(n.name, { line: n.line, via: null });
+    }
+
+    // The alias case, which is the one that surprises people: `xs` is a `var`
+    // and still cannot be changed, because `let` froze the value it names.
+    if (n.value && n.value.type === 'Ident' && once(n.value.name)) {
+      const source = declaredFrom.get(n.value.name);
+      if (source && isCollectionLiteral(source.value) && !frozen.has(n.value.name)) {
+        frozen.set(n.value.name, { line: n.line, via: n.name });
+      }
+    }
+  });
+  if (frozen.size === 0) return [];
+
+  const findings = [];
+  const seen = new Set();
+
+  const report = (name, node, what) => {
+    const key = `${name}:${node.line}:${what}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const info = frozen.get(name);
+    findings.push({
+      line: node.line,
+      span: node.span,
+      kind: 'frozen value',
+      message: info.via
+        ? `\`${name}\` was frozen by \`let ${info.via} = ${name}\` on line ${info.line}, `
+          + `so ${what} will be refused`
+        : `\`${name}\` was bound with \`let\`, which freezes it, so ${what} will be refused`,
+      hint: info.via
+        ? '`let` freezes the value, not the binding, so it reaches every name for '
+          + `it -- copy instead: \`let ${info.via} = ${name}.slice(0, ${name}.len())\``
+        : 'bind it with `var` if it has to change, or build a new value',
+    });
+  };
+
+  walk(program, (node) => {
+    // xs.push(1)
+    if (node.type === 'Call' && node.callee && node.callee.type === 'Member'
+        && MUTATING_METHODS.has(node.callee.name)
+        && node.callee.object && node.callee.object.type === 'Ident'
+        && frozen.has(node.callee.object.name)) {
+      report(node.callee.object.name, node, `\`.${node.callee.name}()\``);
+      return;
+    }
+    if (node.type !== 'Assign' || !node.target) return;
+    // xs[0] = 1
+    if (node.target.type === 'Index' && node.target.object
+        && node.target.object.type === 'Ident' && frozen.has(node.target.object.name)) {
+      report(node.target.object.name, node, 'writing into it');
+      return;
+    }
+    // m.field = 1
+    if (node.target.type === 'Member' && node.target.object
+        && node.target.object.type === 'Ident' && frozen.has(node.target.object.name)) {
+      report(node.target.object.name, node, `assigning to \`.${node.target.name}\``);
+    }
+  });
+
+  findings.sort((a, b) => a.line - b.line);
+  return findings;
+}
+
 function baseIdentifier(node) {
   let cur = node;
   while (cur && (cur.type === 'Index' || cur.type === 'Member')) cur = cur.object;
@@ -322,6 +442,7 @@ export function analyze(program, { builtinNeeds = null } = {}) {
     ...controlFlowFindings(program),
     ...exhaustivenessFindings(program),
     ...capabilityFindings(program, builtinNeeds),
+    ...frozenFindings(program),
   ];
 
   walk(program, (node) => {

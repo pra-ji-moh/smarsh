@@ -108,6 +108,7 @@ const CODE_FOR_FINDING = {
   'inexhaustive match': 'E0605',
   'control flow': 'E0604',
   'undeclared capability': 'E0406',
+  'frozen value': 'E0203',
 };
 
 const COLOUR = process.stderr.isTTY && !process.env.NO_COLOR;

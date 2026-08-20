@@ -62,6 +62,7 @@ const CODE_FOR_FINDING = {
   'inexhaustive match': 'E0605',
   'control flow': 'E0604',
   'undeclared capability': 'E0406',
+  'frozen value': 'E0203',
 };
 
 export function runFile(file, { seed = 0, caps = [], trials = 60, quiet = true } = {}) {

@@ -25,6 +25,12 @@ something with `let` therefore reaches back and freezes it everywhere. This is
 consistent, and it is not what most people expect. Rust solves this with
 ownership; Pēdāg does not have ownership.
 
+`pedag check` now reports both shapes before the program runs (E0203), naming
+the `let` that did the freezing. It only speaks when the value is a list or map
+written as a literal — a context window, a ledger or an agent bound with `let`
+is a live handle that `freezeDeep` leaves alone, and reporting those was a real
+false positive found by running the checker over the examples.
+
 **Workaround:** copy before binding — `let ys = xs.slice(0, xs.len())`.
 
 ### A record is only as immutable as what you put in it
