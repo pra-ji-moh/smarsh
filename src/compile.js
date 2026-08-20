@@ -69,6 +69,14 @@ export const SIG_CONTINUE = { signal: 'continue' };
 // possibly be labelled or tainted still goes through `guard` unchanged -- and in
 // arithmetic-heavy code it removes most of the calls.
 
+// One unit of work, charged inline.
+//
+// `tick` is called once per statement and once per loop pass, so on a counting
+// loop it is one of the most frequent calls in the runtime -- and it almost
+// always does nothing but increment a counter. The increment and the "is
+// anything due" test are one comparison here; the rest stays in the
+// interpreter and is reached only when the limit is passed or a budget is open.
+
 const isSignal = (v) => v === SIG_RETURN || v === SIG_BREAK || v === SIG_CONTINUE;
 
 // --- compilation cache -------------------------------------------------------
@@ -134,36 +142,7 @@ function buildExpr(node) {
       };
     }
 
-    case 'Binary': {
-      const left = compileExpr(node.left);
-      const right = compileExpr(node.right);
-      const op = node.op;
-      const line = node.line;
-      // The number/number case is the overwhelming majority and the interpreter
-      // already special-cases it inside `binary`. Here the operator is known at
-      // compile time too, so the check collapses to one typeof pair and a
-      // single arithmetic op with no dispatch at all. Anything else -- taint,
-      // labels, decimals, tensors, strings, division by zero -- goes to the
-      // interpreter's `binary`, unchanged.
-      const fast = FAST_BINARY[op];
-      if (fast) {
-        return (itp) => {
-          const lv = left(itp);
-          const l = (lv !== null && typeof lv === 'object') ? itp.guard(lv, line, 'operand') : lv;
-          const rv = right(itp);
-          const r = (rv !== null && typeof rv === 'object') ? itp.guard(rv, line, 'operand') : rv;
-          if (typeof l === 'number' && typeof r === 'number') return fast(l, r);
-          return itp.binary(op, l, r, line);
-        };
-      }
-      return (itp) => {
-        const lv = left(itp);
-        const l = (lv !== null && typeof lv === 'object') ? itp.guard(lv, line, 'operand') : lv;
-        const rv = right(itp);
-        const r = (rv !== null && typeof rv === 'object') ? itp.guard(rv, line, 'operand') : rv;
-        return itp.binary(op, l, r, line);
-      };
-    }
+    case 'Binary': return buildBinary(node);
 
     case 'Logical': {
       const left = compileExpr(node.left);
@@ -405,6 +384,100 @@ function buildAssign(node) {
 // A call is the hottest shape in most programs, so the parts that do not change
 // between calls -- the argument count, the callee's printable name, whether it
 // is the `old()` pseudo-call -- are all settled here.
+// Arithmetic, with the operands read in place where that is possible.
+//
+// `t = t + i` is three nodes and used to be three closure calls: one for the
+// addition and one for each name. A name and a literal are the only operands
+// whose evaluation cannot have a side effect, which means their reads can be
+// folded into the operator's own closure without changing when anything
+// happens. In a counting loop that is most of the work.
+//
+// Order is preserved exactly: left is read and guarded before right is read,
+// because `guard` can throw and a program is entitled to the first failure
+// rather than a later one.
+function buildBinary(node) {
+  const op = node.op;
+  const line = node.line;
+  const fast = FAST_BINARY[op];
+
+  // Both operands a name: read them in place.
+  //
+  // `t + i` was three closure calls, one for the operator and one for each
+  // name. A name's evaluation cannot have a side effect, so folding the reads
+  // into the operator's closure does not change when anything happens.
+  //
+  // Only names. Folding constants in as well was tried and made recursion 6%
+  // slower while helping nothing: the extra branches for "is this side a
+  // constant" grew the closure past the size V8 will inline, and the reads it
+  // saved were of a value already sitting in the closure. A specialisation that
+  // is not measured is a guess, and this one was wrong in the direction that
+  // looks obviously right.
+  //
+  // Order is preserved exactly -- left read and guarded before right is read --
+  // because `guard` can throw and a program is owed the first failure.
+  if (fast && node.left.type === 'Ident' && node.right.type === 'Ident') {
+    const L = node.left;
+    const R = node.right;
+    const lName = L.name;
+    const rName = R.name;
+    const lVer = versionOf(lName);
+    const rVer = versionOf(rName);
+    let lEnv = null;
+    let lSeen = -1;
+    let lSlot = null;
+    let rEnv = null;
+    let rSeen = -1;
+    let rSlot = null;
+
+    return (itp) => {
+      const env = itp.env;
+
+      let l;
+      if (env === lEnv && lSeen === lVer.v) l = lSlot.value;
+      else {
+        const slot = env.slot(lName);
+        if (slot === null || slot === undefined) throw itp.unknownName(L);
+        lEnv = env; lSeen = lVer.v; lSlot = slot;
+        l = slot.value;
+      }
+      if (l !== null && typeof l === 'object') l = itp.guard(l, line, 'operand');
+
+      let r;
+      if (env === rEnv && rSeen === rVer.v) r = rSlot.value;
+      else {
+        const slot = env.slot(rName);
+        if (slot === null || slot === undefined) throw itp.unknownName(R);
+        rEnv = env; rSeen = rVer.v; rSlot = slot;
+        r = slot.value;
+      }
+      if (r !== null && typeof r === 'object') r = itp.guard(r, line, 'operand');
+
+      if (typeof l === 'number' && typeof r === 'number') return fast(l, r);
+      return itp.binary(op, l, r, line);
+    };
+  }
+
+  const left = compileExpr(node.left);
+  const right = compileExpr(node.right);
+  if (fast) {
+    return (itp) => {
+      const lv = left(itp);
+      const l = (lv !== null && typeof lv === 'object') ? itp.guard(lv, line, 'operand') : lv;
+      const rv = right(itp);
+      const r = (rv !== null && typeof rv === 'object') ? itp.guard(rv, line, 'operand') : rv;
+      if (typeof l === 'number' && typeof r === 'number') return fast(l, r);
+      return itp.binary(op, l, r, line);
+    };
+  }
+  return (itp) => {
+    const lv = left(itp);
+    const l = (lv !== null && typeof lv === 'object') ? itp.guard(lv, line, 'operand') : lv;
+    const rv = right(itp);
+    const r = (rv !== null && typeof rv === 'object') ? itp.guard(rv, line, 'operand') : rv;
+    return itp.binary(op, l, r, line);
+  };
+}
+
 function buildCall(node) {
   const line = node.line;
   const argNodes = node.args.map(compileExpr);
@@ -500,24 +573,24 @@ function buildStmt(node) {
   switch (node.type) {
     case 'ExprStmt': {
       const expr = compileExpr(node.expr);
-      return (itp) => { itp.tick(node); return expr(itp); };
+      return (itp) => { { if (++itp.steps > itp.tickCheck) itp.tickDue(node); }; return expr(itp); };
     }
 
     case 'Return': {
       const value = node.value ? compileExpr(node.value) : null;
       const line = node.line;
       return value
-        ? (itp) => { itp.tick(node); itp.retval = value(itp); itp.sigLine = line; return SIG_RETURN; }
-        : (itp) => { itp.tick(node); itp.retval = null; itp.sigLine = line; return SIG_RETURN; };
+        ? (itp) => { { if (++itp.steps > itp.tickCheck) itp.tickDue(node); }; itp.retval = value(itp); itp.sigLine = line; return SIG_RETURN; }
+        : (itp) => { { if (++itp.steps > itp.tickCheck) itp.tickDue(node); }; itp.retval = null; itp.sigLine = line; return SIG_RETURN; };
     }
 
     case 'Break': {
       const line = node.line;
-      return (itp) => { itp.tick(node); itp.sigLine = line; return SIG_BREAK; };
+      return (itp) => { { if (++itp.steps > itp.tickCheck) itp.tickDue(node); }; itp.sigLine = line; return SIG_BREAK; };
     }
     case 'Continue': {
       const line = node.line;
-      return (itp) => { itp.tick(node); itp.sigLine = line; return SIG_CONTINUE; };
+      return (itp) => { { if (++itp.steps > itp.tickCheck) itp.tickDue(node); }; itp.sigLine = line; return SIG_CONTINUE; };
     }
 
     case 'Declare': {
@@ -526,7 +599,7 @@ function buildStmt(node) {
       const mutable = node.mutable;
       const line = node.line;
       return (itp) => {
-        itp.tick(node);
+        { if (++itp.steps > itp.tickCheck) itp.tickDue(node); };
         const v = value(itp);
         // `let` freezes what it binds; a primitive has nothing to freeze.
         if (!mutable && v !== null && typeof v === 'object') freezeDeep(v);
@@ -540,7 +613,7 @@ function buildStmt(node) {
       const name = node.fn.name;
       const line = node.line;
       return (itp) => {
-        itp.tick(node);
+        { if (++itp.steps > itp.tickCheck) itp.tickDue(node); };
         const fn = new PedagFunction(node.fn, itp.env);
         itp.redeclareIfAllowed(name);
         itp.env.declare(name, fn, false, line);
@@ -559,7 +632,7 @@ function buildStmt(node) {
       const thenScoped = scoper(node.then);
       const altScoped = node.alt && node.alt.type === 'Block' ? scoper(node.alt) : null;
       return (itp) => {
-        itp.tick(node);
+        { if (++itp.steps > itp.tickCheck) itp.tickDue(node); };
         if (truthy(itp.guard(test(itp), line, 'condition'))) {
           return runScoped(itp, then, thenScoped);
         }
@@ -573,7 +646,7 @@ function buildStmt(node) {
     case 'Block': {
       const body = compileBlock(node);
       const scoped = scoper(node);
-      return (itp) => { itp.tick(node); return runScoped(itp, body, scoped); };
+      return (itp) => { { if (++itp.steps > itp.tickCheck) itp.tickDue(node); }; return runScoped(itp, body, scoped); };
     }
 
     case 'While': return buildWhile(node);
@@ -684,7 +757,7 @@ function buildWhile(node) {
   const contracted = node.invariants.length > 0 || node.variant != null;
 
   return (itp) => {
-    itp.tick(node);
+    { if (++itp.steps > itp.tickCheck) itp.tickDue(node); };
     // A body that makes closures needs a fresh scope per pass, or every closure
     // captures the same cell. Same rule as the tree-walker.
     const fresh = itp.capturesScope(node.body);
@@ -698,7 +771,7 @@ function buildWhile(node) {
     const saved = itp.env;
     try {
       while (truthy(itp.guard(test(itp), line, 'condition'))) {
-        itp.tick(node);
+        { if (++itp.steps > itp.tickCheck) itp.tickDue(node); };
         if (contracted) itp.stepLoopContracts(node, loop);
         if (fresh) itp.env = new Env(saved);
         else if (binds) { shared.clearVars(); itp.env = shared; }
@@ -749,7 +822,7 @@ function buildFor(node) {
   const contracted = node.invariants.length > 0 || node.variant != null;
 
   return (itp) => {
-    itp.tick(node);
+    { if (++itp.steps > itp.tickCheck) itp.tickDue(node); };
 
     // The counted path: no list is built, the loop counts. Only taken when the
     // name `range` still means the builtin.
@@ -788,7 +861,7 @@ function buildFor(node) {
       if (counted !== null) {
         const { start, stop, step } = counted;
         for (let v = start; step > 0 ? v < stop : v > stop; v += step) {
-          itp.tick(node);
+          { if (++itp.steps > itp.tickCheck) itp.tickDue(node); };
           if (fresh) {
             itp.env = new Env(saved);
             itp.env.declare(name, v, false, line);
@@ -809,7 +882,7 @@ function buildFor(node) {
 
       const iterable = itp.guard(iter(itp), line, 'loop subject');
       for (const item of itp.toIterable(iterable, line)) {
-        itp.tick(node);
+        { if (++itp.steps > itp.tickCheck) itp.tickDue(node); };
         if (fresh) {
           itp.env = new Env(saved);
           itp.env.declare(name, item, false, line);

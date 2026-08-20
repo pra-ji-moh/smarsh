@@ -179,6 +179,12 @@ export class Interpreter {
     this.allowRedeclare = false;
     // `prove` caps how long a generated call may run before it is abandoned.
     this.steps = 0;
+    // One number that compiled code compares against, so charging a step is a
+    // single property load and a single compare. It is the step limit while
+    // nothing else needs looking at, and -1 whenever a budget is open, which
+    // sends every tick to `tickDue`. Three loads at every statement made the
+    // statement closures big enough to cost more than the call they replaced.
+    this.tickCheck = Infinity;
     this.stepLimit = Infinity;
 
     this.trace = {
@@ -230,7 +236,35 @@ export class Interpreter {
   // One unit of work. Charged per statement AND per loop iteration -- a loop
   // with an empty body still costs something, or `while true { }` would spin
   // forever underneath a budget that never noticed.
-  // The fast half is inlined at the compiled call sites; this is what is left.
+  // What is left once the counter has already been advanced.
+  //
+  // Compiled code inlines the fast half -- bump the counter, and check in one
+  // comparison whether anything is due -- so this runs only when the step limit
+  // has actually been passed or a budget is open. It must not advance the
+  // counter again; the caller already did.
+  tickDue(node) {
+    if (this.steps > this.stepLimit) {
+      throw pedagError('StepLimitError', `this call ran past ${this.stepLimit} steps and was abandoned`, node.line);
+    }
+    for (let i = 0; i < this.budgets.length; i++) {
+      const b = this.budgets[i];
+      if (b.kind !== 'steps') continue;
+      if (++b.used > b.limit) throw new BudgetExceeded(b);
+    }
+  }
+
+  get stepLimit() { return this._stepLimit; }
+
+  set stepLimit(v) {
+    this._stepLimit = v;
+    this.retuneTick();
+  }
+
+  // Kept in step with the step limit and with whether any budget is open.
+  retuneTick() {
+    this.tickCheck = this.budgets.length === 0 ? this._stepLimit : -1;
+  }
+
   tick(node) {
     if (++this.steps > this.stepLimit) {
       throw pedagError('StepLimitError', `this call ran past ${this.stepLimit} steps and was abandoned`, node.line);
@@ -481,6 +515,7 @@ export class Interpreter {
         }
         const budget = { kind: node.kind, limit: Math.max(limit, 0), used: 0, line: node.line };
         this.budgets.push(budget);
+        this.retuneTick();
         const savedMemoryFlag = this.hasMemoryBudget;
         if (node.kind === 'memory') this.hasMemoryBudget = true;
         try {
@@ -493,6 +528,7 @@ export class Interpreter {
           throw e;
         } finally {
           this.budgets.pop();
+          this.retuneTick();
           this.hasMemoryBudget = savedMemoryFlag;
         }
       }
