@@ -137,14 +137,20 @@ not been done.
 
 ## 3. Performance
 
-- **Still an interpreter, just a faster one.** The AST compiles to JavaScript
-  closures rather than being re-walked (`src/compile.js`), which is about 1.9×
-  overall and 2.4× on recursion and calls against the old tree-walker. That
-  leaves it roughly 15–30× off a JIT-compiled language on compute-bound code,
-  down from 50–100×. Closing more of that needs a typed value representation and
-  escape analysis so `t = t + i` does not box — a much larger change than this
-  one was. `--engine tree` still runs the original, and CI proves the two agree
-  on every example, every std module and 3,000 generated programs.
+- **Still an interpreter, just a much faster one.** The AST compiles to
+  JavaScript closures rather than being re-walked (`src/compile.js`), and a call
+  in the common shape allocates nothing: the frame is reused, arguments travel
+  positionally, bound methods are remembered. About **3.3× CPython** and **~47×
+  a JIT** on `fib`, from 6.7× and ~110×. Closing more needs a typed value
+  representation and escape analysis so `t = t + i` does not box — a larger
+  change than any of this was. `--engine tree` still runs the original
+  tree-walker, and CI proves the two agree on every example, every std module
+  and 3,000 generated programs.
+- **The fast call path is a second implementation of calling.** `callSimple`
+  handles a named function with no capabilities and no contract; `callValue`
+  handles everything else and is what the tree-walker uses. Two paths can drift,
+  and the only thing stopping them is that the differential harness runs one
+  against the other on every program it has.
 - **The recursion limit is 300 frames**, and low on purpose. It used to be 2000,
   which no run ever reached: both engines exhausted the host JavaScript stack
   first, so the real limit was however many host frames happened to be free —
@@ -158,7 +164,10 @@ not been done.
 - **`fork` is sequential.** Isolation and independent randomness are real; the
   parallelism is not.
 - **Worker threads back matrix multiply only**, at about 1.5× on three threads.
-- **`member()` allocates** a function object on some method-access paths.
+- **Method access allocates on the first use of each method per object.**
+  `xs.push` builds a function bound to `xs`; it is remembered against `xs`
+  afterwards, so a loop pays once rather than once per iteration. Records skip
+  the cache entirely, since their members are fields rather than methods.
 - **No incremental anything** — every tool reparses the whole file.
 
 ---

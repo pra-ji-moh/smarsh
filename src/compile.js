@@ -418,9 +418,16 @@ function buildCall(node) {
   if (isOld) return (itp) => itp.evalCall(node);
 
   const callee = compileExpr(node.callee);
-  return (itp) => {
-    const calleeVal = callee(itp);
-    const fn = unwrap(calleeVal);
+
+  // An argument that is a primitive cannot carry a label, so `guard` would hand
+  // it straight back. See the note above `isSignal`.
+  const arg = (itp, i) => {
+    const v = argNodes[i](itp);
+    return (v === null || typeof v !== 'object') ? v : itp.guard(v, line, 'argument');
+  };
+
+  // The general path: build an array, hand it to the general machinery.
+  const slow = (itp, fn) => {
     const transparent = fn instanceof NativeFunction && fn.transparent;
     const args = new Array(n);
     for (let i = 0; i < n; i++) {
@@ -429,6 +436,61 @@ function buildCall(node) {
         ? v : itp.guard(v, line, 'argument');
     }
     return itp.callValue(fn, args, line, name);
+  };
+
+  // Beyond four arguments the array has to be built anyway, so there is nothing
+  // to specialise.
+  if (n > 4) {
+    return (itp) => slow(itp, unwrap(callee(itp)));
+  }
+
+  // An inline cache on the callee.
+  //
+  // Nearly every call site calls the same function every time. Whether that
+  // function can take the fast path -- a named function with no capabilities,
+  // no contract, and a frame nothing can capture -- is decided once and
+  // remembered, so a repeat call skips the whole dispatch. Arguments stay in
+  // JavaScript locals and go across positionally, so no array is built either:
+  // a call in this shape allocates nothing at all.
+  //
+  // The cache is checked by identity. A different callee, or one that cannot
+  // take the fast path, falls through to the general machinery unchanged.
+  // Both answers are cached, not just the affirmative one. A site that always
+  // calls a builtin or a record constructor would otherwise ask the same
+  // question on every call and always get the same no.
+  let cachedFn = null;
+  let cachedSimple = false;
+  return (itp) => {
+    const fn = unwrap(callee(itp));
+    if (fn !== cachedFn) {
+      cachedFn = fn;
+      // The instanceof is inline so that a site which always calls a builtin
+      // or a record constructor settles it without a method call.
+      cachedSimple = fn instanceof PedagFunction && itp.canCallSimple(fn);
+    }
+    // `profiling` is checked here rather than trusted from the cache: it is one
+    // boolean load, and it can be switched on between calls.
+    if (!cachedSimple || itp.profiling) return slow(itp, fn);
+    // Every argument is evaluated before any of them is bound, because
+    // evaluating one can itself call this same function.
+    if (n === 0) return itp.callSimple(fn, line, 0);
+    if (n === 1) return itp.callSimple(fn, line, 1, arg(itp, 0));
+    if (n === 2) {
+      const a0 = arg(itp, 0);
+      const a1 = arg(itp, 1);
+      return itp.callSimple(fn, line, 2, a0, a1);
+    }
+    if (n === 3) {
+      const a0 = arg(itp, 0);
+      const a1 = arg(itp, 1);
+      const a2 = arg(itp, 2);
+      return itp.callSimple(fn, line, 3, a0, a1, a2);
+    }
+    const a0 = arg(itp, 0);
+    const a1 = arg(itp, 1);
+    const a2 = arg(itp, 2);
+    const a3 = arg(itp, 3);
+    return itp.callSimple(fn, line, 4, a0, a1, a2, a3);
   };
 }
 

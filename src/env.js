@@ -147,6 +147,33 @@ export class Env {
     this._count = arity;
   }
 
+  // Reuse a frame, taking the arguments positionally rather than from an
+  // array. A call site that knows its own argument count can evaluate them
+  // into JavaScript locals and hand them straight over, so the array a call
+  // used to build is never allocated. Four covers essentially every hot
+  // function; beyond that the array path is used.
+  reuseFrameArgs(names, argc, a0, a1, a2, a3) {
+    const arity = names.length;
+    if (this._count > arity) {
+      if (this._vers !== null) {
+        for (let i = arity; i < this._count; i++) this._vers[i].v += 1;
+      } else {
+        for (let i = arity; i < this._count; i++) bump(this._names[i]);
+      }
+    }
+    if (!this._sharedNames) {
+      this._names = names;
+      this._vers = null;
+      this._sharedNames = true;
+    }
+    const slots = this._slots;
+    if (argc > 0) slots[0].value = a0;
+    if (argc > 1) slots[1].value = a1;
+    if (argc > 2) slots[2].value = a2;
+    if (argc > 3) slots[3].value = a3;
+    this._count = arity;
+  }
+
   // Can this frame be reused? Only if it still holds exactly the parameters it
   // was built with, in the same storage -- a frame that grew past SMALL and
   // converted to a Map, or that something asked to iterate, is not eligible.

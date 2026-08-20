@@ -1002,11 +1002,18 @@ JavaScript closures once rather than being re-walked (`src/compile.js`): about
 **1.9x overall** against the old tree-walker, 2.4x on recursion and calls, 2.2x
 on tight loops. `for i in range(n)` no longer builds the list first.
 
-It is still an interpreter, and slower than CPython. On `fib(27)` it runs about
-**5–7× behind CPython** and **~110× behind a JIT**. `npm run bench:compare`
-measures all three in one session and reports ratios, because absolute
-milliseconds are not portable — the same unchanged code measured 531 ms and,
-an hour later on a busier machine, 1202 ms.
+It is still an interpreter, and slower than Python. On `fib(27)` it runs about
+**3.3× behind CPython** — down from 6.7× — and **~47× behind a JIT**.
+`npm run bench:compare` measures all three in one session and reports ratios,
+because absolute milliseconds are not portable: the same unchanged code
+measured 531 ms and, an hour later on a busier machine, 1202 ms.
+
+Most of that came from removing allocation rather than from cleverness. A call
+in the common shape — a named function with no capabilities and no contract —
+now allocates nothing at all: its frame is reused, and its arguments travel in
+JavaScript locals rather than an array. `xs.push` no longer builds a fresh bound
+function on every call. Across eleven workload shapes: calls −36%, closures
+−32%, recursion −23%, maps and lists −9%.
 
 Getting that number right took three attempts, and the wrong ones reached this
 file. Timings inside one long-lived process climbed run over run (644 → 1029 ms

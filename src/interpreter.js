@@ -164,6 +164,8 @@ export class Interpreter {
     // number. See LIMITATIONS.md.
     this.maxCallDepth = 300;
     this.frames = [];          // the live call stack, for stack traces
+    // Bound methods, kept against the value they belong to. See `member`.
+    this.methodCache = new WeakMap();
     this.frameTop = 0;         // how many of them are live; the rest are pooled
 
     // Closure compilation. On by default; `--engine tree` turns it off, which
@@ -1019,6 +1021,112 @@ export class Interpreter {
     if (node.type === 'Ident') return node.name;
     if (node.type === 'Member') return node.name;
     return 'this value';
+  }
+
+// The call a program actually makes, most of the time.
+  //
+  // `callValue` has to cope with everything callable: record constructors,
+  // builtins, capability attenuation, preconditions, postconditions, `old()`,
+  // profiling. A named function with no capabilities and no contract -- which
+  // is nearly every function, and all the hot ones -- needs none of it, and was
+  // paying for the dispatch on every invocation.
+  //
+  // So a compiled call site that has seen the same callee before comes here
+  // instead. Everything decidable in advance has been: what kind of value it
+  // is, that its arity matches, that it declares nothing, that its frame can be
+  // reused. What is left is the frame, the depth, and the bookkeeping a stack
+  // trace needs.
+  //
+  // Arguments arrive positionally rather than in an array, because a call site
+  // that knows its own argument count can hold them in JavaScript locals -- so
+  // the args array is not allocated either. Together with the pooled frame, a
+  // call in this shape allocates nothing at all.
+  //
+  // The tree-walker still goes through `callValue`, so the differential harness
+  // compares the two paths against each other on every example, every standard
+  // library module and three thousand generated programs. Divergence between
+  // them is a build failure, which is what makes having two paths tolerable.
+  callSimple(callee, line, argc, a0, a1, a2, a3) {
+    const decl = callee.decl;
+
+    if (argc !== decl.params.length) {
+      throw pedagError('ArityError',
+        `${callee.name} takes ${decl.params.length} argument${decl.params.length === 1 ? '' : 's'}, got ${argc}`, line);
+    }
+    if (this.callDepth >= this.maxCallDepth) {
+      throw pedagError('RecursionError', `call stack went deeper than ${this.maxCallDepth} frames`, line);
+    }
+
+    const pool = decl.framePool ?? (decl.framePool = { closure: callee.closure, envs: [] });
+    if (pool.closure !== callee.closure) {
+      // Two function values from one declaration over different scopes. Give up
+      // on the fast path for this declaration entirely -- see callValue.
+      decl.simpleCall = false;
+      const args = new Array(argc);
+      if (argc > 0) args[0] = a0;
+      if (argc > 1) args[1] = a1;
+      if (argc > 2) args[2] = a2;
+      if (argc > 3) args[3] = a3;
+      return this.callValue(callee, args, line, callee.name);
+    }
+
+    let env = pool.envs[this.callDepth];
+    if (env === undefined || !env.reusable) {
+      env = new Env(callee.closure);
+      const slots = new Array(argc);
+      if (argc > 0) slots[0] = { value: a0, mutable: false };
+      if (argc > 1) slots[1] = { value: a1, mutable: false };
+      if (argc > 2) slots[2] = { value: a2, mutable: false };
+      if (argc > 3) slots[3] = { value: a3, mutable: false };
+      env.adoptFrame(decl.params, slots);
+      pool.envs[this.callDepth] = env;
+    } else {
+      env.reuseFrameArgs(decl.params, argc, a0, a1, a2, a3);
+    }
+
+    const savedEnv = this.env;
+    const savedCaps = this.caps;
+    // `needs` is empty by construction here, so the frame holds nothing.
+    this.caps = EMPTY_CAPS;
+    this.callDepth += 1;
+    this.trace.calls += 1;
+
+    if (this.frames.length <= this.frameTop) this.frames.push({ name: callee.name, line });
+    else {
+      const f = this.frames[this.frameTop];
+      f.name = callee.name;
+      f.line = line;
+    }
+    this.frameTop += 1;
+
+    try {
+      return runBody(this, decl, env);
+    } catch (e) {
+      if (e instanceof PedagError && e.frames.length === 0) {
+        e.frames = this.frames.slice(0, this.frameTop).map((f) => ({ ...f }));
+      }
+      // A `break` with no loop inside the body must not reach the caller's.
+      throw controlFlowEscape(e, line) ?? e;
+    } finally {
+      this.frameTop -= 1;
+      this.callDepth -= 1;
+      this.caps = savedCaps;
+      this.env = savedEnv;
+    }
+  }
+
+  // Is this value callable by the path above? Decided once per declaration.
+  canCallSimple(callee) {
+    if (!(callee instanceof PedagFunction)) return false;
+    const d = callee.decl;
+    if (d.simpleCall === undefined) {
+      // `framesEscape` already refuses contracted functions and any body that
+      // creates a closure, so this adds only the capability condition.
+      d.simpleCall = d.needs.length === 0 && !framesEscape(d);
+    }
+    // Profiling needs the timing and per-function accounting that only
+    // `callValue` does, so it turns this path off wholesale.
+    return d.simpleCall && !this.profiling;
   }
 
   callValue(callee, args, line, name = 'this value') {
@@ -1982,7 +2090,45 @@ export class Interpreter {
     return new NativeFunction(name, arity, fn, needs);
   }
 
+  // Method access, with the bound method remembered.
+  //
+  // `xs.push(1)` used to build a fresh NativeFunction, and a closure over `xs`
+  // to go inside it, every single time -- two allocations per push, and the
+  // call site's inline cache never hit because the callee was a different
+  // object on every call.
+  //
+  // The methods of a given value do not change, and each one closes over that
+  // value, so the built one is kept against the object it belongs to. The cache
+  // is weak: it holds nothing alive that the program has finished with.
+  //
+  // Only functions are cached. A member that is a plain value -- `.tokens` on a
+  // context window, `.shape` on a tensor -- is recomputed every time, because
+  // those do change.
   member(obj, name, line) {
+    if (obj === null || typeof obj !== 'object') return this.memberOf(obj, name, line);
+    // A record's members are its fields, which are values rather than methods,
+    // and a record is usually a fresh object each time -- so the cache would
+    // never hit and every field access would pay a lookup to find that out.
+    if (obj instanceof RecordValue) return this.memberOf(obj, name, line);
+
+    let byName = this.methodCache.get(obj);
+    if (byName !== undefined) {
+      const hit = byName.get(name);
+      if (hit !== undefined) return hit;
+    }
+
+    const value = this.memberOf(obj, name, line);
+    if (value instanceof NativeFunction) {
+      if (byName === undefined) {
+        byName = new Map();
+        this.methodCache.set(obj, byName);
+      }
+      byName.set(name, value);
+    }
+    return value;
+  }
+
+  memberOf(obj, name, line) {
     const nf = (n, arity, fn) => new NativeFunction(n, arity, fn);
 
     if (obj instanceof Tensor) {

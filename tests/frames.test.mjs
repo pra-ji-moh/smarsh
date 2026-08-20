@@ -174,3 +174,92 @@ test('a contracted function is correct across repeated calls', () => {
     'print(step(0))',
   ]), ['1', '42', '1']);
 });
+
+// ---------------------------------------------------------------------------
+// bound methods, remembered
+//
+// `xs.push(1)` built a fresh function and a closure over `xs` on every call.
+// They are kept against the object now, which is only sound if a remembered
+// method still sees the object as it is at the moment it is called.
+// ---------------------------------------------------------------------------
+
+test('a remembered method sees the object as it is now', () => {
+  assert.deepEqual(bothEngines([
+    'var xs = [1]',
+    'xs.push(2)',
+    'xs.push(3)',
+    'print(xs)',
+    'print(xs.len())',
+    'var m = { }',
+    'm.set("a", 1)',
+    'm.set("b", 2)',
+    'print(m.len())',
+    'print(m.get("b"))',
+  ]), ['[1, 2, 3]', '3', '2', '2']);
+});
+
+test('each object gets its own bound method', () => {
+  assert.deepEqual(bothEngines([
+    'var a = []',
+    'var b = []',
+    'for i in range(3) { a.push(i)',
+    '  b.push(i * 10) }',
+    'print(a)',
+    'print(b)',
+  ]), ['[0, 1, 2]', '[0, 10, 20]']);
+});
+
+test('a remembered method still refuses a value bound with let', () => {
+  // The freeze is checked when the method runs, not when it was built, so a
+  // method remembered while the value was mutable must still refuse later.
+  const out = [];
+  const interp = new Interpreter({ out: (s) => out.push(s), seed: 1 });
+  try {
+    assert.throws(
+      () => interp.run([
+        'var xs = []',
+        'xs.push(1)',
+        'let frozen = xs',
+        'xs.push(2)',
+      ].join('\n'), 't.pedag'),
+      (e) => e.kind === 'ImmutableError',
+    );
+  } finally {
+    interp.devices.shutdown();
+  }
+});
+
+test('a member that is a value is not remembered as if it were a method', () => {
+  // `.tokens` changes as the context fills; caching it would freeze the answer.
+  assert.deepEqual(bothEngines([
+    'let c = context(500)',
+    'print(c.tokens)',
+    'c.push("some text here")',
+    'print(c.tokens > 0)',
+    'let t = tensor [[1, 2], [3, 4]]',
+    'print(t.shape)',
+  ]), ['0', 'true', '[2, 2]']);
+});
+
+test('record fields are read fresh, never remembered', () => {
+  assert.deepEqual(bothEngines([
+    'record P(x, y)',
+    'let a = P(1, 2)',
+    'let b = P(9, 8)',
+    'print(a.x)',
+    'print(b.x)',
+    'print(a.x)',
+    'print(a.with("x", 5).x)',
+    'print(a.x)',
+  ]), ['1', '9', '1', '5', '1']);
+});
+
+test('a tainted value still taints what its methods return', () => {
+  // Method access through a tainted value wraps the result, and that wrapping
+  // happens outside the cache -- so it must not be lost.
+  assert.deepEqual(bothEngines([
+    'let u = untrusted("abc")',
+    'print(labels(u.upper()))',
+    'print(labels(u.upper()))',
+  ]), ['["untrusted"]', '["untrusted"]']);
+});
