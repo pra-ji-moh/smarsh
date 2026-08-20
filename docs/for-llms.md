@@ -39,11 +39,15 @@ too. Only these builtins need anything — `read` `write` `weights` (fs),
 **3. Money is `dec`, built from a string, never mixed with floats.**
 
 ```pedag
-let price = dec("19.99")     // there is no 19.99m literal
+let price = 19.99d           // a decimal literal; dec("19.99") also works
 price * 3                    // fine: dec times a whole number
+-price                       // fine: a refund
 price + 0.1                  // ERROR: cannot mix dec with a float
-price.div(dec("3"), 2)       // division states its scale
+price.div(3d, 2)             // division states its scale
 ```
+
+The digits in `19.99d` never pass through a float, which is why `dec` takes a
+string rather than a number — `dec(0.1)` would already have lost the value.
 
 `0.1 + 0.2 == 0.3` is false. `dec("0.1") + dec("0.2") == dec("0.3")` is true.
 
@@ -191,7 +195,7 @@ Strings: `.len .upper .lower .trim .split .replace .slice .contains .starts
 .ends .tokens`
 Maps: `.len .get .set .has .remove .keys .values`
 
-Exact numbers: `dec is_dec dec_sum`, and `.div(d, scale)`.
+Exact numbers: `19.99d` literals, `dec is_dec dec_sum`, and `.div(amount, scale)`.
 
 Tensors: `tensor [[1,2],[3,4]]`, `@`, and `.T .shape .rank .size .sum .mean
 .max .min .norm .reshape .map .tolist`, plus `zeros ones eye full arange randn

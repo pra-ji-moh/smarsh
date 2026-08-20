@@ -7,15 +7,15 @@
 print("== the problem =============================================")
 
 print("   float:  0.1 + 0.2 == 0.3 ?  ${0.1 + 0.2 == 0.3}")
-print("   exact:  0.1 + 0.2 == 0.3 ?  ${dec("0.1") + dec("0.2") == dec("0.3")}")
+print("   exact:  0.1 + 0.2 == 0.3 ?  ${0.1d + 0.2d == 0.3d}")
 
 var drift = 0
 for i in range(1000) {
   drift = drift + 0.01
 }
-var exact = dec("0")
+var exact = 0d
 for i in range(1000) {
-  exact = exact + dec("0.01")
+  exact = exact + 0.01d
 }
 print("   a thousand additions of 0.01")
 print("     as float: ${drift}   equals 10? ${drift == 10}")

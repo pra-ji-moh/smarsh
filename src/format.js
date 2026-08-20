@@ -98,6 +98,8 @@ function expr(node, parentPrec = 0) {
   if (!node) return 'nil';
   switch (node.type) {
     case 'Num': return formatNumber(node.value);
+    // The digits exactly as written -- reformatting money must not round it.
+    case 'DecLit': return `${node.value}d`;
     case 'Str': return quote(node.value);
     case 'Bool': return node.value ? 'true' : 'false';
     case 'Nil': return 'nil';

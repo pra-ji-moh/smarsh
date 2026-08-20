@@ -39,6 +39,7 @@ import {
   unwrap, retaint, retaintFrom, truthy, freezeDeep, stringify, withArticle, assertMutable,
 } from './values.js';
 import { Tensor } from './tensor.js';
+import { Decimal } from './decimal.js';
 import { Env, versionOf } from './env.js';
 
 // --- the completion protocol -----------------------------------------------
@@ -114,6 +115,13 @@ function buildExpr(node) {
     }
     case 'Nil': return () => null;
 
+    // `19.99d`. The digits are parsed once, here, rather than on every
+    // evaluation -- it is a constant like any other literal.
+    case 'DecLit': {
+      const v = Decimal.parse(node.value, node.line);
+      return () => v;
+    }
+
     case 'Ident': {
       const name = node.name;
       // An inline cache, one entry, per occurrence of the name in the source.
@@ -171,6 +179,8 @@ function buildExpr(node) {
         const u = unwrap(v);
         if (isNot) return retaintFrom(!truthy(u), v);
         if (u instanceof Tensor) return retaintFrom(u.map((x) => -x), v);
+        // Negating money is ordinary -- a refund, a credit, a reversal.
+        if (u instanceof Decimal) return retaintFrom(u.negate(), v);
         return retaintFrom(-itp.asNumber(u, 'operand of -', line), v);
       };
     }

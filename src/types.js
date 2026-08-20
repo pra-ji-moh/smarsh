@@ -506,6 +506,7 @@ export class Checker {
     if (!node) return DYN;
     switch (node.type) {
       case 'Num': return NUM;
+      case 'DecLit': return DEC;
       case 'Str': return STR;
       case 'Bool': return BOOL;
       case 'Nil': return NIL;

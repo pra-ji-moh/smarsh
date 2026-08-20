@@ -89,6 +89,7 @@ function syntaxKey(node) {
   if (!node || typeof node !== 'object') return String(node);
   switch (node.type) {
     case 'Num': return `n${node.value}`;
+    case 'DecLit': return `d${node.value}`;
     case 'Str': return `s${JSON.stringify(node.value)}`;
     case 'Bool': return `b${node.value}`;
     case 'Nil': return 'nil';
@@ -106,7 +107,11 @@ function syntaxKey(node) {
 
 function toLinear(node, ctx) {
   switch (node.type) {
+    // A decimal literal is an exact rational, which is what the solver wants
+    // anyway -- `Rat.ofDecimal` reads the digits as written rather than
+    // through a float, so no rounding enters the proof.
     case 'Num': return Linear.constant(Rat.of(node.value));
+    case 'DecLit': return Linear.constant(Rat.ofDecimal(node.value));
 
     case 'Ident': {
       const known = ctx.env.get(node.name);

@@ -763,6 +763,8 @@ export class Parser {
     const line = t.line;
 
     if (t.type === 'num') { this.advance(); return { type: 'Num', value: t.value, line }; }
+    // `19.99d` -- the digits as written, handed to `dec` unchanged.
+    if (t.type === 'dec') { this.advance(); return { type: 'DecLit', value: t.value, line }; }
     if (t.type === 'str') { this.advance(); return { type: 'Str', value: t.value, line }; }
 
     // "a ${b} c" -- the embedded pieces are parsed here, as full expressions.

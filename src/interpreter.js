@@ -730,6 +730,10 @@ export class Interpreter {
   evaluate(node) {
     switch (node.type) {
       case 'Num': return node.value;
+
+      // Built once and cached on the node: a literal in a loop should not
+      // reparse its digits on every pass.
+      case 'DecLit': return node.dec ?? (node.dec = Decimal.parse(node.value, node.line));
       case 'Str': return node.value;
       case 'Bool': return node.value;
       case 'Nil': return null;
@@ -767,6 +771,9 @@ export class Interpreter {
         const u = unwrap(v);
         if (node.op === 'not') return retaint(!truthy(u), v);
         if (u instanceof Tensor) return retaint(u.map((x) => -x), v);
+        // Negating money is ordinary -- a refund, a credit, a reversal -- and
+        // it used to be a TypeError, which meant writing `dec("0") - amount`.
+        if (u instanceof Decimal) return retaint(u.negate(), v);
         return retaint(-this.asNumber(u, 'operand of -', node.line), v);
       }
 

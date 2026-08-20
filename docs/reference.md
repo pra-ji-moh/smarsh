@@ -193,6 +193,25 @@ pedag eval "<source>"
 `BudgetError` `RedefineError` `RestoreError` `ImportError` `SchemaError`
 `DeviceError` `MemoryError` `StepLimitError` `ControlFlowError`
 
+## Exact numbers
+
+`19.99d` is a decimal literal: the digits are read from the source and never
+pass through a float, which is why `dec` otherwise takes a string —
+`dec(0.1)` would have lost the value before `dec` saw it. `2d` is a whole
+decimal. An exponent cannot carry the suffix, so `1e3d` is refused: the value
+would have come through a float to get there.
+
+`d` is only a suffix immediately after digits and not followed by more of a
+name, so `d`, `data` and `dozen` remain ordinary identifiers.
+
+| | |
+|---|---|
+| `-amount` | negates a decimal |
+| `amount * 3` | a whole number is allowed |
+| `amount + 0.1` | refused: a float near exact arithmetic |
+| `total.div(3d, 2)` | division states its scale, rounding half to even |
+| `dec("19.99")` | still works, and is what a computed string needs |
+
 ## Choices
 
 A `choice` is one type whose values are exactly one of a fixed set of variants.

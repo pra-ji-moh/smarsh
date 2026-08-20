@@ -118,6 +118,30 @@ export function tokenize(source) {
         if (isDigit(source[i])) { while (i < n && isDigit(source[i])) i++; }
         else i = save;
       }
+      // `19.99d` is a decimal literal. The digits go straight to `dec` as
+      // written: they are never turned into a float first, which is the whole
+      // point -- `dec(0.1)` would already have lost the value before `dec` saw
+      // it, and that is why `dec` takes a string.
+      //
+      // Money is the language's flagship type and it had no literal at all, so
+      // every amount in a program was `dec("19.99")`: more to type, more to get
+      // wrong, and more tokens for a program generating it.
+      // `i + 1 >= n` is not redundant: `isIdentPart(undefined)` is true,
+      // because the regex stringifies it to "undefined". Without the bound
+      // check, a literal at the very end of the input -- `let a = 19.99d` with
+      // no trailing newline, or the inside of `"${4.20d}"` -- was not one.
+      if (source[i] === 'd' && (i + 1 >= n || !isIdentPart(source[i + 1]))) {
+        const digits = source.slice(start, i);
+        if (/[eE]/.test(digits)) {
+          throw pedagError('SyntaxError',
+            `\`${digits}d\` is not a decimal literal; exponents are for \`num\``, line)
+            .help('write the digits out, or use `dec("...")`');
+        }
+        i++;
+        push('dec', digits, start);
+        continue;
+      }
+
       const text = source.slice(start, i);
       const value = Number(text);
       // An integer literal past 2^53 cannot be held exactly by a `num`, and
