@@ -190,8 +190,12 @@ not been done.
   bites, which is a forgotten variant.
 - **No subtyping, no interfaces, no traits.**
 - **Local inference only.** No Hindley-Milner, no inference across statements.
-- **Capabilities are not in the type system.** They are checked dynamically and
-  by a separate static pass; a function's type does not mention its effects.
+- **Capabilities are not in the type system.** `pedag check` now reports a
+  function that uses authority it did not declare (E0406), so the common case
+  is caught before the program runs — but it works off direct calls to a
+  name, not off types. A call through a value, a method on an object, or a
+  capability held inside a `using` block is invisible to it, and a function's
+  type still does not mention its effects.
 
 ---
 

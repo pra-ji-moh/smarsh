@@ -51,7 +51,11 @@ grounded {
 print("")
 print("== the boundary is refused without the capability ========")
 
+// pedag-allow: undeclared capability  (deliberate -- this is the refusal being shown)
 fn sneaky() {
+  // No `needs ffi`, so the boundary is closed to it. `pedag check` says so
+  // before the program runs; the suppression above keeps this file's own
+  // check clean while the demonstration still fails at run time.
   return foreign("node:fs")
 }
 

@@ -46,6 +46,24 @@ function builtinNames() {
   return names;
 }
 
+function builtinNeeds() {
+  const interp = new Interpreter({ out: () => {} });
+  const needs = new Map();
+  for (const [name, slot] of interp.prelude.vars) {
+    const v = slot.value;
+    if (v && Array.isArray(v.needs) && v.needs.length > 0) needs.set(name, v.needs);
+  }
+  interp.devices.shutdown();
+  return needs;
+}
+
+const CODE_FOR_FINDING = {
+  race: 'E0404',
+  'inexhaustive match': 'E0605',
+  'control flow': 'E0604',
+  'undeclared capability': 'E0406',
+};
+
 export function runFile(file, { seed = 0, caps = [], trials = 60, quiet = true } = {}) {
   const source = fs.readFileSync(file, 'utf8');
   const relative = path.relative(process.cwd(), file) || path.basename(file);
@@ -65,10 +83,10 @@ export function runFile(file, { seed = 0, caps = [], trials = 60, quiet = true }
   // one function should not hide a passing test in another.
   result.static = [
     ...typecheck(program, { builtins: builtinNames() }),
-    ...analyze(program).map((f) => ({
+    ...analyze(program, { builtinNeeds: builtinNeeds() }).map((f) => ({
       message: f.message,
       span: f.span,
-      code: f.kind === 'race' ? 'E0404' : f.kind === 'inexhaustive match' ? 'E0605' : 'E0604',
+      code: CODE_FOR_FINDING[f.kind] ?? 'E0604',
       helps: f.hint ? [f.hint] : [],
     })),
   ];

@@ -37,6 +37,7 @@ export const CODES = {
   E0403: 'provenance rule violated',
   E0404: 'agent isolation violated',
   E0405: 'budget exhausted',
+  E0406: 'authority used but not declared',
   E0501: 'redefinition refused',
   E0502: 'module could not be loaded',
   E0503: 'schema mismatch',
@@ -176,6 +177,29 @@ declared by more than one choice.`,
 \`requires\` is checked on the way in, \`ensures\` on the way out with \`result\`
 bound. \`pedag prove\` generates inputs against these same contracts and reports
 counterexamples, so a contract is a specification and a test suite at once.`,
+
+  E0406: `A function uses authority it did not declare.
+
+    fn save(t) { write("out.txt", t) }          // error: uses \`fs\`
+    fn save(t) needs fs { write("out.txt", t) } // fine
+
+Capabilities are checked at the boundary of every call, so to call something
+that declares \`needs fs\` the calling frame must hold \`fs\` itself. That is
+enforced when the call happens -- which meant a branch reaching the filesystem
+said nothing at all until something ran it.
+
+It is decidable in advance. A builtin knows what it needs, a function declares
+what it holds, and the requirement travels to the caller: everything a function
+calls directly, minus what it declared, is what it is missing.
+
+The point of declaring it is that reading a signature tells you the worst a
+function can do. One that quietly uses more than it says is what makes
+signatures worth nothing.
+
+The check stays quiet wherever it cannot be sure -- calls through a value,
+methods on an object, names rebound locally, anything inside a \`using\` block,
+which is where authority is deliberately held without being declared, and the
+top level, which holds whatever --grant gave it.`,
 
   E0501: `A redefinition was refused.
 

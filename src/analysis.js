@@ -198,14 +198,131 @@ function exhaustivenessFindings(program) {
   return findings;
 }
 
+// Does a function declare the authority it actually uses?
+//
+// Capabilities are checked at run time, at the boundary of every call: to call
+// something that declares `needs fs`, the calling frame must itself hold `fs`.
+// That is enforced, and it was enforced only when the line ran -- so a branch
+// that reached the filesystem, in code nobody executed during review, said
+// nothing until it did.
+//
+// It is decidable in advance. A builtin knows what it needs, a declared
+// function says so in its signature, and requirements travel to the caller. So
+// for each function: everything it calls directly, minus what it declared, is
+// what it is missing.
+//
+// Deliberately quiet where it cannot be sure -- the same rule as the rest of
+// this file:
+//
+//   * only direct calls to a name. A call through a value, or a method on an
+//     object, could be anything.
+//   * nothing inside a `using` block, which is exactly where a capability is
+//     held that the signature does not mention.
+//   * nothing where the name has been rebound locally, since it is then not
+//     the builtin or the function this pass thinks it is.
+//   * the top level is exempt. It holds whatever `--grant` gave it, which is
+//     not knowable from the source.
+//
+// It does not need a fixpoint. Each function is measured against what its
+// callees *declare*, not against what they use -- and a callee that uses more
+// than it declares is reported in its own right.
+function capabilityFindings(program, builtinNeeds) {
+  if (!builtinNeeds || builtinNeeds.size === 0) return [];
+
+  // Every function declared anywhere, by name, so a call can be resolved.
+  const declaredFns = new Map();
+  walk(program, (n) => {
+    if (n.type === 'FnDecl') declaredFns.set(n.fn.name, n.fn);
+  });
+
+  const findings = [];
+
+  // Names bound as parameters or locals shadow a builtin, so a call to one of
+  // those is not a call to what this pass would otherwise assume.
+  const shadowsIn = (fn) => {
+    const names = new Set(fn.params);
+    walk(fn.body, (n) => {
+      if (n.type === 'Declare') names.add(n.name);
+      else if (n.type === 'For') names.add(n.name);
+      else if (n.type === 'Attempt') names.add(n.name);
+    });
+    return names;
+  };
+
+  const check = (fn) => {
+    const declared = new Set(fn.needs ?? []);
+    const shadowed = shadowsIn(fn);
+    // capability -> the first line that wanted it, and who wanted it
+    const wanted = new Map();
+
+    const scan = (node, underUsing) => {
+      if (node === null || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        for (const child of node) scan(child, underUsing);
+        return;
+      }
+      // A nested function declares its own authority and is checked on its own.
+      if (node.type === 'Fn' || node.type === 'FnDecl' || node.type === 'AgentDecl') return;
+      // Inside `using`, a capability is held that the signature does not name.
+      const inUsing = underUsing || node.type === 'Using';
+
+      if (node.type === 'Call' && node.callee && node.callee.type === 'Ident' && !inUsing) {
+        const name = node.callee.name;
+        if (!shadowed.has(name)) {
+          const needs = builtinNeeds.get(name)
+            ?? (declaredFns.has(name) ? (declaredFns.get(name).needs ?? []) : null);
+          if (needs) {
+            for (const cap of needs) {
+              if (!declared.has(cap) && !wanted.has(cap)) {
+                wanted.set(cap, { line: node.line, span: node.span, via: name });
+              }
+            }
+          }
+        }
+      }
+
+      for (const [key, child] of Object.entries(node)) {
+        if (CHILD_KEYS.has(key) && typeof child !== 'object') continue;
+        scan(child, inUsing);
+      }
+    };
+
+    scan(fn.body, false);
+
+    for (const [cap, where] of wanted) {
+      findings.push({
+        line: where.line,
+        span: where.span,
+        kind: 'undeclared capability',
+        message: `\`${fn.name}\` uses \`${cap}\` through \`${where.via}\`, but does not declare it`,
+        hint: `write \`fn ${fn.name}(...) needs ${[...declared, cap].join(', ')}\`, `
+          + 'so that reading the signature tells you what it can reach',
+      });
+    }
+  };
+
+  for (const fn of declaredFns.values()) check(fn);
+  // Function expressions declare and are checked the same way.
+  walk(program, (n) => {
+    if (n.type === 'Fn' && !declaredFns.has(n.name)) check(n);
+  });
+
+  findings.sort((a, b) => a.line - b.line);
+  return findings;
+}
+
 function baseIdentifier(node) {
   let cur = node;
   while (cur && (cur.type === 'Index' || cur.type === 'Member')) cur = cur.object;
   return cur && cur.type === 'Ident' ? cur.name : null;
 }
 
-export function analyze(program) {
-  const findings = [...controlFlowFindings(program), ...exhaustivenessFindings(program)];
+export function analyze(program, { builtinNeeds = null } = {}) {
+  const findings = [
+    ...controlFlowFindings(program),
+    ...exhaustivenessFindings(program),
+    ...capabilityFindings(program, builtinNeeds),
+  ];
 
   walk(program, (node) => {
     if (node.type === 'Fork') {

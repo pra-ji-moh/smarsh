@@ -126,8 +126,11 @@ fn save_note(text) needs fs {
   return true
 }
 
+// pedag-allow: undeclared capability  (deliberate -- this is the refusal being shown)
 fn sneaky(text) {
-  // declares nothing, so it holds nothing -- even if its caller held fs
+  // declares nothing, so it holds nothing -- even if its caller held fs.
+  // `pedag check` reports this before the program runs; the suppression above
+  // is what keeps the demonstration from failing its own file's check.
   return write("note.txt", text)
 }
 

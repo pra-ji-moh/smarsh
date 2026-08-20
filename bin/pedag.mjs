@@ -102,6 +102,14 @@ function readSource(file) {
   return { full, source: fs.readFileSync(full, 'utf8') };
 }
 
+// Static findings carry a kind; this is where each one gets its number.
+const CODE_FOR_FINDING = {
+  race: 'E0404',
+  'inexhaustive match': 'E0605',
+  'control flow': 'E0604',
+  'undeclared capability': 'E0406',
+};
+
 const COLOUR = process.stderr.isTTY && !process.env.NO_COLOR;
 
 function reportError(e, source, file) {
@@ -349,6 +357,19 @@ function builtinNames() {
   return names;
 }
 
+// What each builtin costs in authority, taken from a real interpreter rather
+// than a duplicated list -- the same reason `builtinNames` is built this way.
+function builtinNeeds() {
+  const interp = new Interpreter({ out: () => {} });
+  const needs = new Map();
+  for (const [name, slot] of interp.prelude.vars) {
+    const v = slot.value;
+    if (v && Array.isArray(v.needs) && v.needs.length > 0) needs.set(name, v.needs);
+  }
+  interp.devices.shutdown();
+  return needs;
+}
+
 function diagnose(source, file) {
   // Every syntax error, not just the first. If the file does not parse there is
   // nothing further worth saying about it.
@@ -370,9 +391,9 @@ function diagnose(source, file) {
     d.kind = 'type';
     return d;
   });
-  for (const f of analyze(program)) {
+  for (const f of analyze(program, { builtinNeeds: builtinNeeds() })) {
     out.push(Object.assign(new Diagnostic({
-      code: f.kind === 'race' ? 'E0404' : f.kind === 'inexhaustive match' ? 'E0605' : 'E0604',
+      code: CODE_FOR_FINDING[f.kind] ?? 'E0604',
       message: f.message,
       span: f.span,
       file,
