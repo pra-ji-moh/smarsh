@@ -36,7 +36,7 @@
 import { pedagError, ReturnSignal, BreakSignal, ContinueSignal } from './errors.js';
 import {
   PedagFunction, NativeFunction, Tainted,
-  unwrap, retaint, truthy, freezeDeep, stringify, withArticle, assertMutable,
+  unwrap, retaint, retaintFrom, truthy, freezeDeep, stringify, withArticle, assertMutable,
 } from './values.js';
 import { Tensor } from './tensor.js';
 import { Env, versionOf } from './env.js';
@@ -169,9 +169,9 @@ function buildExpr(node) {
       return (itp) => {
         const v = itp.guard(operand(itp), line, 'operand');
         const u = unwrap(v);
-        if (isNot) return retaint(!truthy(u), v);
-        if (u instanceof Tensor) return retaint(u.map((x) => -x), v);
-        return retaint(-itp.asNumber(u, 'operand of -', line), v);
+        if (isNot) return retaintFrom(!truthy(u), v);
+        if (u instanceof Tensor) return retaintFrom(u.map((x) => -x), v);
+        return retaintFrom(-itp.asNumber(u, 'operand of -', line), v);
       };
     }
 
@@ -184,13 +184,16 @@ function buildExpr(node) {
       return (itp) => {
         const obj = itp.guard(object(itp), line, 'value');
         const m = itp.member(unwrap(obj), name, line);
-        if (obj instanceof Tainted && m instanceof NativeFunction) {
+        // Nothing to carry: the overwhelmingly common case, settled without a
+        // call.
+        if (!(obj instanceof Tainted)) return m;
+        if (m instanceof NativeFunction) {
           const wrapped = new NativeFunction(m.name, m.arity,
             (args, l, i) => retaint(m.fn(args, l, i), obj), m.needs);
           wrapped.transparent = m.transparent;
           return wrapped;
         }
-        return retaint(m, obj);
+        return retaintFrom(m, obj);
       };
     }
 
@@ -208,7 +211,13 @@ function buildExpr(node) {
           idx[i] = v;
           raw[i] = unwrap(v);
         }
-        return retaint(itp.index(unwrap(obj), raw, line), obj, ...idx);
+        // Only build the label union when one of the parts actually has labels.
+        const value = itp.index(unwrap(obj), raw, line);
+        if (obj instanceof Tainted) return retaint(value, obj, ...idx);
+        for (let i = 0; i < n; i++) {
+          if (idx[i] instanceof Tainted) return retaint(value, obj, ...idx);
+        }
+        return value;
       };
     }
 

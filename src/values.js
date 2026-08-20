@@ -121,13 +121,29 @@ export function labelsOf(v) {
 }
 
 // Re-attach the union of all source labels to a freshly computed value.
+//
+// Almost nothing is tainted, so the common answer is "give it back unchanged" --
+// and reaching that answer used to cost a rest-argument array and a Set. The
+// sources are scanned first and nothing is allocated unless a label is actually
+// going to be attached.
 export function retaint(result, ...sources) {
+  let any = false;
+  for (let i = 0; i < sources.length; i++) {
+    if (sources[i] instanceof Tainted) { any = true; break; }
+  }
+  if (!any) return result;
   const labels = new Set();
   for (const s of sources) {
     if (s instanceof Tainted) for (const l of s.labels) labels.add(l);
   }
-  if (labels.size === 0) return result;
   return new Tainted(result, labels);
+}
+
+// The one-source case, without the rest array. Member access and unary
+// operators take exactly one, and they are on every path through a program.
+export function retaintFrom(result, source) {
+  if (!(source instanceof Tainted)) return result;
+  return new Tainted(result, source.labels);
 }
 
 // ---------------------------------------------------------------------------

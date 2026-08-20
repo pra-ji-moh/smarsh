@@ -344,3 +344,61 @@ test('a recursive contracted function keeps each depth separate', () => {
     'print(down(10))',
   ]), ['55', '6', '55']);
 });
+
+// ---------------------------------------------------------------------------
+// labels, on the paths that now skip the label machinery
+//
+// Member access, indexing and unary operators return early when nothing is
+// tainted, which is almost always. The early return is only correct if every
+// case that *is* tainted still goes the long way.
+// ---------------------------------------------------------------------------
+
+test('a label survives member access', () => {
+  assert.deepEqual(bothEngines([
+    'let u = untrusted("abc")',
+    'print(labels(u.upper()))',
+    'print(labels(u.len()))',
+    'let clean = "abc"',
+    'print(labels(clean.upper()))',
+  ]), ['["untrusted"]', '["untrusted"]', '[]']);
+});
+
+test('a label survives indexing, from either side', () => {
+  assert.deepEqual(bothEngines([
+    'let xs = [untrusted("a"), "b"]',
+    'print(labels(xs[0]))',
+    'print(labels(xs[1]))',
+    'var clean = ["a", "b"]',
+    'let i = untrusted(1)',
+    'print(labels(clean[i]))',
+  ]), ['["untrusted"]', '[]', '["untrusted"]']);
+});
+
+test('a label survives a unary operator', () => {
+  assert.deepEqual(bothEngines([
+    'let n = untrusted(5)',
+    'print(labels(0 - n))',
+    'print(labels(not n))',
+    'print(labels(0 - 5))',
+  ]), ['["untrusted"]', '["untrusted"]', '[]']);
+});
+
+test('a grounded block still refuses a value that came through a method', () => {
+  const interp = new Interpreter({ out: () => {}, seed: 1 });
+  try {
+    assert.throws(
+      () => interp.run('let u = untrusted("abc")\ngrounded { print(u.upper()) }', 't.pedag'),
+      (e) => e.kind === 'TaintError',
+    );
+  } finally {
+    interp.devices.shutdown();
+  }
+});
+
+test('two labels from different sources are both carried', () => {
+  assert.deepEqual(bothEngines([
+    'let a = untrusted("x")',
+    'let b = ungrounded("y")',
+    'print(labels(a + b))',
+  ]), ["[\"untrusted\", \"ungrounded\"]"]);
+});
