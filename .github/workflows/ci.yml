@@ -60,6 +60,22 @@ jobs:
           printf 'import "std/math" as math\nprint(math.mean([2, 4, 6]))\n' > hello.pedag
           test "$(npx pedag run hello.pedag)" = "4"
 
+          # The README's headline claim is that an auditor can check a record
+          # without trusting this project. That is only true if the verifier
+          # actually ships -- it did not: `tools/` was missing from the package
+          # file list, exactly as `std/` once was. So the whole auditor workflow
+          # runs here, against the installed package only.
+          npx pedag keygen -o audit.pem
+          npx pedag run node_modules/pedag/examples/demo.pedag --grant fs --principal compliance --audit run.json --key audit.pem
+          npx pedag-verify run.json audit.pem.pub | grep -q INTACT
+
+          # And it has to reject a tampered one, or it proves nothing.
+          node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('run.json','utf8'));m.events[0].event='data.release_allowed';fs.writeFileSync('tampered.json',JSON.stringify(m));"
+          if npx pedag-verify tampered.json audit.pem.pub; then
+            echo "the shipped verifier accepted a tampered record"
+            exit 1
+          fi
+
       - name: The standard library's own tests
         run: node bin/pedag.mjs test std/
 

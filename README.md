@@ -65,10 +65,17 @@ Four properties make that worth something to a reviewer:
   evidence.
 
 ```bash
+npm install -g pedag
+
 pedag keygen -o compliance.pem                 # an identity, kept
 pedag run app.pedag --audit run.json --key compliance.pem
-node tools/verify-manifest.mjs run.json compliance.pem.pub
+pedag-verify run.json compliance.pem.pub       # the 98-line one, no trust required
 ```
+
+`pedag-verify` is a separate entry point on purpose: an auditor checking a
+record should never have to install or learn a language. CI runs that exact
+sequence against the packaged build, and then feeds it a tampered record to
+confirm it says no.
 
 Without `--key` the record is signed by a throwaway key, which proves it was not
 edited but says nothing about who produced it — and the tool says so rather than
@@ -129,7 +136,7 @@ is [tested](tests/demo.test.mjs), not asserted: seven edits an interested party
 would actually want to make, including deleting the inconvenient event and
 attaching the record to a different program.
 
-Zero dependencies, Node 18 or later. 531 passing tests over 94% of the lines in
+Zero dependencies, Node 18 or later. 543 passing tests over 94% of the lines in
 `src/`.
 
 > **Status: 0.3.0, pre-1.0, no production users, no third-party audit.** Read
