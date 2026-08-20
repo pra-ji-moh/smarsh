@@ -56,7 +56,7 @@ export class AgentRef {
       // from anywhere in the language.
       state: nf('state', 1, (a, line) => {
         const key = String(a[0] && a[0].value !== undefined && a[0].labels ? a[0].value : a[0]);
-        const slot = this.env.vars.get(key);
+        const slot = this.env.own(key);
         if (!slot) throw pedagError('NameError', `agent ${this.template.name} has no state '${key}'`, line);
         return slot.value;
       }),

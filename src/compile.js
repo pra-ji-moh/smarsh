@@ -689,7 +689,7 @@ function buildFor(node) {
     // The counted path: no list is built, the loop counts. Only taken when the
     // name `range` still means the builtin.
     let counted = null;
-    if (rangeArgs !== null && itp.env.slot('range') === itp.prelude.vars.get('range')) {
+    if (rangeArgs !== null && itp.env.slot('range') === itp.prelude.own('range')) {
       const a = new Array(rangeArgs.length);
       for (let i = 0; i < rangeArgs.length; i++) a[i] = unwrap(rangeArgs[i](itp));
       // Exactly the builtin's validation, so a bad call fails identically.
@@ -707,7 +707,7 @@ function buildFor(node) {
     if (!fresh) {
       shared = new Env(itp.env);
       shared.declare(name, null, false, line);
-      slot = shared.vars.get(name);
+      slot = shared.own(name);
     }
     const loop = contracted ? itp.beginLoopContracts(node) : null;
 

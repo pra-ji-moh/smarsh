@@ -199,6 +199,7 @@ export class Interpreter {
   // One unit of work. Charged per statement AND per loop iteration -- a loop
   // with an empty body still costs something, or `while true { }` would spin
   // forever underneath a budget that never noticed.
+  // The fast half is inlined at the compiled call sites; this is what is left.
   tick(node) {
     if (++this.steps > this.stepLimit) {
       throw pedagError('StepLimitError', `this call ran past ${this.stepLimit} steps and was abandoned`, node.line);
@@ -354,7 +355,7 @@ export class Interpreter {
         if (!fresh) {
           shared = new Env(this.env);
           shared.declare(node.name, null, false, node.line);
-          slot = shared.vars.get(node.name);
+          slot = shared.own(node.name);
         }
         const loop = this.beginLoopContracts(node);
         for (const item of seq) {
@@ -1004,7 +1005,7 @@ export class Interpreter {
     }
 
     if (callee instanceof NativeFunction) {
-      this.requireCaps(callee.needs, callee.name, line);
+      if (callee.needs.length !== 0) this.requireCaps(callee.needs, callee.name, line);
       if (callee.arity >= 0 && args.length !== callee.arity) {
         throw pedagError('ArityError',
           `${callee.name} takes ${callee.arity} argument${callee.arity === 1 ? '' : 's'}, got ${args.length}`, line);
@@ -1029,15 +1030,24 @@ export class Interpreter {
 
     // Capability check, then attenuation: inside the body only what was
     // declared is held, regardless of what the caller had.
-    this.requireCaps(decl.needs, callee.name, line);
+    // Nearly every function declares nothing, and `requireCaps` returns
+    // immediately for those -- but a call is not free when it happens on every
+    // invocation of every function in the program.
+    if (decl.needs.length !== 0) this.requireCaps(decl.needs, callee.name, line);
 
     if (this.callDepth >= this.maxCallDepth) {
       throw pedagError('RecursionError', `call stack went deeper than ${this.maxCallDepth} frames`, line);
     }
 
     const env = new Env(callee.closure);
-    for (let i = 0; i < decl.params.length; i++) {
-      env.declare(decl.params[i], args[i], false, line);
+    // Built rather than declared into, one binding per parameter, sharing the
+    // declaration's names array and leaving the epoch alone. See Env.adoptFrame
+    // -- a frame nothing has looked through yet cannot invalidate a cache.
+    const arity = decl.params.length;
+    if (arity !== 0) {
+      const slots = new Array(arity);
+      for (let i = 0; i < arity; i++) slots[i] = { value: args[i], mutable: false };
+      env.adoptFrame(decl.params, slots);
     }
 
     const savedCaps = this.caps;
@@ -1309,7 +1319,7 @@ export class Interpreter {
 
     let count = 0;
     for (const [name, slot] of exported) {
-      if (this.env.vars.has(name)) {
+      if (this.env.has(name)) {
         throw pedagError('ImportError',
           `'${node.path}' exports '${name}', which is already declared here; import it 'as' a name instead`, node.line);
       }
