@@ -13,7 +13,7 @@ import {
   unwrap, retaint, stringify, typeName, withArticle, truthy, countTokens, freezeDeep, assertMutable,
 } from './values.js';
 import { installBuiltins } from './builtins.js';
-import { runBody, runProgram } from './compile.js';
+import { runBody, runProgram, compileExpr } from './compile.js';
 import { parse } from './parser.js';
 import { Cipher, Secret, heAdd, heAddPlain, heMulPlain } from './crypto.js';
 import { Liquid } from './temporal.js';
@@ -263,6 +263,17 @@ export class Interpreter {
   // Kept in step with the step limit and with whether any budget is open.
   retuneTick() {
     this.tickCheck = this.budgets.length === 0 ? this._stepLimit : -1;
+  }
+
+// A contract is an expression, and it was the last one still being walked.
+  //
+  // `requires`, `ensures`, record invariants and loop invariants all ran on the
+  // tree-walking evaluator regardless of which engine the program was using --
+  // 18% of a contract-heavy workload sat in `evaluate` for that reason alone.
+  // They compile like anything else now, cached on the node, so a contract
+  // checked on every call is compiled once.
+  contractValue(expr) {
+    return this.compiled ? compileExpr(expr)(this) : this.evaluate(expr);
   }
 
   tick(node) {
@@ -1303,7 +1314,7 @@ export class Interpreter {
         this.trace.contracts += 1;
         let held;
         try {
-          held = truthy(this.evaluate(c.expr));
+          held = truthy(this.contractValue(c.expr));
         } catch (e) {
           // A precondition that cannot even be evaluated for this input means
           // the input is outside the stated domain, not that the body is wrong.
@@ -1349,7 +1360,7 @@ export class Interpreter {
         try {
           for (const c of decl.ensures) {
             this.trace.contracts += 1;
-            if (!truthy(this.evaluate(c.expr))) {
+            if (!truthy(this.contractValue(c.expr))) {
               const err = pedagError('ContractError',
                 `${callee.name} promised ${c.src}, but returned ${stringify(result, 1)}`, decl.line);
               err.phase = 'post';
@@ -1704,7 +1715,7 @@ export class Interpreter {
     try {
       for (const c of type.invariants) {
         this.trace.contracts += 1;
-        if (!truthy(this.evaluate(c.expr))) {
+        if (!truthy(this.contractValue(c.expr))) {
           throw pedagError('ContractError',
             `\`${type.name}\` requires \`${c.src}\`, and ${stringify(record, 1)} does not satisfy it`, line)
             .withLabel('invariant broken');
@@ -1769,7 +1780,7 @@ export class Interpreter {
     if (!node.invariants || node.invariants.length === 0) return;
     for (const c of node.invariants) {
       this.trace.contracts += 1;
-      if (!truthy(this.evaluate(c.expr))) {
+      if (!truthy(this.contractValue(c.expr))) {
         throw pedagError('LoopError',
           `the loop invariant \`${c.src}\` does not hold ${when}`, c.line)
           .at(c.expr.span)
@@ -2166,6 +2177,14 @@ export class Interpreter {
 
   memberOf(obj, name, line) {
     const nf = (n, arity, fn) => new NativeFunction(n, arity, fn);
+
+    // A record's fields, first. `p.x` otherwise fell through every branch below
+    // to `pedagMembers`, which builds an object holding every field and a bound
+    // `with` -- allocated and thrown away on each field access.
+    if (obj instanceof RecordValue) {
+      const i = obj.type.fields.indexOf(name);
+      if (i !== -1) return obj.values[i];
+    }
 
     if (obj instanceof Tensor) {
       switch (name) {

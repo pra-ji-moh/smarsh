@@ -80,15 +80,23 @@ export function freezeDeep(value, seen = null) {
   // a cycle-guard Set to discover that. `let d = g + i` in a loop body called
   // this once per pass and the Set was the whole cost.
   if (v === null || typeof v !== 'object') return value;
+
+  // Only lists and maps hold anything that can be frozen. Everything else is
+  // already immutable by construction or is a live handle -- and the cycle
+  // guard was being allocated before finding that out, once per `let` binding
+  // a record, a tensor or a decimal.
+  const isList = Array.isArray(v);
+  const isMap = !isList && v instanceof Map;
+  if (!isList && !isMap) return value;
+
   if (seen === null) seen = new Set();
   else if (seen.has(v)) return value;
   seen.add(v);
+  FROZEN.add(v);
 
-  if (Array.isArray(v)) {
-    FROZEN.add(v);
+  if (isList) {
     for (const item of v) freezeDeep(item, seen);
-  } else if (v instanceof Map) {
-    FROZEN.add(v);
+  } else {
     for (const item of v.values()) freezeDeep(item, seen);
   }
   // Everything else is already immutable by construction (tensors, records,
