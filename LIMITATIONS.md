@@ -230,8 +230,15 @@ not been done.
   memory some other way — deep recursion building closures, one very long
   string, a tensor allocated in a single step — is not covered. Outside a
   `budget` block there is no ceiling at all.
-- **Only confidentiality labels.** The decentralized label model has integrity
-  labels too; Pēdāg implements the confidentiality half.
+- **The integrity half only sees labelled values.** `vouched_by` refuses a value
+  that lost its backing, which is the case a boolean flag cannot catch. It does
+  not refuse a value that never carried a label at all — a plain literal has no
+  vouch and is not meant to. For "this came from outside and has not been
+  checked", the block is `grounded`, and the two are deliberately separate.
+- **A vouch is lost by any arithmetic with an unlabelled operand**, `x * 2`
+  included. That is the conservative direction and it is intended, but it means
+  code that mixes vouched and plain data needs an explicit `endorse` or
+  `retract` at each point rather than carrying backing through silently.
 - **No label inference or polymorphism.** Every label is written by hand.
 - **Static taint is a may-analysis** with crude interprocedural summaries. It
   errs toward reporting, which is the right direction, but it will flag

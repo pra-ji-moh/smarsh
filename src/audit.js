@@ -96,6 +96,17 @@ export function buildManifest(interp, {
       line: at(d.line),
     });
   }
+  // The other direction. A declassification is a promise to be careful with
+  // someone's data; an endorsement is a promise that data is worth acting on.
+  // A reviewer wants both, and wants them told apart.
+  for (const e of t.endorsements ?? []) {
+    events.push({
+      event: e.withdrawn ? 'data.vouch_withdrawn' : 'data.endorsed',
+      principal: e.owner ?? null,
+      reason: e.reason,
+      line: at(e.line),
+    });
+  }
   for (const l of t.laundered ?? []) {
     events.push({
       event: 'taint.cleared',
@@ -166,6 +177,9 @@ export function buildManifest(interp, {
       releases_allowed: t.crossings.filter((c) => c.allowed).length,
       releases_refused: t.crossings.filter((c) => !c.allowed).length,
       declassifications: (t.declassifications ?? []).length,
+      endorsements: (t.endorsements ?? []).filter((e) => !e.withdrawn).length,
+      vouches_withdrawn: (t.endorsements ?? []).filter((e) => e.withdrawn).length,
+      vouches_refused: t.crossings.filter((c) => c.kind === 'vouch' && !c.allowed).length,
       taint_cleared: (t.laundered ?? []).length,
       foreign_modules: t.foreignModules ?? [],
       // What the boundary was allowed to reach, not only what it did.
@@ -234,17 +248,24 @@ export function verifyManifest(manifest) {
 export function summarise(manifest) {
   const lines = [];
   const a = manifest.authority;
+  const principals = manifest.replay?.principals ?? [];
   const d = manifest.data;
 
   lines.push(`run of ${manifest.program.file}  (${manifest.runtime}, outcome: ${manifest.outcome})`);
   lines.push(`  program sha256   ${manifest.program.sha256.slice(0, 32)}...`);
   lines.push(`  replay with      --seed ${manifest.replay.seed}`
-    + (a.granted.length ? ` --grant ${a.granted.join(',')}` : ' (no capabilities)'));
+    + (a.granted.length ? ` --grant ${a.granted.join(',')}` : ' (no capabilities)')
+    + (principals.length ? ` ${principals.map((n) => `--principal ${n}`).join(' ')}` : ''));
   lines.push('');
 
   lines.push('  authority');
   lines.push(`    granted        ${a.granted.length ? a.granted.join(', ') : 'none'}`);
   lines.push(`    actually used  ${a.exercised.length ? a.exercised.join(', ') : 'none'}`);
+  // Whose name the run was empowered to act in. Without this the events below
+  // read as `data.endorsed alice` with nothing saying the run could do that.
+  if (principals.length) {
+    lines.push(`    acted for      ${principals.join(', ')}   <- could declassify and endorse as these`);
+  }
   if (a.granted_but_unused.length) {
     lines.push(`    never used     ${a.granted_but_unused.join(', ')}   <- can be withdrawn`);
   }
@@ -256,6 +277,12 @@ export function summarise(manifest) {
   lines.push('  data');
   lines.push(`    released       ${d.releases_allowed} permitted, ${d.releases_refused} refused`);
   lines.push(`    declassified   ${d.declassifications} (each with a stated reason, below)`);
+  if (d.endorsements || d.vouches_withdrawn || d.vouches_refused) {
+    // Endorsement is the direction that makes untrusted data actionable, so it
+    // is worth a line of its own rather than a footnote under declassification.
+    lines.push(`    endorsed       ${d.endorsements ?? 0} vouched for, `
+      + `${d.vouches_withdrawn ?? 0} withdrawn, ${d.vouches_refused ?? 0} refused for want of backing`);
+  }
   lines.push(`    taint cleared  ${d.taint_cleared}`);
   if (d.foreign_modules.length) {
     lines.push(`    left the runtime via ${d.foreign_modules.join(', ')}`);

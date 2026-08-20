@@ -417,6 +417,7 @@ function statement(node, p, prefix = '') {
     case 'Using': return wrap(p, `using ${expr(node.grant)} {`, node.body.body);
     case 'Authority': return wrap(p, `authority ${expr(node.who)} {`, node.body.body);
     case 'ReleaseTo': return wrap(p, `release_to ${expr(node.to)} {`, node.body.body);
+    case 'VouchedBy': return wrap(p, `vouched_by ${expr(node.by)} {`, node.body.body);
     case 'Block': return wrap(p, '{', node.body);
     case 'Grounded': return wrap(p, 'grounded {', node.body.body);
     case 'Atomic': return wrap(p, 'atomic {', node.body.body);

@@ -417,6 +417,16 @@ export class Parser {
       return { type: 'ReleaseTo', to, body, line };
     }
 
+    // vouched_by "alice" { ... }  -- the dual. Code that will only act on what
+    // alice stands behind. Reading a labelled value alice does not vouch for is
+    // refused here, which is where a vouch lost by composition shows up.
+    if (this.check('ident', 'vouched_by') && this.peek(1).type !== 'op') {
+      this.advance();
+      const by = this.expression();
+      const body = this.block();
+      return { type: 'VouchedBy', by, body, line };
+    }
+
     // grounded { ... }  -- no ungrounded/untrusted value may be read inside
     if (this.matchSoft('grounded', 'brace')) {
       const body = this.block();

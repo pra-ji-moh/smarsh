@@ -17,7 +17,7 @@ import { snapshot, restore } from './snapshot.js';
 import { Schema, negotiate, adapt, migrate } from './schema.js';
 import { loadForeign } from './ffi.js';
 import { Decimal, expectDec } from './decimal.js';
-import { Labelled, Label, Policy, requireAuthority } from './labels.js';
+import { Labelled, Label, Policy, Trust, requireAuthority } from './labels.js';
 import { Grant, Revoker, expectGrant } from './grants.js';
 import { PedagFunction } from './values.js';
 import {
@@ -367,6 +367,55 @@ export function installBuiltins(interp) {
     });
     const remaining = a[0].label.without(owner);
     return remaining.isEmpty ? a[0].value : new Labelled(a[0].value, remaining);
+  }, { transparent: true });
+
+  // --- the integrity half ---------------------------------------------------
+
+  // The dual of classify, and the dual of the rule above it. Adding a vouch is
+  // the dangerous direction on this half -- it is how untrusted data becomes
+  // trusted -- so it is the one that costs authority. Alice can put alice's
+  // name behind a value. Nobody else can.
+  def('endorse', 3, (a, line) => {
+    const owner = stringify(unwrap(a[1]), 0);
+    const reason = unwrap(a[2]);
+    if (typeof reason !== 'string' || reason.trim() === '') {
+      throw pedagError('ValueError', 'endorse needs a non-empty reason', line);
+    }
+    requireAuthority(interp, owner, `vouching for a value as \`${owner}\``, line);
+    const before = a[0] instanceof Labelled ? a[0].label.toString() : '{}';
+    interp.trace.endorsements.push({ line, owner, reason, before });
+    return new Labelled(a[0], new Label([], [new Trust(owner, [])]));
+  }, { transparent: true });
+
+  // Withdrawing one. No authority needed: it can only make a program more
+  // careful. Recorded anyway, because a reviewer reading the manifest wants to
+  // know a vouch was given up on purpose rather than lost to composition.
+  def('retract', 3, (a, line) => {
+    const owner = stringify(unwrap(a[1]), 0);
+    const reason = unwrap(a[2]);
+    if (typeof reason !== 'string' || reason.trim() === '') {
+      throw pedagError('ValueError', 'retract needs a non-empty reason', line);
+    }
+    if (!(a[0] instanceof Labelled)) return a[0];
+    interp.trace.endorsements.push({
+      line, owner, reason, before: a[0].label.toString(), withdrawn: true,
+    });
+    const remaining = a[0].label.unvouched(owner);
+    return remaining.isEmpty ? a[0].value : new Labelled(a[0].value, remaining);
+  }, { transparent: true });
+
+  def('vouchers_of', 1, (a) => (a[0] instanceof Labelled ? a[0].label.vouchers : []),
+    { transparent: true });
+
+  def('writers_of', 1, (a) => {
+    if (!(a[0] instanceof Labelled)) return [];
+    const writers = a[0].label.writers();
+    return writers === null ? [] : [...writers].sort();
+  }, { transparent: true });
+
+  def('trusted_by', 2, (a) => {
+    const who = stringify(unwrap(a[1]), 0);
+    return a[0] instanceof Labelled ? a[0].label.trustedBy(who) : false;
   }, { transparent: true });
 
   def('acting_for', 0, () => [...interp.authority].sort());

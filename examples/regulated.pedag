@@ -93,6 +93,35 @@ authority "compliance" {
 }
 
 print("")
+print("== and the other half: whose word is behind it ============")
+
+// The model's assessment is a claim. A human reviewer can put the compliance
+// team's name behind it -- and only the compliance team can do that.
+authority "compliance" {
+  let assessment = model_assessment(raw)
+  let reviewed = endorse(assessment, "compliance", "reviewed by the duty officer")
+  print("   vouched for by: ${vouchers_of(reviewed)}")
+
+  // A block that will only act on what compliance stands behind.
+  vouched_by "compliance" {
+    print("   acted on:       a reviewed assessment")
+  }
+
+  // But a vouch does not survive contact with what nobody vouched for. Nothing
+  // here remembers to check; the concatenation drops it.
+  let embellished = reviewed + " (see attached)"
+  print("   after appending an unreviewed note: ${policy_of(embellished)}")
+
+  attempt {
+    vouched_by "compliance" {
+      print("   acting on it anyway: ${embellished}")
+    }
+  } rescue e {
+    print("   refused: ${e["message"]}")
+  }
+}
+
+print("")
 print("== the balance arithmetic is exact ========================")
 
 let charged = apply_fee(raw, dec("12.50"))

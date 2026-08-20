@@ -162,11 +162,34 @@ let pair = caretaker(grant("fs"))          // pair["grant"]; revoke(pair["revoke
 untrusted(v)   ungrounded(v)               // label a value
 grounded { }                               // refuses to read either label
 trust(v, "why")                            // remove labels; the reason is recorded
-classify(v, owner, [readers])              // an owner-scoped policy
+classify(v, owner, [readers])              // who may READ it
 release_to "party" { }                     // checked at the boundary
-authority "p" { declassify(v, "p", "why") }
+authority "p" { declassify(v, "p", "why") }   // weakening costs authority
+
+authority "p" { endorse(v, "p", "why") }   // whose word is BEHIND it
+vouched_by "p" { }                         // refuses what p does not back
+retract(v, "p", "why")                     // withdrawing costs nothing
+trusted_by(v, "p")  vouchers_of(v)  writers_of(v)
 region "eu" { }
 ```
+
+The two halves are mirrors, and the mirroring is the part to get right:
+
+|                     | `classify` (read) | `endorse` (write)   |
+|---------------------|-------------------|---------------------|
+| combining values    | keeps every owner | keeps only the owners on **both** sides |
+| needs `authority`   | to **weaken** it (`declassify`) | to **strengthen** it (`endorse`) |
+| an unlabelled value | unconstrained     | backed by nobody    |
+
+So `endorse(x, "alice", ...) + 5` is **no longer** vouched for by alice -- a
+literal is not something alice stood behind, and a vouch does not survive
+contact with anything she did not. That is deliberate, not a bug to work
+around. Where the mixing is intended, `endorse` the result again; the audit
+trail records every place you did. If the value simply does not need backing
+downstream, `retract` it, which claims nothing and costs no authority.
+
+A value that *lost* a vouch prints as `{~alice}` and is not the same as one
+that never had it (`{}`). The error tells you which.
 
 Capabilities: `fs clock crypto unaudited_crypto ffi net`. Granted with
 `--grant a,b`, principals with `--principal p`. `ffi` also needs

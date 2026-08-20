@@ -51,6 +51,20 @@ function run(source, caps = []) {
 // what it names must exist
 // ---------------------------------------------------------------------------
 
+// Every name the page shows being *called*, in one section of it. Matching call
+// syntax rather than backticked words is what makes this usable on a section
+// with prose in it: a builtin is a thing you call, and `endorse(v, ...)` says
+// so unambiguously where a backticked sentence does not.
+const calledIn = (heading, next) => {
+  const section = DOC.slice(DOC.indexOf(heading), DOC.indexOf(next));
+  assert.ok(section.length > 100, `the page lost its ${heading} section`);
+  const claimed = new Set();
+  // No space before the paren: the page writes calls as `endorse(v, ...)`, and
+  // allowing one would collect prose such as "to weaken it (`declassify`)".
+  for (const m of section.matchAll(/(^|[^.\w])([a-z_][a-z0-9_]*)\(/g)) claimed.add(m[2]);
+  return claimed;
+};
+
 test('every builtin the page names exists', () => {
   // Taken from the backticked runs of names in the Builtins section, which is
   // where a model will look for what it may call.
@@ -73,6 +87,43 @@ test('every builtin the page names exists', () => {
 
   const missing = [...claimed].filter((n) => !BUILTINS.has(n));
   assert.deepEqual(missing, [], `the page names builtins that do not exist: ${missing.join(', ')}`);
+});
+
+test('every builtin the authority section shows being called exists', () => {
+  // This section is the security surface. A name that drifted here would be
+  // just as wrong as one in the library list, and rather more expensive.
+  const claimed = calledIn('## Authority and provenance', '## Blocks');
+  for (const w of ['fn', 'f']) claimed.delete(w);   // the signature example
+
+  const missing = [...claimed].filter((n) => !BUILTINS.has(n));
+  assert.deepEqual(missing, [], `the page names builtins that do not exist: ${missing.join(', ')}`);
+
+  // And it must be naming the surface, not passing because it found nothing.
+  for (const required of [
+    'classify', 'declassify', 'endorse', 'retract',
+    'trusted_by', 'vouchers_of', 'writers_of', 'trust', 'untrusted', 'grant',
+  ]) {
+    assert.ok(claimed.has(required), `the page stopped naming ${required}`);
+  }
+});
+
+test('the blocks the authority section names are all real syntax', () => {
+  // The blocks are keywords, so the check above cannot see them: they would
+  // parse as calls only by accident. Each one has to actually parse.
+  const section = DOC.slice(DOC.indexOf('## Authority and provenance'), DOC.indexOf('## Blocks'));
+  for (const kw of ['grounded', 'release_to', 'vouched_by', 'region', 'authority', 'using']) {
+    assert.ok(section.includes(kw), `the page stopped naming the ${kw} block`);
+  }
+  const program = [
+    'grounded { }',
+    'region "eu" { }',
+    'release_to "bob" { }',
+    'vouched_by "alice" { }',
+    'authority "alice" { }',
+    'using grant("fs") { }',
+  ].join('\n');
+  assert.doesNotThrow(() => parse(program, 'doc.pedag'),
+    'a block the page tells a model to write does not parse');
 });
 
 test('every method the page names resolves on the type it is listed under', () => {

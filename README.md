@@ -102,7 +102,7 @@ the process can reach, and nothing writes down what it reached.
 | | |
 |---|---|
 | **Capabilities** | A function holds only what it declared with `needs` — never what its caller held. Reading a signature tells you the worst it can do. |
-| **Information flow** | Values carry owner-scoped policies (Myers & Liskov's decentralized label model). Combining data joins the rules; releasing it to a party checks them. |
+| **Information flow** | Values carry owner-scoped policies, both halves of Myers & Liskov's decentralized label model: who may read it, and whose word is behind it. Combining data joins the rules — and drops a vouch that does not cover both sides. |
 | **Declassification** | Removing a restriction requires the owner's authority and a written reason, and both land in the manifest. |
 | **Contracts** | `requires` / `ensures` / `old()` / invariants, in the language. `pedag verify` proves them where it can; `pedag prove` finds counterexamples where it cannot. |
 | **Exhaustiveness** | `choice` gives closed sets, so a `match` that forgets a case is a build failure, not a production incident. |
@@ -562,6 +562,48 @@ authority "hr" {
 
 Holding `hr`'s authority does not let you release `audit`'s data, and authority
 is granted at the boundary with `--principal`, never taken from inside.
+
+### And the other half: whose word is behind it
+
+The same model, mirrored. `classify` says who may read a value; `endorse` says
+who stands behind it.
+
+```pedag
+authority "payroll" {
+  let salary = endorse(82000, "payroll", "system of record")
+  vouched_by "payroll" { post(salary) }        // fine
+
+  let adjusted = salary + bonus_from_a_form    // nobody vouched for the form
+  vouched_by "payroll" { post(adjusted) }      // LabelError
+}
+```
+
+```
+error: this argument had `payroll`'s backing and lost it on the way here
+help: it was combined with something `payroll` has not vouched for, and a vouch
+      does not survive that; endorse() the result under `authority` if the
+      combination is intended, or retract() it to say the backing is genuinely
+      no longer claimed
+note: the label is {~payroll}
+```
+
+Nothing had to remember to check. The vouch was dropped by the `+`, because a
+value alice never saw cannot be one she stands behind — and the label kept the
+fact that it *had* backing, so the error can say where it went rather than only
+that it is missing.
+
+Every rule is the mirror of the confidentiality half:
+
+|                        | who may read it | whose word is behind it |
+|------------------------|-----------------|-------------------------|
+| combining values       | keeps every owner, intersects the readers | keeps only the owners on **both** sides |
+| costs a principal's authority | **weakening** it — `declassify` | **strengthening** it — `endorse` |
+| free                   | `classify` | `retract` |
+| an unlabelled value is | readable by everyone | backed by nobody |
+
+Both directions are recorded. `--audit` writes a hash-chained manifest naming
+every place a program released someone's data or manufactured trust in it, each
+with the reason given at the call site.
 
 ## Authority you can lend, narrow, and take back
 

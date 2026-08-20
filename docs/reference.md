@@ -46,6 +46,7 @@ variant must stay at or above zero and strictly decrease on every pass.
 | `using grant { }` | hold a delegated capability, for this block only |
 | `authority "alice" { }` | act for a principal (needs `--principal alice`) |
 | `release_to "bob" { }` | data leaving to a party; labels are checked here |
+| `vouched_by "alice" { }` | code that acts only on what a party stands behind |
 | `device "cpu" { }` / `device "workers" [n] { }` | choose the compute backend |
 
 ## Expressions
@@ -97,9 +98,20 @@ Members: `.shape` `.rank` `.size` `.T` `.sum()` `.mean()` `.max()` `.min()`
 **Provenance** — `untrusted` `ungrounded` `restrict` `trust` `labels`
 `is_tainted`
 
-**Labels (decentralized label model)** — `classify(v, owner[, readers])`
-`policy_of` `owners_of` `readers_of` `can_read` `declassify(v, owner, reason)`
-`acting_for`
+**Labels (decentralized label model), confidentiality** — who may read it.
+`classify(v, owner[, readers])` `policy_of` `owners_of` `readers_of` `can_read`
+`declassify(v, owner, reason)` `acting_for`
+
+**Labels, integrity** — whose word is behind it. `endorse(v, owner, reason)`
+`retract(v, owner, reason)` `vouchers_of` `writers_of` `trusted_by`
+
+The two halves are duals. Combining values keeps *every* confidentiality owner
+but only the integrity owners on *both* sides, so a vouch does not survive
+contact with data nobody vouched for — including a literal. `declassify`
+(weakening confidentiality) and `endorse` (strengthening integrity) are the two
+directions that cost a principal's authority; `classify` and `retract` are free.
+A value that lost a vouch prints as `{~alice}`, which is not the same as one
+that never had it.
 
 **Delegable capabilities** — `grant(cap[, note])` `caretaker` `revoke`
 `is_live`; a grant has `.attenuate({ "uses": n })` / `{ "for": ticks }`,

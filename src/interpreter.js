@@ -139,6 +139,7 @@ export class Interpreter {
     this.grantedAuthority = new Set(principals);
     this.authority = new Set();
     this.releaseStack = [];
+    this.vouchStack = [];
 
     this.devices = new DeviceRegistry();
     this.scheduler = new Scheduler();
@@ -192,7 +193,7 @@ export class Interpreter {
 
     this.trace = {
       branches: [], forks: 0, calls: 0, contracts: 0,
-      laundered: [], redefinitions: [], declassifications: [],
+      laundered: [], redefinitions: [], declassifications: [], endorsements: [],
       grantUses: [], revocations: [],
       // What the audit record is assembled from.
       effects: [],        // every capability exercised or refused
@@ -653,6 +654,18 @@ export class Interpreter {
           return this.execBlock(node.body, this.scopeFor(node.body));
         } finally {
           this.releaseStack.pop();
+        }
+      }
+
+      // And the point where a program decides to act only on what someone
+      // stands behind.
+      case 'VouchedBy': {
+        const by = stringify(unwrap(this.evaluate(node.by)), 0);
+        this.vouchStack.push(by);
+        try {
+          return this.execBlock(node.body, this.scopeFor(node.body));
+        } finally {
+          this.vouchStack.pop();
         }
       }
 
@@ -1460,6 +1473,37 @@ export class Interpreter {
           .withLabel('not a permitted reader')
           .note(`the label is ${value.label}`)
           .help(`the owning principal can widen the policy, or declassify it under \`authority\``);
+      }
+    }
+
+    // The mirror, on the integrity half. A vouch is lost by composition and
+    // never announces itself, so the check has to happen where the value is
+    // used rather than where it was made.
+    //
+    // Only labelled values are examined, exactly as above. A plain literal
+    // carries no vouch and is not meant to -- the question this block answers
+    // is "did anything here lose alice's backing along the way", not "did every
+    // byte originate with alice". `grounded` is the block for untrusted input.
+    if (value instanceof Labelled && this.vouchStack.length > 0) {
+      const by = this.vouchStack[this.vouchStack.length - 1];
+      if (!value.label.trustedBy(by)) {
+        const vouchers = value.label.vouchers;
+        this.trace.crossings.push({
+          kind: 'vouch', to: by, line, allowed: false, label: value.label.toString(),
+        });
+        const lostIt = value.label.lost.has(by);
+        throw pedagError('LabelError',
+          lostIt
+            ? `this ${what} had \`${by}\`'s backing and lost it on the way here`
+            : `\`${by}\` does not vouch for this ${what}; ${vouchers.length ? `only ${vouchers.join(', ')} ${vouchers.length === 1 ? 'does' : 'do'}` : 'nobody does'}`,
+          line)
+          .withLabel(lostIt ? 'backing lost upstream' : 'not vouched for')
+          .note(`the label is ${value.label}`)
+          .help(lostIt
+            ? `it was combined with something \`${by}\` has not vouched for, and a vouch does not survive that; `
+              + `endorse() the result under \`authority\` if the combination is intended, or retract() it `
+              + `to say the backing is genuinely no longer claimed`
+            : `\`${by}\` can endorse() it under \`authority\`, which the audit trail records`);
       }
     }
 
