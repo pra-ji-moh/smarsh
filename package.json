@@ -46,7 +46,7 @@
     "examples": "node bin/pedag.mjs run examples/quantum.pedag && node bin/pedag.mjs run examples/agents.pedag && node bin/pedag.mjs run examples/devices.pedag && node bin/pedag.mjs run examples/crypto.pedag --grant crypto,unaudited_crypto",
     "fuzz": "node tools/fuzz.mjs 20000",
     "diff": "node tools/differential.mjs",
-    "bench": "node tools/bench.mjs",
+    "bench": "node tools/ab.mjs 7 1",
     "bench:compare": "node bench/compare.mjs 27 5",
     "ab": "node tools/ab.mjs"
   }

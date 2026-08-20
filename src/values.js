@@ -74,10 +74,14 @@ export const unwrap = (v) => {
 // build a collection, bind it with `var`.
 const FROZEN = new WeakSet();
 
-export function freezeDeep(value, seen = new Set()) {
+export function freezeDeep(value, seen = null) {
   const v = value instanceof Tainted ? value.value : value;
+  // Nothing to freeze, and -- more to the point -- no reason to have allocated
+  // a cycle-guard Set to discover that. `let d = g + i` in a loop body called
+  // this once per pass and the Set was the whole cost.
   if (v === null || typeof v !== 'object') return value;
-  if (seen.has(v)) return value;
+  if (seen === null) seen = new Set();
+  else if (seen.has(v)) return value;
   seen.add(v);
 
   if (Array.isArray(v)) {

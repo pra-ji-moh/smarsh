@@ -3,18 +3,31 @@ import { pedagError } from './errors.js';
 // A lexical scope. Its own module so that the interpreter and the snapshot
 // layer can both build one without importing each other.
 
-// Bumped whenever any scope anywhere gains, loses or rebinds a name.
+// Cache invalidation, per name.
 //
-// Compiled code caches the slot a variable resolved to, which is only sound
-// while no scope has changed shape underneath it: adding a binding can shadow
-// the one a cache is holding. Rather than track that per scope, any structural
-// change invalidates every cache at once. Structural changes are rare and
-// reads are not, so the trade is heavily in the right direction -- a loop body
-// that declares nothing keeps its caches for the whole loop.
+// Compiled code caches the slot a name resolved to. That is only sound while no
+// scope has gained a binding that could shadow it -- so something has to say
+// when a cache has gone stale.
 //
-// Anything that changes a scope's shape must bump this. That is why the raw
-// operations are methods here rather than callers reaching into the storage.
-export const EPOCH = { v: 0 };
+// This was one global counter that every declaration bumped, and it was far too
+// blunt. A loop body containing `let d = ...` re-declares `d` on every pass, so
+// every pass dropped every cache in the program: a loop that declared a local
+// measured 5.9x slower than the same loop without one, because `t`, `g` and `i`
+// were being re-resolved each iteration for no reason.
+//
+// Declaring `d` can only shadow a binding of `d`. So the counters are per name,
+// and a compiled reference to `t` holds `t`'s counter and never notices `d`
+// moving. The counter object is looked up once, when the reference is compiled,
+// so checking it at run time is still one property load and one compare.
+const VERSIONS = new Map();
+
+export function versionOf(name) {
+  let c = VERSIONS.get(name);
+  if (c === undefined) { c = { v: 0 }; VERSIONS.set(name, c); }
+  return c;
+}
+
+const bump = (name) => { versionOf(name).v += 1; };
 
 // Below this many bindings a scope stores names and slots in two parallel
 // arrays and looks them up by scanning. Above it, a Map.
@@ -34,68 +47,70 @@ const SMALL = 8;
 export class Env {
   constructor(parent = null) {
     this.parent = parent;
-    // Exactly one of these is in use. `_map` is null until the scope grows past
-    // SMALL or something asks for the Map view.
+    // Small scopes: three parallel arrays and a live count. The arrays are
+    // never truncated -- emptying a scope sets `_count` to zero and leaves the
+    // storage in place, so a loop that clears and refills its scope on every
+    // pass does no array resizing and no allocation at all.
     this._names = null;
     this._slots = null;
-    this._map = null;
-    // True while `_names` is the declaration's own array, borrowed rather than
-    // owned. Any write copies it first.
+    this._vers = null;    // the version counter for each name, held alongside
+    this._count = 0;
     this._sharedNames = false;
+    // Large scopes, or any scope something wants to iterate.
+    this._map = null;
   }
 
-  // The Map view, for the code that iterates a scope -- the module loader, the
+  // The Map view, for the code that walks a scope -- the module loader, the
   // snapshotter, `pedag test` looking for `test_*`, the "did you mean" search.
   // Asking for it converts the scope permanently, which is fine: nothing that
-  // wants to iterate a scope is in a hot path, and mixing the two
-  // representations would be a bug waiting to happen.
+  // iterates a scope is in a hot path, and maintaining both representations at
+  // once would be a bug waiting to happen.
   get vars() {
     if (this._map === null) {
       const m = new Map();
-      if (this._names !== null) {
-        for (let i = 0; i < this._names.length; i++) m.set(this._names[i], this._slots[i]);
-      }
+      for (let i = 0; i < this._count; i++) m.set(this._names[i], this._slots[i]);
       this._map = m;
       this._names = null;
       this._slots = null;
+      this._vers = null;
+      this._count = 0;
       this._sharedNames = false;
     }
     return this._map;
   }
 
-  // True without converting the scope, so the hot paths can ask.
+  // Answers without converting the scope, so the hot paths can ask.
   has(name) {
     if (this._map !== null) return this._map.has(name);
-    return this._names !== null && this._names.indexOf(name) !== -1;
+    for (let i = 0; i < this._count; i++) if (this._names[i] === name) return true;
+    return false;
   }
 
   own(name) {
     if (this._map !== null) return this._map.get(name);
-    if (this._names === null) return undefined;
-    const i = this._names.indexOf(name);
-    return i === -1 ? undefined : this._slots[i];
+    for (let i = 0; i < this._count; i++) if (this._names[i] === name) return this._slots[i];
+    return undefined;
   }
 
-  // Populate a brand-new call frame, without touching the epoch.
+  // Populate a brand-new call frame, without bumping any version.
   //
-  // `declare` has to bump it, because adding a name to a scope that already
-  // exists can shadow a binding some cache resolved through it. A frame being
-  // built for a call is different: nothing has looked anything up through it
-  // yet, because it did not exist a moment ago and execution has not entered
-  // it. No cache anywhere can be referring to it, so populating it cannot
-  // invalidate one.
+  // `putSlot` has to bump, because adding a name to a scope that already exists
+  // can shadow a binding some cache resolved through it. A frame being built
+  // for a call is different: nothing has looked anything up through it, because
+  // it did not exist a moment ago and execution has not entered it. No cache
+  // can be referring to it, so populating it cannot invalidate one.
   //
-  // This matters more than it sounds. Every call declared one binding per
-  // parameter, so every call bumped the epoch and dropped every inline cache in
-  // the program -- recursive code spent its life re-resolving names it had
-  // already resolved.
+  // Every call used to bump one version per parameter, which dropped the caches
+  // for those names on every call in the program.
   //
-  // The names array is shared with the declaration rather than copied, since
-  // every call to the same function binds the same names. It is copied only if
-  // the body later declares something, which `putSlot` handles.
+  // The names array is borrowed from the declaration rather than copied, since
+  // every call to a function binds the same names; `putSlot` copies it if the
+  // body later declares something.
   adoptFrame(names, slots) {
     this._names = names;
     this._slots = slots;
+    this._vers = null;
+    this._count = names.length;
     this._sharedNames = true;
   }
 
@@ -106,53 +121,103 @@ export class Env {
     this.putSlot(name, { value, mutable });
   }
 
-  // Loops reuse one scope across passes rather than allocating per iteration;
-  // emptying it changes shape, so caches must go.
+  // Loops reuse one scope across passes rather than allocating a new one, so
+  // each pass has to start with the last pass's bindings gone. Setting the
+  // count to zero does that: nothing scans past it, so nothing stale is
+  // visible, and the storage stays put for the next pass to write over.
   clearVars() {
     if (this._map !== null) {
-      if (this._map.size !== 0) { this._map.clear(); EPOCH.v++; }
+      if (this._map.size !== 0) {
+        for (const name of this._map.keys()) bump(name);
+        this._map.clear();
+      }
       return;
     }
-    if (this._names !== null && this._names.length !== 0) {
-      if (this._sharedNames) { this._names = []; this._sharedNames = false; } else this._names.length = 0;
-      this._slots.length = 0;
-      EPOCH.v++;
+    if (this._count === 0) return;
+    if (this._vers !== null) {
+      for (let i = 0; i < this._count; i++) this._vers[i].v += 1;
+    } else {
+      for (let i = 0; i < this._count; i++) bump(this._names[i]);
     }
+    this._count = 0;
   }
 
   putSlot(name, slot) {
     if (this._map !== null) {
       this._map.set(name, slot);
-      EPOCH.v++;
+      bump(name);
       return;
     }
-    if (this._names === null) { this._names = []; this._slots = []; }
-    else if (this._sharedNames) { this._names = this._names.slice(); this._sharedNames = false; }
-    const i = this._names.indexOf(name);
-    if (i !== -1) { this._slots[i] = slot; EPOCH.v++; return; }
-    if (this._names.length >= SMALL) {
-      // Convert, then set: past this size a scan is no longer the cheaper one.
+    if (this._names === null) {
+      this._names = [];
+      this._slots = [];
+      this._vers = [];
+    } else if (this._sharedNames) {
+      // Borrowed from a declaration; take a copy before writing to it.
+      this._names = this._names.slice(0, this._count);
+      this._vers = this._names.map(versionOf);
+      this._sharedNames = false;
+    } else if (this._vers === null) {
+      this._vers = [];
+      for (let i = 0; i < this._count; i++) this._vers.push(versionOf(this._names[i]));
+    }
+
+    for (let i = 0; i < this._count; i++) {
+      if (this._names[i] === name) {
+        this._slots[i] = slot;
+        this._vers[i].v += 1;
+        return;
+      }
+    }
+
+    if (this._count >= SMALL) {
+      // Past this size a scan is no longer the cheaper one; convert and set.
       this.vars.set(name, slot);
-      EPOCH.v++;
+      bump(name);
       return;
     }
-    this._names.push(name);
-    this._slots.push(slot);
-    EPOCH.v++;
+
+    const at = this._count;
+    if (at < this._names.length) {
+      // Writing over a slot a previous pass used. When the name is the same --
+      // which it is, pass after pass, in a loop -- its counter is already here
+      // and does not need looking up again.
+      if (this._names[at] !== name) {
+        this._names[at] = name;
+        this._vers[at] = versionOf(name);
+      }
+      this._slots[at] = slot;
+    } else {
+      this._names.push(name);
+      this._slots.push(slot);
+      this._vers.push(versionOf(name));
+    }
+    this._vers[at].v += 1;
+    this._count = at + 1;
   }
 
   deleteVar(name) {
     if (this._map !== null) {
-      if (this._map.delete(name)) EPOCH.v++;
+      if (this._map.delete(name)) bump(name);
       return;
     }
-    if (this._names === null) return;
-    const i = this._names.indexOf(name);
-    if (i === -1) return;
-    if (this._sharedNames) { this._names = this._names.slice(); this._sharedNames = false; }
-    this._names.splice(i, 1);
-    this._slots.splice(i, 1);
-    EPOCH.v++;
+    for (let i = 0; i < this._count; i++) {
+      if (this._names[i] !== name) continue;
+      if (this._sharedNames) {
+        this._names = this._names.slice(0, this._count);
+        this._vers = this._names.map(versionOf);
+        this._sharedNames = false;
+      } else if (this._vers === null) {
+        this._vers = [];
+        for (let k = 0; k < this._count; k++) this._vers.push(versionOf(this._names[k]));
+      }
+      this._names.splice(i, 1);
+      this._slots.splice(i, 1);
+      this._vers.splice(i, 1);
+      this._count -= 1;
+      bump(name);
+      return;
+    }
   }
 
   slot(name) {
@@ -164,10 +229,9 @@ export class Env {
         if (s !== undefined) return s;
       } else {
         const names = env._names;
-        if (names !== null) {
-          for (let i = 0; i < names.length; i++) {
-            if (names[i] === name) return env._slots[i];
-          }
+        const n = env._count;
+        for (let i = 0; i < n; i++) {
+          if (names[i] === name) return env._slots[i];
         }
       }
       env = env.parent;

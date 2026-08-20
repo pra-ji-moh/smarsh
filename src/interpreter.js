@@ -254,7 +254,7 @@ export class Interpreter {
       case 'Declare': {
         const value = this.evaluate(node.value);
         // `let` means immutable, and that has to include what it holds.
-        if (!node.mutable) freezeDeep(value);
+        if (!node.mutable && value !== null && typeof value === 'object') freezeDeep(value);
         this.redeclareIfAllowed(node.name);
         this.env.declare(node.name, value, node.mutable, node.line);
         return null;

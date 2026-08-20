@@ -39,7 +39,7 @@ import {
   unwrap, retaint, truthy, freezeDeep, stringify, withArticle, assertMutable,
 } from './values.js';
 import { Tensor } from './tensor.js';
-import { Env, EPOCH } from './env.js';
+import { Env, versionOf } from './env.js';
 
 // --- the completion protocol -----------------------------------------------
 //
@@ -118,16 +118,17 @@ function buildExpr(node) {
       // "Nearly" is not good enough on its own, hence the epoch: any scope
       // anywhere gaining or losing a name invalidates every cache, because a
       // new binding could shadow what was cached. See env.js.
+      const version = versionOf(name);
       let cachedEnv = null;
-      let cachedEpoch = -1;
+      let cachedVersion = -1;
       let cachedSlot = null;
       return (itp) => {
         const env = itp.env;
-        if (env === cachedEnv && cachedEpoch === EPOCH.v) return cachedSlot.value;
+        if (env === cachedEnv && cachedVersion === version.v) return cachedSlot.value;
         const slot = env.slot(name);
         if (slot === undefined || slot === null) throw itp.unknownName(node);
         cachedEnv = env;
-        cachedEpoch = EPOCH.v;
+        cachedVersion = version.v;
         cachedSlot = slot;
         return slot.value;
       };
@@ -312,15 +313,16 @@ function buildAssign(node) {
     const name = t.name;
     // Same inline cache as a read, for the same reason: `t = t + i` resolves
     // `t` twice per pass and both walks are avoidable.
+    const version = versionOf(name);
     let cachedEnv = null;
-    let cachedEpoch = -1;
+    let cachedVersion = -1;
     let cachedSlot = null;
     return (itp) => {
       const v = value(itp);
       // Only agents have anything to check, and almost nothing runs inside one.
       if (itp.agentBoundary) itp.checkAgentWrite(name, line);
       const env = itp.env;
-      if (env === cachedEnv && cachedEpoch === EPOCH.v) {
+      if (env === cachedEnv && cachedVersion === version.v) {
         if (!cachedSlot.mutable) {
           throw pedagError('ImmutableError',
             `'${name}' was declared with let and cannot be reassigned (use var if it must change)`, line);
@@ -337,7 +339,7 @@ function buildAssign(node) {
           `'${name}' was declared with let and cannot be reassigned (use var if it must change)`, line);
       }
       cachedEnv = env;
-      cachedEpoch = EPOCH.v;
+      cachedVersion = version.v;
       cachedSlot = slot;
       slot.value = v;
       return v;
@@ -464,7 +466,8 @@ function buildStmt(node) {
       return (itp) => {
         itp.tick(node);
         const v = value(itp);
-        if (!mutable) freezeDeep(v);
+        // `let` freezes what it binds; a primitive has nothing to freeze.
+        if (!mutable && v !== null && typeof v === 'object') freezeDeep(v);
         itp.redeclareIfAllowed(name);
         itp.env.declare(name, v, mutable, line);
         return null;
