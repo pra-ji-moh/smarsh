@@ -140,8 +140,9 @@ not been done.
 - **Still an interpreter, just a much faster one.** The AST compiles to
   JavaScript closures rather than being re-walked (`src/compile.js`), and a call
   in the common shape allocates nothing: the frame is reused, arguments travel
-  positionally, bound methods are remembered. About **3.3× CPython** and **~47×
-  a JIT** on `fib`, from 6.7× and ~110×. Closing more needs a typed value
+  positionally, bound methods are remembered, contracts compile. About
+  **3.2–3.4× CPython** and **~32× a JIT** on `fib`, from 6.7× and ~110×; the
+  eleven-shape workload suite is 44% faster than at the start of that work. Closing more needs a typed value
   representation and escape analysis so `t = t + i` does not box — a larger
   change than any of this was. `--engine tree` still runs the original
   tree-walker, and CI proves the two agree on every example, every std module

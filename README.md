@@ -1002,18 +1002,30 @@ JavaScript closures once rather than being re-walked (`src/compile.js`): about
 **1.9x overall** against the old tree-walker, 2.4x on recursion and calls, 2.2x
 on tight loops. `for i in range(n)` no longer builds the list first.
 
-It is still an interpreter, and slower than Python. On `fib(27)` it runs about
-**3.3× behind CPython** — down from 6.7× — and **~47× behind a JIT**.
-`npm run bench:compare` measures all three in one session and reports ratios,
-because absolute milliseconds are not portable: the same unchanged code
-measured 531 ms and, an hour later on a busier machine, 1202 ms.
+It is still an interpreter, and slower than Python — about **3.2–3.4× behind
+CPython** on `fib(27)`, and **~32× behind a JIT**. `npm run bench:compare`
+measures all three in one session and reports ratios, because absolute
+milliseconds are not portable: the same unchanged code measured 531 ms and, an
+hour later on a busier machine, 1202 ms.
 
-Most of that came from removing allocation rather than from cleverness. A call
+It was 6.7× behind CPython. Across eleven workload shapes the runtime is
+**44% faster** than it was:
+
+| | | | | |
+|---|---|---|---|---|
+| calls −70% | closures −63% | loop-declare −47% | contracts −42% | records −42% |
+| recursion −40% | lists −33% | loop-plain −28% | maps −27% | strings −21% |
+
+Almost all of it was removing allocation rather than adding cleverness. A call
 in the common shape — a named function with no capabilities and no contract —
-now allocates nothing at all: its frame is reused, and its arguments travel in
-JavaScript locals rather than an array. `xs.push` no longer builds a fresh bound
-function on every call. Across eleven workload shapes: calls −36%, closures
-−32%, recursion −23%, maps and lists −9%.
+allocates nothing: the frame is reused, arguments travel in JavaScript locals
+rather than an array, and the step counter is one compare. `xs.push` no longer
+builds a fresh bound function every call. Contracts compile like any other
+expression instead of being walked. Carrying no labels no longer allocates a
+Set to discover there was nothing to carry.
+
+`npm run ab` is what any of that was measured with, and it exists because the
+first three attempts were wrong — see below.
 
 Getting that number right took three attempts, and the wrong ones reached this
 file. Timings inside one long-lived process climbed run over run (644 → 1029 ms
