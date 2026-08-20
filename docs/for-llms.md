@@ -1,0 +1,235 @@
+# Pēdāg for a model writing it
+
+The whole language, in one page. Written for a program that has to emit correct
+Pēdāg on the first or second try, not for a person browsing.
+
+Read the **Traps** first. They are the four places where a reflex from Python,
+JavaScript or TypeScript produces code that will not run.
+
+---
+
+## Traps
+
+**1. `let` freezes, deeply. Use `var` for anything you change.**
+
+```pedag
+let xs = []
+xs.push(1)          // ERROR: let freezes the value
+
+var xs = []
+xs.push(1)          // correct
+```
+
+It freezes the *value*, not the binding, so it reaches through aliases:
+`var ys = [1]` then `let a = ys` makes `ys.push(2)` fail too. Copy instead —
+`let a = ys.slice(0, ys.len())`.
+
+**2. A function must declare the authority it uses.**
+
+```pedag
+fn save(t) { write("out.txt", t) }           // ERROR: uses fs
+fn save(t) needs fs { write("out.txt", t) }  // correct
+```
+
+This travels to callers: calling something that `needs fs` means you need `fs`
+too. Only these builtins need anything — `read` `write` `weights` (fs),
+`now` (clock), `foreign` (ffi), `keypair` `random_secret` (crypto), and the
+`unaudited_crypto` set.
+
+**3. Money is `dec`, built from a string, never mixed with floats.**
+
+```pedag
+let price = dec("19.99")     // there is no 19.99m literal
+price * 3                    // fine: dec times a whole number
+price + 0.1                  // ERROR: cannot mix dec with a float
+price.div(dec("3"), 2)       // division states its scale
+```
+
+`0.1 + 0.2 == 0.3` is false. `dec("0.1") + dec("0.2") == dec("0.3")` is true.
+
+**4. A `match` over a `choice` must handle every variant.**
+
+Missing one is a build error, not a runtime surprise. `_ => ...` closes it.
+
+---
+
+## The fix loop
+
+Every command takes `--json`. Do not parse the human output.
+
+```
+pedag check f.pedag --json   -> { ok, diagnostics: [{ code, message, line, column, helps }] }
+pedag run   f.pedag --json   -> { ok, stdout, failure: { kind, code, message, line, stack } }
+pedag test  dir     --json   -> { ok, totals, files: [{ passed, failed, contracts }] }
+pedag explain E0406          -> what a code means, and how to fix it
+```
+
+`check` finds unknown names, type mismatches, wrong arity, missing `match`
+arms, undeclared authority, mutation of a frozen value, taint reaching a sink,
+and races in `fork`. Run it before running anything.
+
+---
+
+## Syntax
+
+```pedag
+// comment
+
+let x = 1                  // immutable, and freezes what it holds
+var y = 2                  // mutable
+let n: num = 3             // annotations optional, checked where present
+
+fn add(a, b) { return a + b }
+fn area(w: num, h: num) -> num { return w * h }
+fn save(t) needs fs { write("f.txt", t) }
+let double = fn(x) { return x * 2 }        // a function value
+
+if x > 0 { } else if x == 0 { } else { }
+while i < n { }
+for item in [1, 2, 3] { }
+for i in range(5) { }                      // range(stop), range(a,b), range(a,b,step)
+break    continue    return v
+
+attempt { risky() } rescue e { print(e["kind"]) }    // e has kind, message, line
+
+"text ${expr} more"                        // interpolation
+[1, 2, 3]                                  // list
+{ "k": v }                                 // map, string keys
+nil  true  false
+and  or  not                               // not && || !
+```
+
+Operators: `+ - * / % **`, `== != < <= > >=`, `@` for matrix multiply.
+There is no `++`, no `+=`, no ternary. Write `x = x + 1`.
+
+## Types
+
+```pedag
+record Point(x, y)                               // immutable, structural equality
+record Account(balance) invariant balance >= 0   // checked on construction
+let p = Point(1, 2)
+p.x                                              // field
+p.with("x", 9)                                   // a new record, invariant rechecked
+
+choice Status {                            // a closed set of variants
+  Pending                                  // no fields: a value, not a call
+  Done(at)
+  Failed(code)
+}
+let s = Pending                            // not Pending()
+
+match s {
+  Pending    => "waiting",
+  Done(at)   => "done at ${at}",
+  Failed(c)  => "failed ${c}"
+}
+```
+
+Patterns: literals, `_`, a name (binds anything), `Name(a, b)` (destructures a
+record or variant), `[a, b]` (a list of exactly that length), and `when cond`
+on an arm. A bare name that is already a nullary variant tests for that
+variant rather than binding.
+
+## Contracts
+
+```pedag
+fn withdraw(acct, amt)
+  requires amt > 0
+  ensures result.balance == old(acct.balance) - amt
+{
+  return acct.with("balance", acct.balance - amt)
+}
+```
+
+`requires` on the way in, `ensures` on the way out with `result` bound,
+`old(e)` for the value on entry. `pedag prove` generates inputs and reports
+counterexamples with the arguments that break them, so a contract is a
+specification and a test suite at once.
+
+Loops take `invariant` and `variant` before the body.
+
+## Authority and provenance
+
+```pedag
+fn f() needs fs, clock { }                 // declared, never inherited
+using grant("fs") { }                      // hold one for a block
+let pair = caretaker(grant("fs"))          // pair["grant"]; revoke(pair["revoker"])
+
+untrusted(v)   ungrounded(v)               // label a value
+grounded { }                               // refuses to read either label
+trust(v, "why")                            // remove labels; the reason is recorded
+classify(v, owner, [readers])              // an owner-scoped policy
+release_to "party" { }                     // checked at the boundary
+authority "p" { declassify(v, "p", "why") }
+region "eu" { }
+```
+
+Capabilities: `fs clock crypto unaudited_crypto ffi net`. Granted with
+`--grant a,b`, principals with `--principal p`.
+
+## Blocks
+
+```pedag
+budget steps 5000 { }              // also tokens, memory. Not catchable inside
+atomic { }                         // every ledger append lands, or none does
+secret { }                         // secrets shredded on exit
+device "workers" { }               // cpu | workers
+fork 4 { _ }                       // _ is the path index; isolated, seeded
+maybe 0.3 { } else { }             // seeded, so it replays
+```
+
+## Builtins
+
+Core: `print str num len type assert range abs floor ceil round min max clamp
+sqrt exp log signum`.
+
+Random, all seeded: `random randint sample shuffle`.
+
+Lists: `.len .push .pop .slice .contains .join .map .filter .reduce(f, init)
+.sort .reverse .sum`
+Strings: `.len .upper .lower .trim .split .replace .slice .contains .starts
+.ends .tokens`
+Maps: `.len .get .set .has .remove .keys .values`
+
+Exact numbers: `dec is_dec dec_sum`, and `.div(d, scale)`.
+
+Tensors: `tensor [[1,2],[3,4]]`, `@`, and `.T .shape .rank .size .sum .mean
+.max .min .norm .reshape .map .tolist`, plus `zeros ones eye full arange randn
+dot cosine relu sigmoid tanh softmax argmax`.
+
+Also present, by area: agents (`send run_agents pending agents`), context
+windows (`context tokens distill`), ledgers (`ledger`), cryptography (`sha256 sign
+verify_signature keypair`, and behind `unaudited_crypto`:
+`paillier_keygen encrypt decrypt commit commit_open zk_public zk_prove
+zk_verify`), quantum simulation (`qubits qh qx cnot
+measure`), time (`clock advance liquid`), schema (`schema negotiate adapt
+migrate`), introspection (`callgraph callers snapshot restore watch leaks
+energy`). `pedag explain` and `docs/reference.md` cover the rest.
+
+## A whole program
+
+```pedag
+choice Status { Balanced  Short(amount) }
+
+record Invoice(id, owed, paid)
+
+fn status(inv) {
+  if inv.paid == inv.owed { return Balanced }
+  return Short(inv.owed - inv.paid)
+}
+
+fn describe(s) {
+  return match s {
+    Balanced => "balanced",
+    Short(a) => "short by ${a}"
+  }
+}
+
+var seen = []
+for inv in [Invoice("A", dec("10.00"), dec("10.00")), Invoice("B", dec("20.00"), dec("18.50"))] {
+  seen.push("${inv.id}: ${describe(status(inv))}")
+}
+print(seen.join("  |  "))
+```
+
+Then `pedag check p.pedag --json`, and `pedag run p.pedag --json`.

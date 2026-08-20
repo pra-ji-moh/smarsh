@@ -150,6 +150,12 @@ Zero dependencies, Node 18 or later. 543 passing tests over 94% of the lines in
 **New here?** [docs/getting-started.md](docs/getting-started.md) — twenty
 minutes, assumes nothing. Or `docs/reference.md` for the whole language.
 
+**Generating Pēdāg from a program?** [docs/for-llms.md](docs/for-llms.md) is the
+whole language on one page, under 2,400 words, written for a model that has to
+emit it correctly rather than a person browsing. Every builtin it names, every
+method, every example and every claimed error is checked against the runtime by
+`tests/for-llms.test.mjs`, so it cannot drift. Pair it with `--json`.
+
 Other commands: `pedag check` (types, races, taint, exhaustiveness — without
 running), `pedag verify`, `pedag prove`, `pedag test`, `pedag build`,
 `pedag fmt`, `pedag repl`, `pedag explain E0402`.
@@ -1114,6 +1120,7 @@ that adds the feature.
 
 | | |
 |---|---|
+| [For a model writing it](docs/for-llms.md) | The whole language in one page, traps first |
 | [Getting started](docs/getting-started.md) | Twenty minutes, assumes nothing |
 | [Reference](docs/reference.md) | Every keyword, builtin and command |
 | [Security](SECURITY.md) | Threat model, what is audited and what is not |
