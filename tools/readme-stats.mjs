@@ -54,7 +54,15 @@ function measure() {
   if (!Number.isFinite(pass) || !Number.isFinite(lines)) {
     throw new Error('could not read the suite summary; the reporter format may have changed');
   }
-  if (fail > 0) throw new Error(`${fail} tests are failing -- fix those before quoting a number`);
+  if (fail > 0) {
+    // Name them. This tool runs the suite under coverage, which is slower than
+    // a plain run and has surfaced a failure once that did not reproduce -- a
+    // bare count made that undiagnosable after the fact.
+    const named = [...output.matchAll(/^\s*✖ (.+?) \(/gm)].map((m) => m[1]);
+    const detail = named.length ? `:\n  ${named.join('\n  ')}` : '';
+    throw new Error(
+      `${fail} test(s) failing under coverage -- fix those before quoting a number${detail}`);
+  }
 
   return { tests: pass, files: files.length, coverage: Math.floor(lines) };
 }
