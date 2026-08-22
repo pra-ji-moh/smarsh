@@ -101,6 +101,14 @@ jobs:
       # count, call count and the whole audit trace. `pedag audit` signs a claim
       # that a run replays from its seed; an engine that quietly diverged would
       # make that claim false.
+      - name: The README's numbers must be the repository's numbers
+        run: |
+          # "151 tests across 4 files" survived in the README long after there
+          # were 700 across 30. A prose number nobody checks is a number that
+          # will be wrong, and being wrong about the easy claims is not a good
+          # look on the ones that are harder to verify.
+          node tools/readme-stats.mjs
+
       - name: The compiled engine matches the tree-walker exactly
         run: node tools/differential.mjs
 

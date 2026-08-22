@@ -136,7 +136,7 @@ is [tested](tests/demo.test.mjs), not asserted: seven edits an interested party
 would actually want to make, including deleting the inconvenient event and
 attaching the record to a different program.
 
-Zero dependencies, Node 18 or later. 616 passing tests over 94% of the lines in
+Zero dependencies, Node 18 or later. 702 passing tests over 94% of the lines in
 `src/`.
 
 > **Status: 0.3.0, pre-1.0, no production users, no third-party audit.** Read
@@ -1126,31 +1126,68 @@ seed.
 ## Layout
 
 ```
-bin/pedag.mjs        CLI: run, prove, repl, eval
-src/lexer.js        tokens
-src/parser.js       recursive-descent -> AST
-src/interpreter.js  tree-walking evaluator, capabilities, taint, contracts
-src/builtins.js     the prelude
-src/tensor.js       dense f64 tensors, broadcasting, matmul
-src/values.js       taint, context windows, ledgers, token counting
-src/crypto.js       Paillier, Schnorr, Pedersen, Ed25519, lineage, secrets
-src/bigmath.js      modular arithmetic, Miller-Rabin, prime generation
-src/quantum.js      state-vector simulator
-src/temporal.js     logical clocks, decaying values
-src/agents.js       actors, mailboxes, deterministic scheduler
-src/analysis.js     static checks: fork races, arity
-src/prove.js        contract-driven test generation
-src/rng.js          seeded, forkable PRNG
-examples/           tour, contracts, crypto, quantum, agents
-tests/              151 tests across 4 files
+bin/pedag.mjs           the CLI: run, check, test, prove, verify, fmt, build, audit, repl
+
+the front end
+  src/lexer.js          tokens
+  src/parser.js         recursive-descent -> AST
+  src/diagnostics.js    error codes, spans, --json
+  src/errors.js         the error type, with notes and help
+
+execution
+  src/interpreter.js    the tree-walker, and the specification both engines answer to
+  src/compile.js        AST -> monomorphic closures, the engine that runs by default
+  src/env.js            lexical scopes, frame pooling, per-name cache invalidation
+  src/builtins.js       the prelude
+  src/values.js         taint, context windows, ledgers, token counting
+  src/records.js        records and the invariants they carry
+  src/decimal.js        exact decimals, BigInt coefficient and scale
+  src/tensor.js         dense f64 tensors, broadcasting, matmul
+  src/schema.js         structural schemas
+  src/rng.js            seeded, forkable PRNG
+  src/devices.js        compute backends: cpu, workers
+  src/kernelWorker.mjs  the worker on the other end of one
+
+what it checks before and while it runs
+  src/types.js          the gradual type checker
+  src/analysis.js       static checks: races, escaping control flow, exhaustiveness,
+                        undeclared authority, frozen mutation
+  src/graph.js          the call graph, derived from the source rather than declared
+  src/verify.js         symbolic verification of contracts
+  src/logic.js          a decision procedure for quantifier-free linear arithmetic
+  src/prove.js          contract-driven test generation
+  src/exercise.js       generated inputs thrown at a contract, shared by prove and test
+
+authority and provenance
+  src/labels.js         the decentralized label model, both halves
+  src/taint.js          flat labels: untrusted, ungrounded, region
+  src/grants.js         delegable capabilities, caretakers, revocation
+  src/ffi.js            the foreign boundary and what it may open
+  src/audit.js          the hash-chained, signable run manifest
+  src/crypto.js         Ed25519, SHA-256, and the unaudited Paillier/Schnorr/Pedersen
+  src/bigmath.js        modular arithmetic, Miller-Rabin, prime generation, sampling
+
+the rest
+  src/agents.js         actors, mailboxes, deterministic scheduler
+  src/temporal.js       logical clocks, decaying values
+  src/quantum.js        state-vector simulator
+  src/snapshot.js       snapshot and restore of a running program
+  src/format.js         pedag fmt
+  src/bundle.js         pedag build -- one standalone .mjs
+  src/testrunner.js     pedag test
+
+std/                    the standard library, written in Pedag
+examples/               15 programs, every one of them run by CI
+tests/                  702 tests across 30 files
+tools/                  the differential oracle, the fuzzer, the A/B harness
 ```
 
 ## Next
 
 In order of value: worker-backed `fork` so reasoning paths get the parallelism
 tensor work already has; a cross-machine transport for agents, which turns
-`snapshot`/`restore` plus mailboxes into actual distribution; and a standard
-library, because 41 features and no `sort` for maps is a strange place to be.
+`snapshot`/`restore` plus mailboxes into actual distribution; and a typed value
+representation, which is where the next large piece of speed is.
 
 ## Contributing
 
