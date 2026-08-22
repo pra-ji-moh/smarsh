@@ -78,7 +78,7 @@ declared, never what its caller held.
 | `fs` | `read`, `write`, `weights`, arenas that spill |
 | `clock` | `now` |
 | `crypto` | Ed25519 keypairs, signing, OS entropy — platform-backed |
-| `unaudited_crypto` | Paillier, Schnorr, Pedersen — hand-rolled, not constant time |
+| `unaudited_crypto` | Paillier, Schnorr, Pedersen — hand-rolled, not constant time. `paillier_keygen` needs ≥2048 bits; `paillier_keygen_insecure` allows less and says so |
 | `ffi` | `foreign` — calling JavaScript. Also needs `--foreign a,b` naming which modules; `'*'` for any |
 
 ## Builtins

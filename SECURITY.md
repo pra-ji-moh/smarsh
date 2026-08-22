@@ -58,6 +58,9 @@ Report anything that lets code do one of these:
 
 These are limitations already written down, not discoveries:
 
+- **`paillier_keygen` refuses a modulus below 2048 bits.** A smaller one is
+  reachable only through `paillier_keygen_insecure`, which warns on stderr and
+  records the fact in the audit manifest. Examples use it deliberately.
 - **`unaudited_crypto` is unaudited and not constant time.** Paillier, Schnorr
   and Pedersen are implemented in BigInt, which is not constant-time by design.
   They leak timing information. Do not put them in front of an adversary who can

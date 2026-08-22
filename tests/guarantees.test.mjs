@@ -222,7 +222,7 @@ test('the Decimal type behaves under direct use', () => {
 // ---------------------------------------------------------------------------
 
 test('the hand-rolled primitives need their own capability', () => {
-  for (const call of ['paillier_keygen(512)', 'zk_public(1)', 'commit(1, 2)']) {
+  for (const call of ['paillier_keygen_insecure(512)', 'zk_public(1)', 'commit(1, 2)']) {
     assert.equal(fails(call, { caps: ['crypto'] }).kind, 'CapabilityError',
       `${call} should not be reachable with only \`crypto\``);
   }
@@ -239,7 +239,7 @@ test('the platform-backed primitives do not need it', () => {
 
 test('granting both still works end to end', () => {
   const { value } = run(`
-    let k = paillier_keygen(512)
+    let k = paillier_keygen_insecure(512)
     decrypt(k, encrypt(k, 40) + encrypt(k, 2))
   `, { caps: ['crypto', 'unaudited_crypto'] });
   assert.equal(value, 42);

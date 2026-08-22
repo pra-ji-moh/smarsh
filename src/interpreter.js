@@ -105,6 +105,10 @@ export class Interpreter {
   constructor({
     seed = 0, caps = [], principals = [], foreign = [],
     out = (s) => process.stdout.write(`${s}\n`), cwd = process.cwd(),
+    // Non-fatal notices about the run itself, not the program's output. These
+    // went only into the audit manifest, so a run without `--audit` generated a
+    // breakable key in silence. stderr, so piping stdout does not lose them.
+    warn = (s) => process.stderr.write(`${s}\n`),
   } = {}) {
     this.seed = seed;
     this.rng = new Rng(seed);
@@ -115,6 +119,7 @@ export class Interpreter {
     this.env = this.globals;
     this.cwd = cwd;
     this.out = out;
+    this.warn = warn;
 
     // Capabilities held by the frame currently executing. The top level holds
     // exactly what the CLI granted; each function body holds exactly what it

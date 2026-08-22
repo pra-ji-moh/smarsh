@@ -228,7 +228,7 @@ dot cosine relu sigmoid tanh softmax argmax`.
 
 Also present, by area: agents (`send run_agents pending agents`), context
 windows (`context tokens distill`), ledgers (`ledger`), cryptography (`sha256 sign
-verify_signature keypair`, and behind `unaudited_crypto`:
+verify_signature keypair`, and behind `unaudited_crypto` (`paillier_keygen` refuses a modulus below 2048 bits; `paillier_keygen_insecure(512)` is the demonstration form and warns):
 `paillier_keygen encrypt decrypt commit commit_open zk_public zk_prove
 zk_verify`), quantum simulation (`qubits qh qx cnot
 measure`), time (`clock advance liquid`), schema (`schema negotiate adapt

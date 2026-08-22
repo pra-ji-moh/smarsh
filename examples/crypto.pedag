@@ -14,7 +14,12 @@
 // and has never been reviewed by anyone.
 print("== computing on data you cannot read ======================")
 
-let k = paillier_keygen(512)
+// 512 bits, and the name says so. A real modulus is 2048 and takes seconds to
+// generate, which is right for a deployment and wrong for an example -- so this
+// asks for the breakable one explicitly, prints a warning, and the manifest
+// records that a key protecting nothing was made. `paillier_keygen(512)` is
+// refused outright; you have to say you meant it.
+let k = paillier_keygen_insecure(512)
 let salary_a = encrypt(k, 82000)
 let salary_b = encrypt(k, 95000)
 let salary_c = encrypt(k, 71000)

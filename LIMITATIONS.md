@@ -207,6 +207,15 @@ not been done.
 
 ## 5. Security
 
+- **`unaudited_crypto` stays hand-rolled, and here is why.** There is no audited
+  JavaScript Paillier implementation to move to; the available packages are
+  unaudited too, so adopting one would trade this code for someone else's
+  unaudited code plus a supply-chain dependency, in a project that currently has
+  none. `@noble/curves` is audited but implements EC Schnorr over secp256k1,
+  which is a different group and a different API from the finite-field
+  construction here. The honest position is that these primitives are behind
+  their own capability, are documented as unreviewed, and should not be used for
+  anything that matters.
 - **`unaudited_crypto` is unaudited and not constant time.** BigInt arithmetic
   in JavaScript leaks timing. Quarantined behind its own capability; still not
   safe against an adversary who can measure you.

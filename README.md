@@ -870,7 +870,7 @@ print(ctx.tokens, "of", ctx.budget, "used")   // evicts oldest unpinned on overf
 ### 8. Arithmetic on data you cannot read
 
 ```pedag
-let k = paillier_keygen(512)
+let k = paillier_keygen_insecure(512)   // `paillier_keygen` needs 2048; this warns
 let payroll = encrypt(k, 82000) + encrypt(k, 95000) + encrypt(k, 71000)
 let after_fee = payroll - 1000
 print(decrypt(k, after_fee))          // 247000 -- nothing decrypted in between

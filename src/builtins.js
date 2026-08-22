@@ -5,7 +5,8 @@ import { Tensor } from './tensor.js';
 import { pedagError, PedagError } from './errors.js';
 import { bigFromHex } from './bigmath.js';
 import {
-  sha256Hex, PaillierKey, Cipher, paillierKeygen, paillierEncrypt, paillierDecrypt,
+  sha256Hex, PAILLIER_MIN_BITS,
+  PaillierKey, Cipher, paillierKeygen, paillierEncrypt, paillierDecrypt,
   GroupElement, ZkProof, Commitment, zkPublic, zkProve, zkVerify, pedersenCommit, pedersenVerify,
   KeyPair, generateKeypair, signMessage, verifyMessage, LineageChain, Secret, randomSecret,
 } from './crypto.js';
@@ -1067,14 +1068,22 @@ function installCrypto(interp, def, num) {
 
   const UNAUDITED = { needs: ['unaudited_crypto'] };
 
+  // A key size that provides no security is not a warning, it is a different
+  // function. `paillier_keygen` refuses below 2048; anything smaller has to be
+  // asked for by a name that says what it is, and the run records that it was.
   def('paillier_keygen', -1, (a, line) => {
-    const bits = a.length ? Math.trunc(num(a[0], 'a key size', line)) : 512;
-    if (bits < 2048) {
-      interp.trace.cryptoWarnings = interp.trace.cryptoWarnings ?? [];
-      interp.trace.cryptoWarnings.push(
-        `a ${bits}-bit Paillier modulus was generated at line ${line}; 2048 is the minimum for anything real`);
-    }
+    const bits = a.length ? Math.trunc(num(a[0], 'a key size', line)) : PAILLIER_MIN_BITS;
     return wrapNative(() => paillierKeygen(bits), line);
+  }, UNAUDITED);
+
+  def('paillier_keygen_insecure', 1, (a, line) => {
+    const bits = Math.trunc(num(a[0], 'a key size', line));
+    const notice = `a ${bits}-bit Paillier modulus was generated at line ${line}; `
+      + `it factors on a laptop and protects nothing (${PAILLIER_MIN_BITS} is the minimum for anything real)`;
+    interp.trace.cryptoWarnings = interp.trace.cryptoWarnings ?? [];
+    interp.trace.cryptoWarnings.push(notice);
+    interp.warn(`warning: ${notice}`);
+    return wrapNative(() => paillierKeygen(bits, { insecure: true }), line);
   }, UNAUDITED);
 
   def('encrypt', 2, (a, line) => {

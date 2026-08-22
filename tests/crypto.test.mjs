@@ -77,25 +77,25 @@ test('the group parameters are a genuine safe prime, not a recalled constant', (
 // ---------------------------------------------------------------------------
 
 test('Paillier round-trips, including negatives and zero', () => {
-  const k = paillierKeygen(512);
+  const k = paillierKeygen(512, { insecure: true });
   for (const m of [0n, 1n, 42n, -7n, 1000000n, -999999n]) {
     assert.equal(paillierDecrypt(k, paillierEncrypt(k, m)), m, `failed for ${m}`);
   }
 });
 
 test('ciphertexts add without decrypting', () => {
-  const k = paillierKeygen(512);
+  const k = paillierKeygen(512, { insecure: true });
   const sum = heAdd(paillierEncrypt(k, 1200n), paillierEncrypt(k, 800n));
   assert.equal(paillierDecrypt(k, sum), 2000n);
 });
 
 test('a ciphertext scales by a plaintext', () => {
-  const k = paillierKeygen(512);
+  const k = paillierKeygen(512, { insecure: true });
   assert.equal(paillierDecrypt(k, heMulPlain(paillierEncrypt(k, 250n), 4n)), 1000n);
 });
 
 test('encryption is randomised: the same value twice gives different ciphertexts', () => {
-  const k = paillierKeygen(512);
+  const k = paillierKeygen(512, { insecure: true });
   const a = paillierEncrypt(k, 5n);
   const b = paillierEncrypt(k, 5n);
   assert.notEqual(a.value, b.value);
@@ -103,13 +103,13 @@ test('encryption is randomised: the same value twice gives different ciphertexts
 });
 
 test('a public key cannot decrypt', () => {
-  const k = paillierKeygen(512);
+  const k = paillierKeygen(512, { insecure: true });
   assert.throws(() => paillierDecrypt(k.publicOnly(), paillierEncrypt(k, 1n)), /cannot decrypt/);
 });
 
 test('the language does encrypted arithmetic with ordinary operators', () => {
   const { value } = run(`
-    let k = paillier_keygen(512)
+    let k = paillier_keygen_insecure(512)
     let a = encrypt(k, 300)
     let b = encrypt(k, 45)
     [decrypt(k, a + b), decrypt(k, a - b), decrypt(k, a * 3), decrypt(k, a + 5)]
@@ -119,7 +119,7 @@ test('the language does encrypted arithmetic with ordinary operators', () => {
 
 test('multiplying two ciphertexts is refused with an explanation', () => {
   const e = fails(`
-    let k = paillier_keygen(512)
+    let k = paillier_keygen_insecure(512)
     encrypt(k, 2) * encrypt(k, 3)
   `, CRYPTO);
   assert.equal(e.kind, 'TypeError');
@@ -127,15 +127,15 @@ test('multiplying two ciphertexts is refused with an explanation', () => {
 });
 
 test('ciphertexts refuse to be compared', () => {
-  const e = fails('let k = paillier_keygen(512)\nencrypt(k, 1) == encrypt(k, 1)', CRYPTO);
+  const e = fails('let k = paillier_keygen_insecure(512)\nencrypt(k, 1) == encrypt(k, 1)', CRYPTO);
   assert.match(e.message, /cannot be compared/);
 });
 
 test('the unaudited primitives are behind their own capability', () => {
-  assert.equal(fails('paillier_keygen(512)').kind, 'CapabilityError');
+  assert.equal(fails('paillier_keygen_insecure(512)').kind, 'CapabilityError');
   // Holding `crypto` is deliberately not enough: a deployment can take the
   // platform-backed primitives and refuse the hand-rolled ones.
-  assert.equal(fails('paillier_keygen(512)', { caps: ['crypto'] }).kind, 'CapabilityError');
+  assert.equal(fails('paillier_keygen_insecure(512)', { caps: ['crypto'] }).kind, 'CapabilityError');
   assert.equal(fails('zk_verify(zk_public(1), zk_prove(1))', { caps: ['crypto'] }).kind, 'CapabilityError');
   assert.equal(fails('commit(1, 2)', { caps: ['crypto'] }).kind, 'CapabilityError');
 });
@@ -147,7 +147,7 @@ test('the platform-backed primitives stay on `crypto`', () => {
 });
 
 test('an undersized modulus is recorded rather than passed over', () => {
-  const { interp } = run('paillier_keygen(512)', CRYPTO);
+  const { interp } = run('paillier_keygen_insecure(512)', CRYPTO);
   assert.equal(interp.trace.cryptoWarnings.length, 1);
   assert.match(interp.trace.cryptoWarnings[0], /2048 is the minimum/);
 });

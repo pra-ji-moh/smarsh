@@ -4,7 +4,7 @@ import {
   createPrivateKey,
 } from 'node:crypto';
 
-import { modpow, modinv, lcm, randomPrime, randomBits, bigFromHex, bitLength } from './bigmath.js';
+import { modpow, modinv, lcm, gcd, randomPrime, randomBits, randomBelow, bigFromHex, bitLength } from './bigmath.js';
 import { NativeFunction, unwrap, stringify } from './values.js';
 import { pedagError } from './errors.js';
 
@@ -57,7 +57,20 @@ export class Cipher {
   }
 }
 
-export function paillierKeygen(bits) {
+// Below this a Paillier modulus is not a weak key, it is a decorative one: 512
+// bits factors on a laptop, and the whole guarantee is gone. Smaller keys are
+// still reachable, because a demonstration that takes four seconds to start is
+// a demonstration nobody runs -- but only through a function whose name says
+// what it is, and the run records that it happened.
+export const PAILLIER_MIN_BITS = 2048;
+
+export function paillierKeygen(bits, { insecure = false } = {}) {
+  if (!insecure && bits < PAILLIER_MIN_BITS) {
+    throw new Error(
+      `a ${bits}-bit Paillier modulus provides no security and factors on a laptop; `
+      + `use at least ${PAILLIER_MIN_BITS} bits, or paillier_keygen_insecure(${bits}) `
+      + 'if this is a demonstration and the run should say so');
+  }
   if (bits < 256) throw new Error('a Paillier modulus below 256 bits is not meaningful');
   const half = Math.floor(bits / 2);
   let p;
@@ -87,8 +100,14 @@ function decodePlain(m, n) {
 
 export function paillierEncrypt(key, m) {
   const plain = encodePlain(m, key.n);
+  // The blinding factor has to be uniform in Z*_n: uniform, and a unit. It was
+  // neither. `randomBits(k) % n` is biased twice over (see randomBelow), and
+  // `r > 1` is not the same condition as `gcd(r, n) = 1` -- an r sharing a
+  // factor with n makes the ciphertext unblindable and hands over the
+  // factorisation to anyone who notices. It is vanishingly unlikely, and it is
+  // one line to make impossible.
   let r;
-  do { r = randomBits(bitLength(key.n)) % key.n; } while (r <= 1n);
+  do { r = randomBelow(key.n); } while (r <= 1n || gcd(r, key.n) !== 1n);
   // (1 + n)^m == 1 + m*n (mod n^2), which is cheaper and exact for g = n+1.
   const gm = (1n + (plain * key.n) % key.nn) % key.nn;
   const rn = modpow(r, key.n, key.nn);
@@ -170,16 +189,33 @@ export const zkPublic = (x) => modpow(G, ((x % Q) + Q) % Q, P);
 export function zkProve(x) {
   const secret = ((x % Q) + Q) % Q;
   const y = modpow(G, secret, P);
+  // The nonce must be uniform over [1, Q) and secret. It was `randomBits(256) %
+  // Q`, which is biased and 256 bits wide against a 2047-bit order -- Schnorr
+  // is the signature scheme where a biased nonce is not a theoretical problem
+  // but the standard way the private key is recovered.
   let k;
-  do { k = randomBits(256) % Q; } while (k === 0n);
+  do { k = randomBelow(Q); } while (k === 0n);
   const t = modpow(G, k, P);
   const c = challenge(G, y, t);
   const s = (k + c * secret) % Q;
   return new ZkProof(t, s);
 }
 
+// Membership in the order-q subgroup, which is where the soundness argument
+// lives. An element of Z*_p that is not in it can sit in a small subgroup, and
+// everything below assumes it does not.
+const inSubgroup = (v) => v > 1n && v < P && modpow(v, Q, P) === 1n;
+
 export function zkVerify(y, proof) {
-  if (y <= 1n || y >= P) return false;
+  // Validate everything that arrived from outside before using it. The old
+  // check was `y <= 1n || y >= P` and nothing at all about the proof: `t` was
+  // used unvalidated, and `s` was used as an exponent without being reduced.
+  // A verifier that accepts malformed input is not a verifier.
+  if (!inSubgroup(y)) return false;
+  if (!(proof instanceof ZkProof)) return false;
+  if (!inSubgroup(proof.t)) return false;
+  if (proof.s < 0n || proof.s >= Q) return false;
+
   const c = challenge(G, y, proof.t);
   return modpow(G, proof.s, P) === (proof.t * modpow(y, c, P)) % P;
 }
@@ -187,7 +223,8 @@ export function zkVerify(y, proof) {
 export const pedersenCommit = (m, r) => new Commitment(
   (modpow(G, ((m % Q) + Q) % Q, P) * modpow(H, ((r % Q) + Q) % Q, P)) % P);
 
-export const pedersenVerify = (commitment, m, r) => pedersenCommit(m, r).c === commitment.c;
+export const pedersenVerify = (commitment, m, r) =>
+  inSubgroup(commitment.c) && pedersenCommit(m, r).c === commitment.c;
 
 // ---------------------------------------------------------------------------
 // Ed25519: machine-to-machine provenance

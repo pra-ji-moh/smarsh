@@ -94,7 +94,7 @@ test('crossing the FFI boundary is recorded', () => {
 });
 
 test('a weak crypto parameter is recorded as a warning', () => {
-  const { manifest } = record('paillier_keygen(512)', { caps: ['crypto', 'unaudited_crypto'] });
+  const { manifest } = record('paillier_keygen_insecure(512)', { caps: ['crypto', 'unaudited_crypto'] });
   const warnings = events(manifest, 'crypto.warning');
   assert.equal(warnings.length, 1);
   assert.match(warnings[0].detail, /2048 is the minimum/);

@@ -42,6 +42,32 @@ export function randomBits(bits) {
   return n | (1n << BigInt(bits - 1));
 }
 
+// Uniform random BigInt in [0, n), by rejection.
+//
+// The obvious `randomBits(k) % n` is wrong twice over. Reducing a k-bit value
+// mod n favours the low end whenever n is not a power of two -- and this
+// `randomBits` also forces the top bit, so it never even produces the low half
+// of its range before the reduction. Both biases land in exactly the places
+// where uniformity is the security assumption: a Paillier blinding factor and a
+// Schnorr nonce.
+//
+// Rejection has no bias and, sampling at the same bit length as n, retries with
+// probability under 1/2 per draw.
+export function randomBelow(n) {
+  if (n <= 0n) throw new Error('randomBelow needs a positive bound');
+  if (n === 1n) return 0n;
+  const bits = bitLength(n);
+  const bytes = Math.ceil(bits / 8);
+  const excess = BigInt(bytes * 8 - bits);
+  for (;;) {
+    const buf = randomBytes(bytes);
+    let v = 0n;
+    for (const b of buf) v = (v << 8n) | BigInt(b);
+    v >>= excess;
+    if (v < n) return v;
+  }
+}
+
 const SMALL_PRIMES = [
   2n, 3n, 5n, 7n, 11n, 13n, 17n, 19n, 23n, 29n, 31n, 37n, 41n, 43n, 47n,
   53n, 59n, 61n, 67n, 71n, 73n, 79n, 83n, 89n, 97n, 101n, 103n, 107n, 109n, 113n,
