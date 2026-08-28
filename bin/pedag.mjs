@@ -23,7 +23,7 @@ import { generateKeypair, verifyMessage, exportKeypair, loadKeypair } from '../s
 
 const VERSION = '0.3.0';
 
-const HELP = `Pēdāg ${VERSION} -- a language for programs that reason under uncertainty
+const HELP = `Pēdāg ${VERSION} -- proves what a program was allowed to do, and what it did
 
 usage:
   pedag demo                           see what it does, in 30 seconds

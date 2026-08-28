@@ -1,7 +1,7 @@
 {
   "name": "pedag",
   "version": "0.3.0",
-  "description": "A language for programs that reason under uncertainty: probabilistic control flow, first-class tensors, capability security, provenance tracking, and contracts that generate their own tests.",
+  "description": "A general-purpose language whose runtime proves what a program was allowed to do, and what it actually did. Capability security, provenance that follows the data, contracts that generate their own tests, and a signed manifest of every power exercised and every one refused.",
   "license": "MIT",
   "type": "module",
   "bin": {
