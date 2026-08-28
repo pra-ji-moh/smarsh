@@ -125,7 +125,7 @@ what was refused, and where data went.
 ## Try the thing above
 
 ```bash
-git clone <this repo> && cd smarsh
+git clone https://github.com/pranj-al-m/smarsh && cd smarsh
 node bin/smarsh.mjs demo
 ```
 

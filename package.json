@@ -8,6 +8,14 @@
     "smarsh": "bin/smarsh.mjs",
     "smarsh-verify": "tools/verify-manifest.mjs"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pranj-al-m/smarsh.git"
+  },
+  "homepage": "https://github.com/pranj-al-m/smarsh#readme",
+  "bugs": {
+    "url": "https://github.com/pranj-al-m/smarsh/issues"
+  },
   "engines": {
     "node": ">=18"
   },
