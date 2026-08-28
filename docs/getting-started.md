@@ -32,6 +32,45 @@ If you would rather not install globally, `npx smarsh run file.smarsh` works
 the same way, and every command below can be prefixed with `npx smarsh`
 instead of `Smarsh`.
 
+## When it does the wrong thing
+
+```bash
+smarsh debug program.smarsh
+smarsh debug program.smarsh --break 42
+```
+
+It stops before the first statement and hands you a prompt:
+
+```
+=>    1 | let total = 0
+      2 | for row in rows { total = total + row.amount }
+      3 | print(total)
+(smarsh:1) b 2
+breakpoint at line 2
+(smarsh:1) c
+(smarsh:2) p row.amount
+  19.99
+(smarsh:2) locals
+  here:
+    let row = Row(id: 4, amount: 19.99)
+  1 scope(s) out:
+    var total = 0
+```
+
+`c` continue, `s` step into, `n` step over, `f` finish the call, `b <line>`
+breakpoint, `p <expr>` evaluate where you are, `locals`, `bt`, `caps`, `q`.
+`help` lists them.
+
+Two things worth knowing. It runs on the tree-walking engine, always -- the
+compiled engine turns statements into closures and would stop at some and not
+others. The tree-walker is the specification the fast engine is checked against
+on 3,065 programs, so what you step through is what runs.
+
+And an expression at the prompt holds exactly the authority the paused frame
+holds. `now()` at the prompt is refused if the function you are stopped in did
+not declare `clock`. A debugger that can do more than the program is a debugger
+that lies about the program.
+
 ## Your editor
 
 Smarsh ships a language server, so an editor gives you the same diagnostics

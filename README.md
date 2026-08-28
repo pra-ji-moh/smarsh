@@ -136,7 +136,7 @@ is [tested](tests/demo.test.mjs), not asserted: seven edits an interested party
 would actually want to make, including deleting the inconvenient event and
 attaching the record to a different program.
 
-Zero dependencies, Node 18 or later. 752 passing tests over 94% of the lines in
+Zero dependencies, Node 18 or later. 785 passing tests over 94% of the lines in
 `src/`.
 
 > **Status: 0.3.0, pre-1.0, no production users, no third-party audit.** Read
@@ -1177,13 +1177,14 @@ the rest
   src/bundle.js         smarsh build -- one standalone .mjs
   src/testrunner.js     smarsh test
   src/lsp.js            the language server: diagnostics, completion, hover
+  src/debug.js          breakpoints, stepping, and the prompt that reads them
 
 editors/vscode/         the VS Code extension -- grammar, and a client that
                         starts the server above
 
 std/                    the standard library, written in Smarsh
 examples/               15 programs, every one of them run by CI
-tests/                  752 tests across 32 files
+tests/                  785 tests across 33 files
 tools/                  the differential oracle, the fuzzer, the A/B harness
 ```
 

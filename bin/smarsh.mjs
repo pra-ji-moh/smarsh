@@ -21,6 +21,7 @@ import { verifyProgram, formatVerification } from '../src/verify.js';
 import { discover, runFile, format } from '../src/testrunner.js';
 import { formatSource } from '../src/format.js';
 import { serve } from '../src/lsp.js';
+import { Debugger, Session, makeSyncReader, DebuggerQuit, STEP } from '../src/debug.js';
 import { buildManifest, verifyManifest, summarise } from '../src/audit.js';
 import { generateKeypair, verifyMessage, exportKeypair, loadKeypair } from '../src/crypto.js';
 
@@ -41,6 +42,7 @@ usage:
   smarsh keygen [-o key.pem]            a signing identity to bind records to
   smarsh repl [options]                interactive session
   smarsh lsp [--verbose]               language server (stdio) for any editor
+  smarsh debug <file.smarsh> [--break N]  step through it, and look around
   smarsh eval "<source>" [options]     run a one-liner
   smarsh explain <CODE>                a longer explanation of a diagnostic
 
@@ -90,6 +92,7 @@ function parseArgs(argv) {
     else if (a === '--check') opts.check = true;
     else if (a === '--json') opts.json = true;
     else if (a === '--verbose') opts.verbose = true;
+    else if (a === '--break') { (opts.breakAt ??= []).push(argv[++i]); }
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a === '--version' || a === '-v') opts.version = true;
     else opts.positional.push(a);
@@ -699,7 +702,7 @@ function main() {
   // test in tests/tooling.test.mjs now asserts the two agree.
   const commands = new Set([
     'run', 'prove', 'repl', 'eval', 'check', 'build', 'explain', 'test', 'fmt', 'verify', 'audit',
-    'demo', 'keygen', 'lsp',
+    'demo', 'keygen', 'lsp', 'debug',
   ]);
 
   let command;
@@ -729,6 +732,68 @@ function main() {
   else if (command === 'fmt') cmdFmt(opts);
   else if (command === 'repl') cmdRepl(opts);
   else if (command === 'lsp') cmdLsp(opts);
+  else if (command === 'debug') cmdDebug(opts);
+}
+
+// `smarsh debug` -- breakpoints, stepping, and the state that produced an answer.
+//
+// It runs on the tree-walking engine, always. The compiled engine turns
+// statements into closures and never calls `exec`, so a debugger built on it
+// would stop at some statements and not others depending on which ones happened
+// to be compiled -- which is worse than not having one. The tree-walker is the
+// specification both engines are checked against on 3,065 programs, so stepping
+// through it shows what the fast engine does, and `tools/differential.mjs` is
+// what makes that claim true rather than hopeful.
+function cmdDebug(opts) {
+  const file = opts.positional[0];
+  if (!file) { console.error('Smarsh: debug needs a file'); process.exit(2); }
+  const { full, source } = readSource(file);
+
+  const interp = new Interpreter({
+    seed: opts.seed,
+    caps: opts.grant,
+    principals: opts.principals,
+    foreign: opts.foreign,
+    cwd: path.dirname(full),
+  });
+  interp.entryPath = full;
+  interp.compiled = false;
+
+  const dbg = new Debugger({ file: full, source, onPause: null });
+  for (const line of opts.breakAt ?? []) {
+    if (dbg.addBreakpoint(line) === null) {
+      console.error(`Smarsh: --break ${line} is not a line in this file`);
+      process.exit(2);
+    }
+  }
+  // With breakpoints given up front, run to the first one instead of stopping
+  // on line 1 -- that is what someone who passed --break asked for.
+  if (dbg.breakpoints.size > 0) dbg.mode = STEP.RUN;
+
+  const session = new Session({
+    dbg,
+    readCommand: makeSyncReader(),
+    write: (s2) => process.stdout.write(s2),
+    interp,
+  });
+  dbg.onPause = (d, node, itp) => session.pause(node, itp);
+  interp.debugHook = dbg;
+
+  console.log(`debugging ${file} on the tree-walking engine -- \`help\` lists the commands`);
+  try {
+    interp.run(source, file);
+    console.log('\nthe program finished');
+  } catch (e) {
+    if (e instanceof DebuggerQuit) {
+      console.log('\nstopped');
+    } else {
+      console.log('');
+      reportError(e, source, file);
+      process.exitCode = 1;
+    }
+  } finally {
+    interp.devices.shutdown();
+  }
 }
 
 // The language server. Speaks LSP on stdin/stdout, which is what every editor

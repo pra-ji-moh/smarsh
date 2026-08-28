@@ -154,6 +154,12 @@ export class Interpreter {
     this.profiling = false;
     this.profile = new Map();  // function name -> { calls, steps, nanos }
     this.callDepth = 0;
+    // The debugger's hook, or null. One comparison against null in `exec` is
+    // the entire cost when nothing is attached, and it measured as no
+    // detectable difference across the eleven benchmark shapes. Anything more
+    // clever -- wrapping the prototype, a separate stepping evaluator -- would
+    // buy nothing and could only diverge from the engine it is meant to show.
+    this.debugHook = null;
     // Deliberately low, and the reason matters.
     //
     // This was 2000, which no run ever reached: both engines exhausted the
@@ -238,6 +244,30 @@ export class Interpreter {
       this.fileStack.pop();
     }
     return last;
+  }
+
+  // One expression, in whatever scope the interpreter is currently in.
+  //
+  // This is what the debugger's `print` uses, and it deliberately holds no more
+  // authority than the frame it runs in: `read("x")` at the prompt is refused
+  // exactly when it would be refused a line further down. A debugger that can
+  // do more than the program is a debugger that lies about the program.
+  //
+  // The debug hook is detached for the duration. Without that, evaluating an
+  // expression would re-enter `onStatement`, which is already on the stack --
+  // the prompt would recurse into itself on the first `print`.
+  runExpression(source) {
+    const program = parse(source, '<debug>');
+    if (program.body.length === 0) return null;
+    const hook = this.debugHook;
+    this.debugHook = null;
+    try {
+      let last = null;
+      for (const stmt of program.body) last = this.exec(stmt);
+      return last;
+    } finally {
+      this.debugHook = hook;
+    }
   }
 
   // --- statements ----------------------------------------------------------
@@ -335,6 +365,9 @@ export class Interpreter {
 
   exec(node) {
     this.tick(node);
+    // Before the statement, not after: a debugger that stops after the line ran
+    // cannot show you the state that produced the answer.
+    if (this.debugHook !== null) this.debugHook.onStatement(node, this);
     switch (node.type) {
       case 'Declare': {
         const value = this.evaluate(node.value);
