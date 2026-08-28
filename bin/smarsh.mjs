@@ -54,6 +54,7 @@ options:
   --trials <n>        prove: inputs generated per function (default 200)
   --engine <e>        'fast' (default, compiled) or 'tree' (the reference)
   --foreign <a,b>     which foreign modules ffi may open ('*' for any)
+  --allow-host <a,b>  which hosts net may reach ('*' for any, '*.x.com' for a suffix)
   --json              machine-readable output, for a program driving this one
   --version, --help
 
@@ -72,7 +73,7 @@ const addList = (into, raw) => {
 
 function parseArgs(argv) {
   const opts = {
-    seed: 0, grant: [], principals: [], foreign: [],
+    seed: 0, grant: [], principals: [], foreign: [], hosts: [],
     trace: false, trials: 200, positional: [],
   };
   for (let i = 0; i < argv.length; i++) {
@@ -81,6 +82,7 @@ function parseArgs(argv) {
     else if (a === '--grant') addList(opts.grant, argv[++i]);
     else if (a === '--principal') addList(opts.principals, argv[++i]);
     else if (a === '--foreign') addList(opts.foreign, argv[++i]);
+    else if (a === '--allow-host') addList(opts.hosts, argv[++i]);
     else if (a === '--engine') opts.engine = String(argv[++i] ?? '');
     else if (a === '--trials') opts.trials = Number(argv[++i]);
     else if (a === '--trace') opts.trace = true;
@@ -182,6 +184,7 @@ function cmdRun(opts) {
     caps: opts.grant,
     principals: opts.principals,
     foreign: opts.foreign,
+    hosts: opts.hosts,
     cwd: path.dirname(full),
     ...(opts.json ? { out: (line) => collected.push(line) } : {}),
   });
@@ -754,6 +757,7 @@ function cmdDebug(opts) {
     caps: opts.grant,
     principals: opts.principals,
     foreign: opts.foreign,
+    hosts: opts.hosts,
     cwd: path.dirname(full),
   });
   interp.entryPath = full;

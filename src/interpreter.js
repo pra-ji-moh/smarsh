@@ -103,7 +103,7 @@ function framesEscape(decl) {
 
 export class Interpreter {
   constructor({
-    seed = 0, caps = [], principals = [], foreign = [],
+    seed = 0, caps = [], principals = [], foreign = [], hosts = [],
     out = (s) => process.stdout.write(`${s}\n`), cwd = process.cwd(),
     // Non-fatal notices about the run itself, not the program's output. These
     // went only into the audit manifest, so a run without `--audit` generated a
@@ -141,6 +141,11 @@ export class Interpreter {
     // Which foreign modules this run may open. `ffi` says a program may cross
     // the boundary at all; this says where to. Empty means nowhere.
     this.allowedForeign = new Set(foreign);
+    // Where this run may reach, for the same reason `allowedForeign` exists:
+    // granting an authority without saying what for is how `ffi` used to work,
+    // and the network's blast radius is larger than a module load's.
+    this.allowedHosts = new Set(hosts);
+    this.net = null;                 // built on first use; see src/net.js
     this.grantedAuthority = new Set(principals);
     this.authority = new Set();
     this.releaseStack = [];
@@ -205,6 +210,7 @@ export class Interpreter {
     this.trace = {
       branches: [], forks: 0, calls: 0, contracts: 0,
       laundered: [], redefinitions: [], declassifications: [], endorsements: [],
+      requests: [],
       grantUses: [], revocations: [],
       // What the audit record is assembled from.
       effects: [],        // every capability exercised or refused

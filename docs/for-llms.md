@@ -192,9 +192,25 @@ A value that *lost* a vouch prints as `{~alice}` and is not the same as one
 that never had it (`{}`). The error tells you which.
 
 Capabilities: `fs clock crypto unaudited_crypto ffi net`. Granted with
-`--grant a,b`, principals with `--principal p`. `ffi` also needs
-`--foreign node:path` naming what it may open; granting it alone opens
-nothing.
+`--grant a,b`, principals with `--principal p`. Two of them need a second flag
+saying *what for*, and granting them alone opens nothing: `ffi` needs
+`--foreign node:path`, and `net` needs `--allow-host api.example.com`
+(`*.example.com` for a suffix, `*` for anywhere).
+
+```smarsh
+fn rate() needs net {
+  let r = http_get("https://api.example.com/rate")   // http_post, http(method, url) too
+  assert(r["status"] == 200, "upstream said " + str(r["status"]))
+  return json_parse(r["body"])["rate"]
+}
+```
+
+Three things about `net` that will otherwise surprise you. Every response is
+**untrusted**, so `grounded { }` refuses it until you have checked it. Redirects
+are **not followed** -- you get the 3xx and its `Location`, because following one
+could reach a host the run was never permitted to reach. And a non-2xx status is
+a **response, not an error**: the runtime does not decide what a 404 means to
+your program.
 
 ## Blocks
 
@@ -221,6 +237,10 @@ Strings: `.len .upper .lower .trim .split .replace .slice .contains .starts
 Maps: `.len .get .set .has .remove .keys .values`
 
 Exact numbers: `19.99d` literals, `dec is_dec dec_sum`, and `.div(amount, scale)`.
+
+JSON: `json_parse to_json is_json`. A fractional number parses to an exact
+decimal, not a float, so `19.99` survives the round trip. Taint survives it too:
+`json_parse(untrusted(body))` is untrusted all the way down.
 
 Tensors: `tensor [[1,2],[3,4]]`, `@`, and `.T .shape .rank .size .sum .mean
 .max .min .norm .reshape .map .tolist`, plus `zeros ones eye full arange randn

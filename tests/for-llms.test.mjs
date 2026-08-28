@@ -93,7 +93,11 @@ test('every builtin the authority section shows being called exists', () => {
   // This section is the security surface. A name that drifted here would be
   // just as wrong as one in the library list, and rather more expensive.
   const claimed = calledIn('## Authority and provenance', '## Blocks');
-  for (const w of ['fn', 'f']) claimed.delete(w);   // the signature example
+  claimed.delete('fn');
+  // A name the section's own examples define is not a claim that a builtin
+  // exists by that name -- `fn rate() { ... }` reads as a call to the regex.
+  const section = DOC.slice(DOC.indexOf('## Authority and provenance'), DOC.indexOf('## Blocks'));
+  for (const m of section.matchAll(/\bfn\s+([a-z_][a-z0-9_]*)/g)) claimed.delete(m[1]);
 
   const missing = [...claimed].filter((n) => !BUILTINS.has(n));
   assert.deepEqual(missing, [], `the page names builtins that do not exist: ${missing.join(', ')}`);

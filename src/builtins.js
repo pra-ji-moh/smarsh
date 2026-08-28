@@ -11,6 +11,10 @@ import {
   KeyPair, generateKeypair, signMessage, verifyMessage, LineageChain, Secret, randomSecret,
 } from './crypto.js';
 import { parseJson, writeJson, isJsonable } from './json.js';
+import {
+  NetClient, checkUrl, normaliseHeaders, normaliseMethod, toSmarshResponse,
+  DEFAULT_TIMEOUT_MS,
+} from './net.js';
 import { QubitRegister, GATES, rx, ry, rz } from './quantum.js';
 import { LogicalClock, Stamp, Liquid } from './temporal.js';
 import { AgentRef } from './agents.js';
@@ -316,6 +320,63 @@ export function installBuiltins(interp) {
   }, { transparent: true });
 
   def('labels', 1, (a) => (a[0] instanceof Tainted ? [...a[0].labels] : []), { transparent: true });
+
+  // --- the network ------------------------------------------------------------
+
+  // `net` was in the capability table, in `--help`, and in the page written for
+  // models, and was implemented nowhere. This is a promise being kept rather
+  // than a feature being added.
+  const NET = { needs: ['net'] };
+
+  const doRequest = (method, urlText, options, line) => {
+    const url = checkUrl(String(unwrap(urlText) ?? ''), interp, line);
+    const opts = unwrap(options) ?? null;
+    const get = (k) => (opts instanceof Map ? unwrap(opts.get(k)) : undefined);
+
+    const headers = normaliseHeaders(get('headers') ?? null, line);
+    const rawBody = get('body');
+    let body = null;
+    if (rawBody !== undefined && rawBody !== null) {
+      // A map or list body is JSON, which is what an API wants and saves every
+      // caller writing `to_json` themselves. A string is sent as it stands.
+      if (typeof rawBody === 'string') {
+        body = rawBody;
+      } else {
+        body = writeJson(rawBody);
+        if (!('content-type' in headers)) headers['content-type'] = 'application/json';
+      }
+    }
+
+    const timeout = get('timeout_ms');
+    const timeoutMs = timeout === undefined ? DEFAULT_TIMEOUT_MS
+      : Math.max(1, Math.trunc(interp.asNumber(timeout, 'the timeout', line)));
+
+    if (interp.net === null) interp.net = new NetClient();
+    const result = interp.net.request({ method, url: url.href, headers, body, timeoutMs });
+    return toSmarshResponse(result, url, method, interp, line);
+  };
+
+  def('http_get', -1, (a, line) => {
+    if (a.length < 1 || a.length > 2) {
+      throw smarshError('ArityError', 'http_get takes a url and optionally a map of options', line);
+    }
+    return doRequest('GET', a[0], a[1], line);
+  }, NET);
+
+  def('http_post', -1, (a, line) => {
+    if (a.length < 1 || a.length > 2) {
+      throw smarshError('ArityError', 'http_post takes a url and optionally a map of options', line);
+    }
+    return doRequest('POST', a[0], a[1], line);
+  }, NET);
+
+  // The general form, for the methods that do not get their own name.
+  def('http', -1, (a, line) => {
+    if (a.length < 2 || a.length > 3) {
+      throw smarshError('ArityError', 'http takes a method, a url, and optionally a map of options', line);
+    }
+    return doRequest(normaliseMethod(unwrap(a[0]), line), a[1], a[2], line);
+  }, NET);
 
   // --- JSON ------------------------------------------------------------------
 

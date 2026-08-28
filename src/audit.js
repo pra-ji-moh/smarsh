@@ -107,6 +107,17 @@ export function buildManifest(interp, {
       line: at(e.line),
     });
   }
+  // What actually left the machine, with what came back. A reviewer reading
+  // "net was used" learns nothing; this is the line that says where to.
+  for (const q of t.requests ?? []) {
+    events.push({
+      event: q.ok ? 'net.request' : 'net.request_failed',
+      to: `${q.method} ${q.url}`,
+      status: q.ok ? q.status : q.outcome,
+      bytes: q.bytes ?? 0,
+      line: at(q.line),
+    });
+  }
   for (const l of t.laundered ?? []) {
     events.push({
       event: 'taint.cleared',
@@ -187,6 +198,13 @@ export function buildManifest(interp, {
       // a run that loaded one harmless module while permitted to load
       // anything is not the same as one that could only load that module.
       foreign_permitted: [...(interp.allowedForeign ?? [])].sort(),
+      // The same question for the network, and the same reason: a run that
+      // fetched one harmless URL while permitted to reach anywhere is not the
+      // same run as one that could only reach that host, and the crossings
+      // alone do not say which it was.
+      hosts_permitted: [...(interp.allowedHosts ?? [])].sort(),
+      requests: (t.requests ?? []).length,
+      requests_failed: (t.requests ?? []).filter((q) => !q.ok).length,
     },
     promises: {
       contracts_checked: t.contracts,
@@ -255,7 +273,9 @@ export function summarise(manifest) {
   lines.push(`  program sha256   ${manifest.program.sha256.slice(0, 32)}...`);
   lines.push(`  replay with      --seed ${manifest.replay.seed}`
     + (a.granted.length ? ` --grant ${a.granted.join(',')}` : ' (no capabilities)')
-    + (principals.length ? ` ${principals.map((n) => `--principal ${n}`).join(' ')}` : ''));
+    + (principals.length ? ` ${principals.map((n) => `--principal ${n}`).join(' ')}` : '')
+    + ((manifest.data?.hosts_permitted ?? []).length
+      ? ` --allow-host ${manifest.data.hosts_permitted.join(',')}` : ''));
   lines.push('');
 
   lines.push('  authority');
@@ -287,6 +307,16 @@ export function summarise(manifest) {
   if (d.foreign_modules.length) {
     lines.push(`    left the runtime via ${d.foreign_modules.join(', ')}`);
   }
+  if (d.requests) {
+    lines.push(`    網 requests      ${d.requests} made, ${d.requests_failed} failed`.replace('網 ', ''));
+  }
+  const hosts = d.hosts_permitted ?? [];
+  if (hosts.includes('*')) {
+    lines.push('    network boundary   UNBOUNDED -- any host could have been reached');
+  } else if (hosts.length) {
+    lines.push(`    network boundary   limited to ${hosts.join(', ')}`);
+  }
+
   const permitted = d.foreign_permitted ?? [];
   if (permitted.includes('*')) {
     lines.push('    foreign boundary  UNBOUNDED -- any module could have been loaded');

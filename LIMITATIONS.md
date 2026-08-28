@@ -207,6 +207,20 @@ not been done.
 
 ## 5. Security
 
+- **An HTTP request blocks the thread it is on.** The interpreter is
+  synchronous, so `http_get` parks the calling thread in `Atomics.wait` while a
+  worker performs the fetch. Nothing in Smarsh notices, but a Node application
+  embedding this interpreter *on the same thread as its own HTTP server* will
+  deadlock: the server cannot answer while the thread is parked, and the request
+  times out looking exactly like a slow network. Embed it on a worker if the
+  host process also serves.
+- **Redirects are not followed, on purpose.** A 302 can move a request to a host
+  the run was never permitted to reach, which would make `--allow-host`
+  decorative. Programs get the 3xx and its `Location` and decide, and that
+  decision goes through the allowlist like any other request.
+- **`--allow-host` matches hostnames, not URLs.** A run permitted to reach
+  `api.example.com` may reach any path and any port on it. Path-level or
+  method-level restriction is not implemented.
 - **`unaudited_crypto` stays hand-rolled, and here is why.** There is no audited
   JavaScript Paillier implementation to move to; the available packages are
   unaudited too, so adopting one would trade this code for someone else's

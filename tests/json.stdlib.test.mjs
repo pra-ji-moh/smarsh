@@ -43,8 +43,12 @@ test('the whole grammar round-trips', () => {
 
 test('whitespace is permitted where JSON permits it, and nowhere else', () => {
   assert.doesNotThrow(() => parseJson(' \t\r\n{ "a" : [ 1 , 2 ] } \n'));
-  // A vertical tab is not JSON whitespace, however much it looks like it.
-  assert.throws(() => parseJson('1'));
+  // A vertical tab is not JSON whitespace, however much it looks like one.
+  // Written as an escape rather than the character: an invisible control
+  // character in source is a puzzle for whoever reads this next.
+  const VT = String.fromCharCode(11);
+  assert.throws(() => parseJson(`${VT}1`), /cannot start a value/);
+  assert.doesNotThrow(() => parseJson('\t\r\n 1'));
 });
 
 test('a unicode escape becomes the character', () => {
