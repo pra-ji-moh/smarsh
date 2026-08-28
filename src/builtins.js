@@ -10,6 +10,7 @@ import {
   GroupElement, ZkProof, Commitment, zkPublic, zkProve, zkVerify, pedersenCommit, pedersenVerify,
   KeyPair, generateKeypair, signMessage, verifyMessage, LineageChain, Secret, randomSecret,
 } from './crypto.js';
+import { parseJson, writeJson, isJsonable } from './json.js';
 import { QubitRegister, GATES, rx, ry, rz } from './quantum.js';
 import { LogicalClock, Stamp, Liquid } from './temporal.js';
 import { AgentRef } from './agents.js';
@@ -315,6 +316,53 @@ export function installBuiltins(interp) {
   }, { transparent: true });
 
   def('labels', 1, (a) => (a[0] instanceof Tainted ? [...a[0].labels] : []), { transparent: true });
+
+  // --- JSON ------------------------------------------------------------------
+
+  // Parsing is where data from outside becomes values, so it is where the taint
+  // model either holds or has a hole in it. `untrusted(body)` followed by
+  // `json_parse` must not launder anything: whatever labels the text carried,
+  // every value that came out of it carries too.
+  //
+  // Taint is applied to the *whole* parsed structure rather than to each leaf.
+  // Marking leaves would leave the containers clean, and `payload["user"]` would
+  // hand back an untainted map from an untrusted document -- which is exactly
+  // the laundering this is meant to prevent.
+  def('json_parse', 1, (a, line) => {
+    const text = unwrap(a[0]);
+    if (typeof text !== 'string') {
+      throw smarshError('TypeError', `json_parse needs a string, got ${typeName(text)}`, line);
+    }
+    let parsed;
+    try {
+      parsed = parseJson(text);
+    } catch (e) {
+      // Give the error the line in the *program*, keeping the position within
+      // the JSON in the message where it is already written.
+      throw smarshError('JsonError', e.message, line)
+        .help('json_parse is strict on purpose: no trailing commas, no unquoted keys, no comments');
+    }
+    return retaint(parsed, a[0]);
+  }, { transparent: true });
+
+  def('to_json', -1, (a, line) => {
+    if (a.length < 1 || a.length > 2) {
+      throw smarshError('ArityError', 'to_json takes a value and optionally an indent width', line);
+    }
+    const indent = a.length === 2 ? Math.trunc(num(a[1], 'the indent width', line)) : 0;
+    if (indent < 0 || indent > 10) {
+      throw smarshError('ValueError', 'the indent width must be between 0 and 10', line);
+    }
+    try {
+      return retaint(writeJson(a[0], { indent }), a[0]);
+    } catch (e) {
+      throw smarshError('JsonError', e.message, line);
+    }
+  }, { transparent: true });
+
+  // Asking before doing, which is the question a program has when it is
+  // deciding what it can send rather than discovering it in a rescue block.
+  def('is_json', 1, (a) => isJsonable(a[0]), { transparent: true });
 
   // --- the decentralized label model ---------------------------------------
 

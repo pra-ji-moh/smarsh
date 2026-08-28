@@ -136,7 +136,7 @@ is [tested](tests/demo.test.mjs), not asserted: seven edits an interested party
 would actually want to make, including deleting the inconvenient event and
 attaching the record to a different program.
 
-Zero dependencies, Node 18 or later. 785 passing tests over 94% of the lines in
+Zero dependencies, Node 18 or later. 816 passing tests over 94% of the lines in
 `src/`.
 
 > **Status: 0.3.0, pre-1.0, no production users, no third-party audit.** Read
@@ -1143,6 +1143,7 @@ execution
   src/values.js         taint, context windows, ledgers, token counting
   src/records.js        records and the invariants they carry
   src/decimal.js        exact decimals, BigInt coefficient and scale
+  src/json.js           JSON, with positions in its errors and exact numbers
   src/tensor.js         dense f64 tensors, broadcasting, matmul
   src/schema.js         structural schemas
   src/rng.js            seeded, forkable PRNG
@@ -1184,7 +1185,7 @@ editors/vscode/         the VS Code extension -- grammar, and a client that
 
 std/                    the standard library, written in Smarsh
 examples/               15 programs, every one of them run by CI
-tests/                  785 tests across 33 files
+tests/                  816 tests across 34 files
 tools/                  the differential oracle, the fuzzer, the A/B harness
 ```
 
