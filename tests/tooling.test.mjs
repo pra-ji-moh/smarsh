@@ -348,3 +348,119 @@ test('a module reached by dot access behaves like a namespace', () => {
     interp.devices.shutdown();
   }
 });
+
+// ---------------------------------------------------------------------------
+// the CLI's three lists of commands
+// ---------------------------------------------------------------------------
+
+test('every command that dispatches is also accepted, and documented', () => {
+  // `lsp` was fully implemented, dispatched, and rejected with "unknown
+  // command" -- because the set of valid names is a separate list from the
+  // dispatch, and only one of them knew. That is the third time in this project
+  // a rule has lived in two places with one of them stale, so it is asserted
+  // rather than remembered.
+  const cli = fs.readFileSync(path.join(ROOT, 'bin', 'smarsh.mjs'), 'utf8');
+
+  const accepted = new Set(
+    [...(/const commands = new Set\(\[([\s\S]*?)\]\)/.exec(cli)?.[1] ?? '')
+      .matchAll(/'([a-z-]+)'/g)].map((m) => m[1]),
+  );
+  const dispatched = new Set(
+    [...cli.matchAll(/command === '([a-z-]+)'\)/g)].map((m) => m[1]),
+  );
+  const documented = new Set(
+    [...(/const HELP = `([\s\S]*?)`;/.exec(cli)?.[1] ?? '')
+      .matchAll(/^\s{2}smarsh ([a-z-]+)/gm)].map((m) => m[1]),
+  );
+
+  assert.ok(accepted.size > 10, 'could not find the accepted-command list');
+  assert.ok(dispatched.size > 10, 'could not find the dispatch');
+  assert.ok(documented.size > 10, 'could not find the help text');
+
+  const missingFromAccepted = [...dispatched].filter((c) => !accepted.has(c));
+  assert.deepEqual(missingFromAccepted, [],
+    `dispatched but rejected as unknown: ${missingFromAccepted.join(', ')}`);
+
+  const missingFromDispatch = [...accepted].filter((c) => !dispatched.has(c));
+  assert.deepEqual(missingFromDispatch, [],
+    `accepted but does nothing: ${missingFromDispatch.join(', ')}`);
+
+  const undocumented = [...dispatched].filter((c) => !documented.has(c));
+  assert.deepEqual(undocumented, [],
+    `works but is not in the help text: ${undocumented.join(', ')}`);
+});
+
+test('every flag the help text advertises is parsed', () => {
+  // The other half of the same trap: `--verbose` was documented and dispatched
+  // on, and the parser had never heard of it.
+  const cli = fs.readFileSync(path.join(ROOT, 'bin', 'smarsh.mjs'), 'utf8');
+  const help = /const HELP = `([\s\S]*?)`;/.exec(cli)[1];
+  const advertised = new Set([...help.matchAll(/^\s{2}(--[a-z-]+)/gm)].map((m) => m[1]));
+  const parsed = new Set([...cli.matchAll(/a === '(--[a-z-]+)'/g)].map((m) => m[1]));
+
+  assert.ok(advertised.size > 5, 'could not find the options in the help text');
+  const unparsed = [...advertised].filter((f) => !parsed.has(f));
+  assert.deepEqual(unparsed, [], `advertised but never parsed: ${unparsed.join(', ')}`);
+});
+
+test('the language server starts as a real process and answers on the wire', async () => {
+  // Every other LSP test drives the server in-process. This one is the whole
+  // path an editor takes: spawn the CLI, write framed bytes to its stdin, read
+  // framed bytes from its stdout. The in-process tests all passed while this
+  // was completely broken.
+  const { spawn } = await import('node:child_process');
+  const child = spawn(process.execPath, [path.join(ROOT, 'bin', 'smarsh.mjs'), 'lsp'],
+    { stdio: ['pipe', 'pipe', 'pipe'] });
+
+  const frame = (m) => {
+    const b = Buffer.from(JSON.stringify(m), 'utf8');
+    return Buffer.concat([Buffer.from(`Content-Length: ${b.length}\r\n\r\n`, 'ascii'), b]);
+  };
+
+  const seen = [];
+  let buf = Buffer.alloc(0);
+  child.stdout.on('data', (c) => {
+    buf = Buffer.concat([buf, c]);
+    for (;;) {
+      const h = buf.indexOf('\r\n\r\n');
+      if (h < 0) break;
+      const n = Number(/Content-Length:\s*(\d+)/.exec(buf.subarray(0, h).toString('ascii'))[1]);
+      if (buf.length < h + 4 + n) break;
+      seen.push(JSON.parse(buf.subarray(h + 4, h + 4 + n).toString('utf8')));
+      buf = buf.subarray(h + 4 + n);
+    }
+  });
+
+  try {
+    child.stdin.write(frame({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }));
+    child.stdin.write(frame({
+      jsonrpc: '2.0',
+      method: 'textDocument/didOpen',
+      params: {
+        textDocument: {
+          uri: 'file:///t.smarsh', languageId: 'smarsh', version: 1,
+          text: 'fn f() {\n  return nope\n}\n',
+        },
+      },
+    }));
+
+    // Wait for the diagnostics rather than for a fixed delay: a slow machine
+    // should make this slower, not flaky.
+    const deadline = Date.now() + 20000;
+    const published = () => seen.find((m) => m.method === 'textDocument/publishDiagnostics');
+    while (!published() && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+
+    const init = seen.find((m) => m.id === 1);
+    assert.ok(init, 'the server never answered initialize');
+    assert.equal(init.result.serverInfo.name, 'smarsh-lsp');
+
+    const note = published();
+    assert.ok(note, 'the server never published diagnostics');
+    assert.equal(note.params.diagnostics[0].code, 'E0201');
+    assert.equal(note.params.diagnostics[0].range.start.line, 1);
+  } finally {
+    child.kill();
+  }
+});

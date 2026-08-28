@@ -9,15 +9,18 @@ import { Interpreter } from '../src/interpreter.js';
 import { SmarshError } from '../src/errors.js';
 import { stringify } from '../src/values.js';
 import { proveSource, formatReports } from '../src/prove.js';
-import { analyze, formatFindings } from '../src/analysis.js';
-import { parse, parseAll } from '../src/parser.js';
-import { analyseTaint } from '../src/taint.js';
+import { formatFindings } from '../src/analysis.js';
+import { parse } from '../src/parser.js';
 import { buildBundle } from '../src/bundle.js';
 import { CODES, EXPLANATIONS, KIND_TO_CODE, Diagnostic, positionOf } from '../src/diagnostics.js';
-import { typecheck } from '../src/types.js';
+// The checker itself lives in src/ so that the language server gives the same
+// answers this does. A checker that disagrees with the editor is worse than
+// either one alone.
+import { diagnose, builtinNames, builtinNeeds, CODE_FOR_FINDING } from '../src/diagnose.js';
 import { verifyProgram, formatVerification } from '../src/verify.js';
 import { discover, runFile, format } from '../src/testrunner.js';
 import { formatSource } from '../src/format.js';
+import { serve } from '../src/lsp.js';
 import { buildManifest, verifyManifest, summarise } from '../src/audit.js';
 import { generateKeypair, verifyMessage, exportKeypair, loadKeypair } from '../src/crypto.js';
 
@@ -32,10 +35,14 @@ usage:
   smarsh build <file.smarsh> [-o out]    one self-contained .mjs, no dependencies
   smarsh prove <file.smarsh> [options]   generate inputs and check every contract
   smarsh verify <file.smarsh>            prove contracts hold for every input
+  smarsh test <file-or-dir>            run tests, contracts, types and races
+  smarsh fmt <file-or-dir> [--check]   format, or check formatting
   smarsh audit <manifest.json>          read back a run record and check it is intact
   smarsh keygen [-o key.pem]            a signing identity to bind records to
   smarsh repl [options]                interactive session
+  smarsh lsp [--verbose]               language server (stdio) for any editor
   smarsh eval "<source>" [options]     run a one-liner
+  smarsh explain <CODE>                a longer explanation of a diagnostic
 
 options:
   --seed <n>          seed for all probabilistic control flow (default 0)
@@ -82,6 +89,7 @@ function parseArgs(argv) {
     else if (a === '-o' || a === '--out') opts.output = argv[++i];
     else if (a === '--check') opts.check = true;
     else if (a === '--json') opts.json = true;
+    else if (a === '--verbose') opts.verbose = true;
     else if (a === '--help' || a === '-h') opts.help = true;
     else if (a === '--version' || a === '-v') opts.version = true;
     else opts.positional.push(a);
@@ -106,15 +114,6 @@ function readSource(file) {
   }
   return { full, source: fs.readFileSync(full, 'utf8') };
 }
-
-// Static findings carry a kind; this is where each one gets its number.
-const CODE_FOR_FINDING = {
-  race: 'E0404',
-  'inexhaustive match': 'E0605',
-  'control flow': 'E0604',
-  'undeclared capability': 'E0406',
-  'frozen value': 'E0203',
-};
 
 const COLOUR = process.stderr.isTTY && !process.env.NO_COLOR;
 
@@ -353,119 +352,6 @@ function writeManifest(interp, { file, source, opts, outcome }) {
       + 'not who produced it. Use --key with a kept identity to claim that, '
       + 'and `smarsh keygen` to make one.');
   }
-}
-
-// The names the runtime will provide, so the checker does not report a builtin
-// as undefined. Taken from a real interpreter rather than a duplicated list.
-function builtinNames() {
-  const interp = new Interpreter({ out: () => {} });
-  const names = [...interp.prelude.vars.keys()];
-  interp.devices.shutdown();
-  return names;
-}
-
-// What each builtin costs in authority, taken from a real interpreter rather
-// than a duplicated list -- the same reason `builtinNames` is built this way.
-function builtinNeeds() {
-  const interp = new Interpreter({ out: () => {} });
-  const needs = new Map();
-  for (const [name, slot] of interp.prelude.vars) {
-    const v = slot.value;
-    if (v && Array.isArray(v.needs) && v.needs.length > 0) needs.set(name, v.needs);
-  }
-  interp.devices.shutdown();
-  return needs;
-}
-
-function diagnose(source, file) {
-  // Every syntax error, not just the first. If the file does not parse there is
-  // nothing further worth saying about it.
-  const { program, errors } = parseAll(source, file);
-  if (errors.length > 0) {
-    return errors.map((e) => new Diagnostic({
-      code: 'E0101',
-      message: e.message,
-      span: e.span,
-      file,
-      label: 'here',
-      helps: e.helps,
-      notes: e.notes,
-      line: e.line,
-    }));
-  }
-
-  const out = typecheck(program, { builtins: builtinNames() }).map((d) => {
-    d.kind = 'type';
-    return d;
-  });
-  for (const f of analyze(program, { builtinNeeds: builtinNeeds() })) {
-    out.push(Object.assign(new Diagnostic({
-      code: CODE_FOR_FINDING[f.kind] ?? 'E0604',
-      message: f.message,
-      span: f.span,
-      file,
-      label: f.kind,
-      helps: f.hint ? [f.hint] : [],
-    }), { kind: f.kind }));
-  }
-  for (const f of analyseTaint(program)) {
-    out.push(Object.assign(new Diagnostic({
-      code: 'E0403',
-      message: f.message,
-      span: f.span,
-      file,
-      label: 'reaches a sink',
-      helps: f.hint ? [f.hint] : [],
-      notes: ['this is every path, not only the one a run took'],
-    }), { kind: 'taint' }));
-  }
-  return applySuppressions(out, program, source);
-}
-
-// A checker with no way to say "yes, I know" is a checker people switch off
-// wholesale, which is worse than one they silence in three places. So the
-// escape hatch exists — and it is a comment in the source, greppable, tied to a
-// specific line and a specific kind, and counted in the summary. A suppression
-// nobody can see is the thing to avoid, not a suppression.
-//
-//     // smarsh-allow: taint  (deliberate: this demonstrates the error)
-//     grounded { print(reply) }
-function applySuppressions(diagnostics, program, source) {
-  const pragmas = [];
-  for (const c of program.comments ?? []) {
-    const m = /smarsh-allow:\s*([a-z, ]+)/.exec(c.text);
-    if (!m) continue;
-    pragmas.push({ line: c.line, kinds: new Set(m[1].split(',').map((s) => s.trim()).filter(Boolean)) });
-  }
-  if (pragmas.length === 0) return diagnostics;
-
-  // A pragma covers the whole statement it introduces, not one line. The
-  // finding it is meant to silence is usually a line or two inside a block.
-  const ranges = [];
-  const collect = (n) => {
-    if (!n || typeof n !== 'object') return;
-    if (Array.isArray(n)) { for (const c of n) collect(c); return; }
-    if (n.type && n.span) {
-      const startLine = positionOf(source, n.span[0]).line;
-      for (const p of pragmas) {
-        if (startLine === p.line || startLine === p.line + 1) ranges.push({ span: n.span, kinds: p.kinds });
-      }
-    }
-    for (const v of Object.values(n)) if (v && typeof v === 'object') collect(v);
-  };
-  collect(program.body);
-
-  const kept = [];
-  let suppressed = 0;
-  for (const d of diagnostics) {
-    const at = d.span ? d.span[0] : null;
-    const covered = at !== null && ranges.some((r) =>
-      at >= r.span[0] && at <= r.span[1] && (r.kinds.has(d.kind) || r.kinds.has('all')));
-    if (covered) { suppressed += 1; continue; }
-    kept.push(d);
-  }
-  kept.suppressed = suppressed;
-  return kept;
 }
 
 function cmdCheck(opts) {
@@ -807,9 +693,13 @@ function main() {
   if (opts.help || argv.length === 0) { console.log(HELP); return; }
 
   const first = opts.positional[0];
+  // Adding a command means touching this list AND the dispatch below, and
+  // forgetting this one costs you `unknown command` on something that is fully
+  // implemented -- which is exactly what happened when `lsp` was added. The
+  // test in tests/tooling.test.mjs now asserts the two agree.
   const commands = new Set([
     'run', 'prove', 'repl', 'eval', 'check', 'build', 'explain', 'test', 'fmt', 'verify', 'audit',
-    'demo', 'keygen',
+    'demo', 'keygen', 'lsp',
   ]);
 
   let command;
@@ -838,6 +728,24 @@ function main() {
   else if (command === 'test') cmdTest(opts);
   else if (command === 'fmt') cmdFmt(opts);
   else if (command === 'repl') cmdRepl(opts);
+  else if (command === 'lsp') cmdLsp(opts);
+}
+
+// The language server. Speaks LSP on stdin/stdout, which is what every editor
+// already knows how to talk to, so the work is done once rather than once per
+// editor.
+//
+// Nothing may be written to stdout except protocol frames -- a stray `print`
+// here desynchronises the stream and the editor silently stops working, which
+// is a miserable thing to debug. Logging goes to stderr, and only when asked.
+function cmdLsp(opts) {
+  const verbose = opts.verbose === true;
+  serve({
+    input: process.stdin,
+    output: process.stdout,
+    log: verbose ? (m) => process.stderr.write(`[smarsh-lsp] ${m}
+`) : () => {},
+  });
 }
 
 // `smarsh demo` -- no arguments, no file to write, nothing to read first.

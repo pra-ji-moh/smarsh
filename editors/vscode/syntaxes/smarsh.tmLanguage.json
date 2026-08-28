@@ -1,0 +1,170 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Smarsh",
+  "scopeName": "source.smarsh",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#string" },
+    { "include": "#number" },
+    { "include": "#authority" },
+    { "include": "#contract" },
+    { "include": "#declaration" },
+    { "include": "#keyword" },
+    { "include": "#constant" },
+    { "include": "#type" },
+    { "include": "#call" },
+    { "include": "#operator" }
+  ],
+  "repository": {
+    "comment": {
+      "patterns": [
+        {
+          "comment": "A suppression is not an ordinary comment -- it changes what the checker reports, so it should not read as ignorable grey.",
+          "name": "meta.suppression.smarsh",
+          "match": "(//)\\s*(smarsh-allow:)\\s*([a-z, ]+)(.*)$",
+          "captures": {
+            "1": { "name": "punctuation.definition.comment.smarsh" },
+            "2": { "name": "keyword.control.suppression.smarsh" },
+            "3": { "name": "variable.parameter.suppression.smarsh" },
+            "4": { "name": "comment.line.double-slash.smarsh" }
+          }
+        },
+        { "name": "comment.line.double-slash.smarsh", "begin": "//", "end": "$" },
+        { "name": "comment.block.smarsh", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+
+    "string": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.smarsh",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.smarsh", "match": "\\\\." },
+            {
+              "comment": "Interpolation: ${...}",
+              "name": "meta.embedded.smarsh",
+              "begin": "\\$\\{",
+              "end": "\\}",
+              "beginCaptures": { "0": { "name": "punctuation.section.embedded.begin.smarsh" } },
+              "endCaptures": { "0": { "name": "punctuation.section.embedded.end.smarsh" } },
+              "patterns": [{ "include": "$self" }]
+            }
+          ]
+        }
+      ]
+    },
+
+    "number": {
+      "patterns": [
+        {
+          "comment": "An exact decimal. Distinct from a float on purpose, and worth looking distinct.",
+          "name": "constant.numeric.decimal.exact.smarsh",
+          "match": "\\b[0-9][0-9_]*(\\.[0-9_]+)?d\\b"
+        },
+        { "name": "constant.numeric.smarsh", "match": "\\b[0-9][0-9_]*(\\.[0-9_]+)?([eE][+-]?[0-9]+)?\\b" }
+      ]
+    },
+
+    "authority": {
+      "comment": "The security surface. These are the words that decide what a program may do, and they should not look like ordinary control flow.",
+      "patterns": [
+        {
+          "match": "\\b(authority|release_to|vouched_by|grounded|region|using|secret)\\b\\s*(\"[^\"]*\")?",
+          "captures": {
+            "1": { "name": "keyword.control.authority.smarsh" },
+            "2": { "name": "string.quoted.double.principal.smarsh" }
+          }
+        },
+        {
+          "comment": "A `needs` clause is a static claim about authority.",
+          "match": "\\b(needs)\\s+([a-z_]+(\\s*,\\s*[a-z_]+)*)",
+          "captures": {
+            "1": { "name": "keyword.control.needs.smarsh" },
+            "2": { "name": "support.type.capability.smarsh" }
+          }
+        }
+      ]
+    },
+
+    "contract": {
+      "comment": "Contracts are promises the runtime checks, and `smarsh prove` turns into tests.",
+      "patterns": [
+        { "name": "keyword.control.contract.smarsh", "match": "\\b(requires|ensures|invariant|variant|old)\\b" }
+      ]
+    },
+
+    "declaration": {
+      "patterns": [
+        {
+          "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.function.smarsh" },
+            "2": { "name": "entity.name.function.smarsh" }
+          }
+        },
+        {
+          "match": "\\b(record|choice|agent)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.smarsh" },
+            "2": { "name": "entity.name.type.smarsh" }
+          }
+        },
+        {
+          "comment": "`let` freezes what it binds and `var` does not -- the single most common mistake in this language, so they are coloured apart.",
+          "match": "\\b(let)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.modifier.immutable.smarsh" },
+            "2": { "name": "variable.other.constant.smarsh" }
+          }
+        },
+        {
+          "match": "\\b(var)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "storage.type.var.smarsh" },
+            "2": { "name": "variable.other.smarsh" }
+          }
+        }
+      ]
+    },
+
+    "keyword": {
+      "patterns": [
+        { "name": "keyword.control.smarsh", "match": "\\b(if|else|while|for|in|match|return|break|continue|attempt|rescue|ensure|import|export|from|as|test)\\b" },
+        { "name": "keyword.control.concurrent.smarsh", "match": "\\b(agent|spawn|send|receive|fork|atomic|device|budget)\\b" },
+        { "name": "keyword.operator.logical.smarsh", "match": "\\b(and|or|not)\\b" }
+      ]
+    },
+
+    "constant": {
+      "patterns": [
+        { "name": "constant.language.smarsh", "match": "\\b(true|false|nil)\\b" }
+      ]
+    },
+
+    "type": {
+      "patterns": [
+        { "name": "support.type.smarsh", "match": "\\b(num|str|bool|list|map|dyn|dec|tensor|any)\\b" },
+        { "name": "entity.name.type.smarsh", "match": "\\b[A-Z][A-Za-z0-9_]*\\b" }
+      ]
+    },
+
+    "call": {
+      "patterns": [
+        {
+          "comment": "Anything that costs authority is worth seeing at a glance.",
+          "name": "support.function.authority.smarsh",
+          "match": "\\b(read|write|weights|now|foreign|keypair|random_secret)\\s*(?=\\()"
+        },
+        { "name": "entity.name.function.call.smarsh", "match": "\\b[a-z_][A-Za-z0-9_]*\\s*(?=\\()" }
+      ]
+    },
+
+    "operator": {
+      "patterns": [
+        { "name": "keyword.operator.smarsh", "match": "(==|!=|<=|>=|<|>|\\+|-|\\*|/|%|=|\\.\\.|\\?|:)" }
+      ]
+    }
+  }
+}

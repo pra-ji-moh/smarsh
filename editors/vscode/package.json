@@ -1,0 +1,55 @@
+{
+  "name": "smarsh",
+  "displayName": "Smarsh",
+  "description": "Syntax highlighting, diagnostics, completion and hover for the Smarsh language.",
+  "version": "0.3.0",
+  "publisher": "pranj-al-m",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pranj-al-m/smarsh.git"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": ["Programming Languages", "Linters"],
+  "keywords": ["smarsh", "capability security", "audit", "provenance"],
+  "activationEvents": ["onLanguage:smarsh"],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "smarsh",
+        "aliases": ["Smarsh", "smarsh"],
+        "extensions": [".smarsh"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "smarsh",
+        "scopeName": "source.smarsh",
+        "path": "./syntaxes/smarsh.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Smarsh",
+      "properties": {
+        "smarsh.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to bin/smarsh.mjs. Leave empty to use the `smarsh` on your PATH."
+        },
+        "smarsh.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Log the traffic between the editor and the language server."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

@@ -32,6 +32,40 @@ If you would rather not install globally, `npx smarsh run file.smarsh` works
 the same way, and every command below can be prefixed with `npx smarsh`
 instead of `Smarsh`.
 
+## Your editor
+
+Smarsh ships a language server, so an editor gives you the same diagnostics
+`smarsh check` does -- as you type, on the line that is wrong.
+
+**VS Code.** The extension lives in `editors/vscode`. From a checkout:
+
+```bash
+cd editors/vscode && npm install && code --install-extension .
+```
+
+It finds `bin/smarsh.mjs` in the checkout automatically. If you installed Smarsh
+globally instead, it uses the `smarsh` on your PATH. To point it somewhere
+specific, set `smarsh.serverPath` to your `bin/smarsh.mjs`.
+
+**Everything else.** Any editor that speaks LSP can run `smarsh lsp`, which
+talks the protocol on stdin and stdout. In Neovim:
+
+```lua
+vim.lsp.config.smarsh = {
+  cmd = { 'smarsh', 'lsp' },
+  filetypes = { 'smarsh' },
+  root_markers = { '.git' },
+}
+vim.lsp.enable('smarsh')
+```
+
+Helix, Zed and Emacs take the same command in their own configuration format.
+
+You get diagnostics as you type, completion for builtins and for the authority
+blocks, hover that says what a builtin costs in capabilities, go-to-definition
+and an outline. The checker behind it is the same module `smarsh check` calls,
+so the editor cannot tell you something the command line disagrees with.
+
 ## Your first program
 
 Put this in `hello.smarsh`:
