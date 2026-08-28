@@ -1,7 +1,7 @@
-# Pēdāg for a model writing it
+# Smarsh for a model writing it
 
 The whole language, in one page. Written for a program that has to emit correct
-Pēdāg on the first or second try, not for a person browsing.
+Smarsh on the first or second try, not for a person browsing.
 
 Read the **Traps** first. They are the four places where a reflex from Python,
 JavaScript or TypeScript produces code that will not run.
@@ -12,7 +12,7 @@ JavaScript or TypeScript produces code that will not run.
 
 **1. `let` freezes, deeply. Use `var` for anything you change.**
 
-```pedag
+```smarsh
 let xs = []
 xs.push(1)          // ERROR: let freezes the value
 
@@ -26,7 +26,7 @@ It freezes the *value*, not the binding, so it reaches through aliases:
 
 **2. A function must declare the authority it uses.**
 
-```pedag
+```smarsh
 fn save(t) { write("out.txt", t) }           // ERROR: uses fs
 fn save(t) needs fs { write("out.txt", t) }  // correct
 ```
@@ -38,7 +38,7 @@ too. Only these builtins need anything — `read` `write` `weights` (fs),
 
 **3. Money is `dec`, built from a string, never mixed with floats.**
 
-```pedag
+```smarsh
 let price = 19.99d           // a decimal literal; dec("19.99") also works
 price * 3                    // fine: dec times a whole number
 -price                       // fine: a refund
@@ -62,10 +62,10 @@ Missing one is a build error, not a runtime surprise. `_ => ...` closes it.
 Every command takes `--json`. Do not parse the human output.
 
 ```
-pedag check f.pedag --json   -> { ok, diagnostics: [{ code, message, line, column, helps }] }
-pedag run   f.pedag --json   -> { ok, stdout, failure: { kind, code, message, line, stack } }
-pedag test  dir     --json   -> { ok, totals, files: [{ passed, failed, contracts }] }
-pedag explain E0406          -> what a code means, and how to fix it
+smarsh check f.smarsh --json   -> { ok, diagnostics: [{ code, message, line, column, helps }] }
+smarsh run   f.smarsh --json   -> { ok, stdout, failure: { kind, code, message, line, stack } }
+smarsh test  dir     --json   -> { ok, totals, files: [{ passed, failed, contracts }] }
+smarsh explain E0406          -> what a code means, and how to fix it
 ```
 
 `check` finds unknown names, type mismatches, wrong arity, missing `match`
@@ -76,7 +76,7 @@ and races in `fork`. Run it before running anything.
 
 ## Syntax
 
-```pedag
+```smarsh
 // comment
 
 let x = 1                  // immutable, and freezes what it holds
@@ -108,7 +108,7 @@ There is no `++`, no `+=`, no ternary. Write `x = x + 1`.
 
 ## Types
 
-```pedag
+```smarsh
 record Point(x, y)                               // immutable, structural equality
 record Account(balance) invariant balance >= 0   // checked on construction
 let p = Point(1, 2)
@@ -136,7 +136,7 @@ variant rather than binding.
 
 ## Contracts
 
-```pedag
+```smarsh
 fn withdraw(acct, amt)
   requires amt > 0
   ensures result.balance == old(acct.balance) - amt
@@ -146,7 +146,7 @@ fn withdraw(acct, amt)
 ```
 
 `requires` on the way in, `ensures` on the way out with `result` bound,
-`old(e)` for the value on entry. `pedag prove` generates inputs and reports
+`old(e)` for the value on entry. `smarsh prove` generates inputs and reports
 counterexamples with the arguments that break them, so a contract is a
 specification and a test suite at once.
 
@@ -154,7 +154,7 @@ Loops take `invariant` and `variant` before the body.
 
 ## Authority and provenance
 
-```pedag
+```smarsh
 fn f() needs fs, clock { }                 // declared, never inherited
 using grant("fs") { }                      // hold one for a block
 let pair = caretaker(grant("fs"))          // pair["grant"]; revoke(pair["revoker"])
@@ -198,7 +198,7 @@ nothing.
 
 ## Blocks
 
-```pedag
+```smarsh
 budget steps 5000 { }              // also tokens, memory. Not catchable inside
 atomic { }                         // every ledger append lands, or none does
 secret { }                         // secrets shredded on exit
@@ -233,11 +233,11 @@ verify_signature keypair`, and behind `unaudited_crypto` (`paillier_keygen` refu
 zk_verify`), quantum simulation (`qubits qh qx cnot
 measure`), time (`clock advance liquid`), schema (`schema negotiate adapt
 migrate`), introspection (`callgraph callers snapshot restore watch leaks
-energy`). `pedag explain` and `docs/reference.md` cover the rest.
+energy`). `smarsh explain` and `docs/reference.md` cover the rest.
 
 ## A whole program
 
-```pedag
+```smarsh
 choice Status { Balanced  Short(amount) }
 
 record Invoice(id, owed, paid)
@@ -261,4 +261,4 @@ for inv in [Invoice("A", dec("10.00"), dec("10.00")), Invoice("B", dec("20.00"),
 print(seen.join("  |  "))
 ```
 
-Then `pedag check p.pedag --json`, and `pedag run p.pedag --json`.
+Then `smarsh check p.smarsh --json`, and `smarsh run p.smarsh --json`.

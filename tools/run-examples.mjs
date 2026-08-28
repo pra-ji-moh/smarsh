@@ -20,11 +20,11 @@ import { spawnSync } from 'node:child_process';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dir = path.join(root, 'examples');
-const cli = path.join(root, 'bin', 'pedag.mjs');
+const cli = path.join(root, 'bin', 'smarsh.mjs');
 
-// `pedag run examples/x.pedag --grant fs` and
-// `node bin/pedag.mjs run examples/x.pedag --grant fs` are the same command.
-const INVOCATION = /^\/\/\s*(?:node\s+bin\/pedag\.mjs|pedag)\s+run\s+(\S+)(.*)$/;
+// `smarsh run examples/x.smarsh --grant fs` and
+// `node bin/smarsh.mjs run examples/x.smarsh --grant fs` are the same command.
+const INVOCATION = /^\/\/\s*(?:node\s+bin\/smarsh\.mjs|smarsh)\s+run\s+(\S+)(.*)$/;
 
 // Read the leading comment block and pull out the documented `run` line,
 // following backslash continuations.
@@ -51,7 +51,7 @@ function documentedFlags(file) {
 }
 
 // `--audit run.json` would write into the repo; send it outside instead.
-const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'pedag-examples-'));
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'smarsh-examples-'));
 
 function sanitise(flags, name) {
   const out = [];
@@ -66,7 +66,7 @@ function sanitise(flags, name) {
   return out;
 }
 
-const files = fs.readdirSync(dir).filter((f) => f.endsWith('.pedag')).sort();
+const files = fs.readdirSync(dir).filter((f) => f.endsWith('.smarsh')).sort();
 let failed = 0;
 let undocumented = 0;
 
@@ -86,10 +86,10 @@ for (const name of files) {
   const r = spawnSync(process.execPath, [cli, 'run', file, ...flags], { encoding: 'utf8' });
 
   if (r.status === 0) {
-    console.log(`  ok    pedag ${shown}`);
+    console.log(`  ok    smarsh ${shown}`);
   } else {
     failed += 1;
-    console.log(`  FAIL  pedag ${shown}   (exit ${r.status})`);
+    console.log(`  FAIL  smarsh ${shown}   (exit ${r.status})`);
     const detail = (r.stderr || r.stdout || '').trimEnd().split('\n').slice(-12);
     for (const line of detail) console.log(`        ${line}`);
   }

@@ -1,11 +1,11 @@
 # Versioning and stability
 
-Pēdāg follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html), with
+Smarsh follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html), with
 the pre-1.0 rules spelled out below, because "0.x means anything can change" is
 true of the specification and useless to someone deciding whether to depend on
 it.
 
-## While Pēdāg is 0.x
+## While Smarsh is 0.x
 
 - **Minor** (`0.2.0` → `0.3.0`) may break things. Every break is listed under a
   `### Breaking` heading in [CHANGELOG.md](CHANGELOG.md), with what to do about
@@ -35,7 +35,7 @@ gets a changelog entry.
 - **Builtin functions** — names, arity, and what they do.
 - **Error kinds** — `CapabilityError`, `TaintError` and the rest, as strings a
   program can match on via `rescue`.
-- **`pedag build` output** — a bundle produced by version *N* keeps working on
+- **`smarsh build` output** — a bundle produced by version *N* keeps working on
   the Node versions that version *N* supported.
 
 ## Not covered
@@ -43,7 +43,7 @@ gets a changelog entry.
 Depend on these and a patch release may move under you:
 
 - **Anything under `src/`.** The JavaScript API is internal. Import
-  `bin/pedag.mjs` as a program, not `src/interpreter.js` as a library.
+  `bin/smarsh.mjs` as a program, not `src/interpreter.js` as a library.
 - **Diagnostic wording and layout.** Messages get better over time. Match on
   error *codes* (`E0402`) or *kinds*, never on message text.
 - **Error codes for findings that did not exist before.** New codes appear.
@@ -78,5 +78,5 @@ right to break it immediately.
 
 ## Node versions
 
-Pēdāg supports the Node versions in CI: currently **18, 20 and 22**. Dropping one
+Smarsh supports the Node versions in CI: currently **18, 20 and 22**. Dropping one
 is a minor-version break with a changelog entry.

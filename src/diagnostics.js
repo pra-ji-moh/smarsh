@@ -1,4 +1,4 @@
-import { PedagError } from './errors.js';
+import { SmarshError } from './errors.js';
 
 // Rendered diagnostics.
 //
@@ -16,7 +16,7 @@ import { PedagError } from './errors.js';
 // A diagnostic renders as:
 //
 //   error[E0201]: `writ` is not defined
-//     --> examples/tour.pedag:12:5
+//     --> examples/tour.smarsh:12:5
 //      |
 //   12 |     writ("hello")
 //      |     ^^^^ not found in this scope
@@ -80,7 +80,7 @@ export const KIND_TO_CODE = {
 export const EXPLANATIONS = {
   E0201: `A name was used that is not in scope.
 
-Pēdāg resolves names lexically: a name must be declared before the point it is
+Smarsh resolves names lexically: a name must be declared before the point it is
 used, in the same block or an enclosing one. Builtins live in a scope beneath
 your program's globals, so you may shadow one freely -- but a typo in a builtin
 name reads as an undeclared variable, which is why this error often points at a
@@ -94,14 +94,14 @@ are in scope. An enclosing function's locals are not.`,
 
   E0301: `A value was used where a different type was required.
 
-Pēdāg is gradually typed. Annotations are optional, and any expression you have
+Smarsh is gradually typed. Annotations are optional, and any expression you have
 not annotated has the type \`dyn\`, which is compatible with everything. Where
 you have annotated, the checker holds you to it:
 
     fn area(w: num, h: num) -> num { return w * h }
     area("3", 4)       // error: expected \`num\`, found \`str\`
 
-Run \`Pēdāg typecheck\` to see these before the program runs. A program with no
+Run \`Smarsh typecheck\` to see these before the program runs. A program with no
 annotations at all still type-checks clean -- that is the point of gradual.`,
 
   E0402: `A function tried to use a capability it does not hold.
@@ -149,7 +149,7 @@ Enclosing constructs that are not loops -- \`atomic\`, \`grounded\`, \`region\`,
 A function body is not: a \`break\` with no loop inside the function is an error
 rather than something that reaches into the caller's loop.
 
-\`pedag check\` reports this before the program runs.`,
+\`smarsh check\` reports this before the program runs.`,
 
   E0605: `A \`match\` on a \`choice\` left one of its variants without an arm.
 
@@ -175,7 +175,7 @@ declared by more than one choice.`,
     fn share(total, n) requires n > 0 ensures result * n == total { ... }
 
 \`requires\` is checked on the way in, \`ensures\` on the way out with \`result\`
-bound. \`pedag prove\` generates inputs against these same contracts and reports
+bound. \`smarsh prove\` generates inputs against these same contracts and reports
 counterexamples, so a contract is a specification and a test suite at once.`,
 
   E0406: `A function uses authority it did not declare.
@@ -290,7 +290,7 @@ export class Diagnostic {
   //
   // `render` draws a caret under a span with box characters and colour, which
   // is right for a terminal and useless to anything that has to act on it. A
-  // program generating Pēdāg -- which is most of what will generate Pēdāg --
+  // program generating Smarsh -- which is most of what will generate Smarsh --
   // needs the code, the position and the suggestion as data, not as art it has
   // to parse back out.
   //
@@ -320,7 +320,7 @@ export class Diagnostic {
       notes: this.notes ?? [],
       // What to run to read the long explanation, so a tool does not have to
       // know how this CLI is spelled.
-      explain: this.code ? `pedag explain ${this.code}` : null,
+      explain: this.code ? `smarsh explain ${this.code}` : null,
     };
   }
 
@@ -357,15 +357,15 @@ export class Diagnostic {
     for (const note of this.notes) out.push(`${paint('1;37', 'note')}: ${note}`);
 
     if (this.code && EXPLANATIONS[this.code]) {
-      out.push(`  run \`pedag explain ${this.code}\` for a longer explanation`);
+      out.push(`  run \`smarsh explain ${this.code}\` for a longer explanation`);
     }
     return out.join('\n');
   }
 }
 
-// Turn a raised PedagError into a rendered diagnostic. Installed onto
-// PedagError so every call site keeps using `err.format(source, file)`.
-export function renderPedagError(err, source, file, options = {}) {
+// Turn a raised SmarshError into a rendered diagnostic. Installed onto
+// SmarshError so every call site keeps using `err.format(source, file)`.
+export function renderSmarshError(err, source, file, options = {}) {
   const code = KIND_TO_CODE[err.kind] ?? null;
   const span = err.span ?? (err.line != null && source != null ? spanOfLine(source, err.line) : null);
   const diagnostic = new Diagnostic({
@@ -385,7 +385,7 @@ export function renderPedagError(err, source, file, options = {}) {
 
 // Installing it here means anything that imports this module gets rendered
 // errors, and anything that does not still gets the plain fallback.
-PedagError.renderer = renderPedagError;
+SmarshError.renderer = renderSmarshError;
 
 function spanOfLine(source, line) {
   const lines = source.split(/\r?\n/);

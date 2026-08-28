@@ -1,5 +1,5 @@
 // Functions that state what they promise. Check them with:
-//     node bin/pedag.mjs prove examples/contracts.pedag
+//     node bin/smarsh.mjs prove examples/contracts.smarsh
 //
 // Nothing here is a test. The contracts are the specification; `prove`
 // generates the inputs, throws away the ones the preconditions reject, and

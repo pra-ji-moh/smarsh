@@ -70,6 +70,6 @@ const interp = new Interpreter({ out: () => {}, seed: 1 });
 interp.stepLimit = Infinity;
 const source = make(scale);
 const t = process.hrtime.bigint();
-interp.run(source, 'bench.pedag');
+interp.run(source, 'bench.smarsh');
 console.log(Number(process.hrtime.bigint() - t) / 1e6);
 interp.devices.shutdown();

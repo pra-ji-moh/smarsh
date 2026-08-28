@@ -15,7 +15,7 @@ function run(source, { caps = [], foreign = [] } = {}) {
   const out = [];
   const interp = new Interpreter({ out: (s) => out.push(s), caps, foreign, seed: 1 });
   try {
-    interp.run(source, 't.pedag');
+    interp.run(source, 't.smarsh');
     return { out, error: null, interp };
   } catch (e) {
     return { out, error: e.kind ?? 'error', message: e.message ?? '', interp };
@@ -75,12 +75,12 @@ test('the manifest says what the boundary was, not just what crossed it', () => 
   // not the same as one that could only load that module, and a reviewer
   // cannot tell the difference from the crossings alone.
   const bounded = run('let os = foreign("node:os")', { caps: ['ffi'], foreign: ['node:os'] });
-  const m1 = buildManifest(bounded.interp, { file: 't.pedag', source: 'x', outcome: 'completed' });
+  const m1 = buildManifest(bounded.interp, { file: 't.smarsh', source: 'x', outcome: 'completed' });
   assert.deepEqual(m1.data.foreign_permitted, ['node:os']);
   assert.match(summarise(m1), /limited to node:os/);
 
   const open = run('let os = foreign("node:os")', { caps: ['ffi'], foreign: ['*'] });
-  const m2 = buildManifest(open.interp, { file: 't.pedag', source: 'x', outcome: 'completed' });
+  const m2 = buildManifest(open.interp, { file: 't.smarsh', source: 'x', outcome: 'completed' });
   assert.deepEqual(m2.data.foreign_permitted, ['*']);
   assert.match(summarise(m2), /UNBOUNDED/);
 
@@ -90,7 +90,7 @@ test('the manifest says what the boundary was, not just what crossed it', () => 
 
 test('a run that never crosses records an empty boundary', () => {
   const r = run('print(1)');
-  const m = buildManifest(r.interp, { file: 't.pedag', source: 'x', outcome: 'completed' });
+  const m = buildManifest(r.interp, { file: 't.smarsh', source: 'x', outcome: 'completed' });
   assert.deepEqual(m.data.foreign_permitted, []);
   assert.doesNotMatch(summarise(m), /boundary/);
 });

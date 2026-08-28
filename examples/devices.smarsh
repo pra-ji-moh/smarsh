@@ -1,5 +1,5 @@
 // Where code runs, and what it is allowed to use while running there.
-//     node bin/pedag.mjs run examples/devices.pedag
+//     node bin/smarsh.mjs run examples/devices.smarsh
 print("== the machine underneath =================================")
 
 let machine = topology()

@@ -7,7 +7,7 @@ import { typecheck, consistent, join, show, DYN, NUM, STR, BOOL, listOf, fnType,
 import {
   editDistance, closestName, Diagnostic, positionOf, renderStack, CODES, EXPLANATIONS, KIND_TO_CODE,
 } from '../src/diagnostics.js';
-import { PedagError } from '../src/errors.js';
+import { SmarshError } from '../src/errors.js';
 
 const BUILTINS = (() => {
   const interp = new Interpreter({ out: () => {} });
@@ -167,7 +167,7 @@ test('string concatenation with + is allowed', () => {
 });
 
 test('an import silences unknown-name reporting rather than guessing', () => {
-  clean('import "./lib.pedag"\nsomething_from_the_module(1)');
+  clean('import "./lib.smarsh"\nsomething_from_the_module(1)');
 });
 
 test('join falls back to dyn only when it has to', () => {
@@ -224,12 +224,12 @@ test('a diagnostic underlines exactly the offending span', () => {
     code: 'E0301',
     message: 'expected `num`, found `str`',
     span: [start, start + 6],
-    file: 't.pedag',
+    file: 't.smarsh',
     label: 'here',
   });
   const rendered = d.render(source);
   assert.match(rendered, /error\[E0301\]: expected `num`, found `str`/);
-  assert.match(rendered, /--> t\.pedag:2:9/);
+  assert.match(rendered, /--> t\.smarsh:2:9/);
   assert.match(rendered, /\^\^\^\^\^\^ here/);
   const caretLine = rendered.split('\n').find((l) => l.includes('^'));
   const sourceLine = rendered.split('\n').find((l) => l.includes('"oops"'));
@@ -238,7 +238,7 @@ test('a diagnostic underlines exactly the offending span', () => {
 
 test('a span crossing a line break does not paint the whole screen', () => {
   const source = 'fn f() {\n  return 1\n}\n';
-  const d = new Diagnostic({ message: 'x', span: [0, source.length], file: 't.pedag' });
+  const d = new Diagnostic({ message: 'x', span: [0, source.length], file: 't.smarsh' });
   const caret = d.render(source).split('\n').find((l) => l.includes('^'));
   assert.ok(caret.trim().length <= 'fn f() {'.length + 2, `caret ran on: ${caret}`);
 });
@@ -252,24 +252,24 @@ test('positions are computed correctly across lines', () => {
 
 test('a stack shows each frame at the line it was executing', () => {
   const frames = [{ name: 'report', line: 13 }, { name: 'tally', line: 10 }];
-  const rendered = renderStack(frames, 'x.pedag', 6);
+  const rendered = renderStack(frames, 'x.smarsh', 6);
   assert.deepEqual(rendered.split('\n'), [
     'stack:',
-    '  at tally (x.pedag:6)',
-    '  at report (x.pedag:10)',
-    '  at <top level> (x.pedag:13)',
+    '  at tally (x.smarsh:6)',
+    '  at report (x.smarsh:10)',
+    '  at <top level> (x.smarsh:13)',
   ]);
 });
 
 test('a runtime failure carries its stack', () => {
   const interp = new Interpreter({ out: () => {} });
   try {
-    interp.run('fn a() { return missing }\nfn b() { return a() }\nb()', 't.pedag');
+    interp.run('fn a() { return missing }\nfn b() { return a() }\nb()', 't.smarsh');
     assert.fail('should have thrown');
   } catch (e) {
-    assert.ok(e instanceof PedagError);
+    assert.ok(e instanceof SmarshError);
     assert.deepEqual(e.frames.map((f) => f.name), ['b', 'a']);
-    assert.match(e.format('fn a() { return missing }\nfn b() { return a() }\nb()', 't.pedag'), /stack:/);
+    assert.match(e.format('fn a() { return missing }\nfn b() { return a() }\nb()', 't.smarsh'), /stack:/);
   } finally {
     interp.devices.shutdown();
   }

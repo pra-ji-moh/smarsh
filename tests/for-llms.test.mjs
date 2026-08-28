@@ -9,7 +9,7 @@ import { parse } from '../src/parser.js';
 import { analyze } from '../src/analysis.js';
 
 // docs/for-llms.md is the whole language on one page, written to be handed to a
-// program that has to emit correct Pēdāg. A reference that has drifted from the
+// program that has to emit correct Smarsh. A reference that has drifted from the
 // language is worse than none: the reader cannot tell, and every mistake it
 // teaches is one the model will make confidently.
 //
@@ -38,7 +38,7 @@ function run(source, caps = []) {
   const out = [];
   const interp = new Interpreter({ out: (s) => out.push(s), caps, seed: 1 });
   try {
-    interp.run(source, 'doc.pedag');
+    interp.run(source, 'doc.smarsh');
     return { out, error: null };
   } catch (e) {
     return { out, error: e.kind ?? 'error' };
@@ -81,7 +81,7 @@ test('every builtin the page names exists', () => {
   const notBuiltins = [
     'tensor', 'f', 'init', 'd', 'scale', 'a', 'b',
     'fs', 'clock', 'crypto', 'unaudited_crypto', 'ffi', 'net',
-    'pedag', 'explain',
+    'smarsh', 'explain',
   ];
   for (const w of notBuiltins) claimed.delete(w);
 
@@ -122,7 +122,7 @@ test('the blocks the authority section names are all real syntax', () => {
     'authority "alice" { }',
     'using grant("fs") { }',
   ].join('\n');
-  assert.doesNotThrow(() => parse(program, 'doc.pedag'),
+  assert.doesNotThrow(() => parse(program, 'doc.smarsh'),
     'a block the page tells a model to write does not parse');
 });
 
@@ -140,7 +140,7 @@ test('every method the page names resolves on the type it is listed under', () =
     // A fresh interpreter per case: one shared across them redeclares the name.
     const interp = new Interpreter({ out: () => {} });
     try {
-      const value = interp.run(`var v = ${literal}\nv`, 'doc.pedag');
+      const value = interp.run(`var v = ${literal}\nv`, 'doc.smarsh');
       for (const m of methods) {
         assert.doesNotThrow(
           () => interp.member(value, m, 1),
@@ -174,11 +174,11 @@ test('the capability table on the page is the one the runtime enforces', () => {
 // ---------------------------------------------------------------------------
 
 test('the complete program at the end runs and prints what it should', () => {
-  const blocks = [...DOC.matchAll(/```pedag\n([\s\S]*?)```/g)].map((m) => m[1]);
+  const blocks = [...DOC.matchAll(/```smarsh\n([\s\S]*?)```/g)].map((m) => m[1]);
   assert.ok(blocks.length >= 8, 'the page lost its examples');
   const whole = blocks[blocks.length - 1];
 
-  assert.deepEqual(analyze(parse(whole, 'doc.pedag')), [], 'the whole program does not check clean');
+  assert.deepEqual(analyze(parse(whole, 'doc.smarsh')), [], 'the whole program does not check clean');
   const { out, error } = run(whole);
   assert.equal(error, null, `the whole program failed: ${error}`);
   assert.deepEqual(out, ['A: balanced  |  B: short by 1.50']);
@@ -212,11 +212,11 @@ test('trap 3 is real: dec is exact and refuses floats', () => {
 
 test('trap 4 is real: a missing variant is caught before running', () => {
   const source = 'choice S { A  B }\nfn f(s) { return match s { A => 1 } }';
-  const found = analyze(parse(source, 'doc.pedag')).filter((f) => f.kind === 'inexhaustive match');
+  const found = analyze(parse(source, 'doc.smarsh')).filter((f) => f.kind === 'inexhaustive match');
   assert.equal(found.length, 1, 'the missing arm was not reported');
   // And `_` closes it, as the page says.
   assert.equal(
-    analyze(parse('choice S { A  B }\nfn f(s) { return match s { A => 1, _ => 0 } }', 'doc.pedag'))
+    analyze(parse('choice S { A  B }\nfn f(s) { return match s { A => 1, _ => 0 } }', 'doc.smarsh'))
       .filter((f) => f.kind === 'inexhaustive match').length,
     0,
   );
@@ -252,7 +252,7 @@ test('the syntax the page shows parses', () => {
     'grounded { print(1) }',
     'using grant("fs") { print(1) }',
   ].join('\n');
-  assert.doesNotThrow(() => parse(source, 'doc.pedag'), 'the page shows syntax that does not parse');
+  assert.doesNotThrow(() => parse(source, 'doc.smarsh'), 'the page shows syntax that does not parse');
   assert.equal(run(source, ['fs']).error, null);
 });
 

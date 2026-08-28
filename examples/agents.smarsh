@@ -1,6 +1,6 @@
 // Agents, budgets and static race detection.
-//     node bin/pedag.mjs run examples/agents.pedag
-//     node bin/pedag.mjs check examples/agents.pedag
+//     node bin/smarsh.mjs run examples/agents.smarsh
+//     node bin/smarsh.mjs check examples/agents.smarsh
 print("== agents talk by message, and nothing else ===============")
 
 agent Ledgerkeeper(name) {
@@ -124,11 +124,11 @@ attempt {
 
 print("")
 print("== races found before the program runs ====================")
-print("   run `pedag check` on this file: the fork below is reported")
+print("   run `smarsh check` on this file: the fork below is reported")
 
 var tally = 0
 // Deliberately not suppressed. This is the finding the section is here to
-// show, so `pedag check` on this file reports it and exits non-zero -- which
+// show, so `smarsh check` on this file reports it and exits non-zero -- which
 // is the demonstration working, not the example being broken.
 let results = fork 4 {
   tally = tally + 1

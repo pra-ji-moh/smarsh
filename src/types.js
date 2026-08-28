@@ -707,7 +707,7 @@ export class Checker {
       // concatenates lists. So an operand the checker does not know leaves the
       // result unknown as well. Falling through to `num` here claimed to know
       // something it did not, and reported a false type error on correct code
-      // -- `s.slice(0, 1).upper() + s.slice(1)` in std/str.pedag, where both
+      // -- `s.slice(0, 1).upper() + s.slice(1)` in std/str.smarsh, where both
       // sides are `dyn` and the answer is plainly a string.
       if (isDyn(l) || isDyn(r)) return DYN;
     }

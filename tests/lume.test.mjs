@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError } from '../src/errors.js';
+import { SmarshError } from '../src/errors.js';
 import { ContextWindow, Ledger, countTokens } from '../src/values.js';
 import { Tensor } from '../src/tensor.js';
 import { proveSource } from '../src/prove.js';
@@ -18,7 +18,7 @@ function fails(src, opts = {}) {
   try {
     run(src, opts);
   } catch (e) {
-    if (e instanceof PedagError) return e;
+    if (e instanceof SmarshError) return e;
     throw e;
   }
   throw new Error('expected the program to fail, but it ran cleanly');
@@ -91,7 +91,7 @@ test('slice takes one or two bounds, and counts back from the end', () => {
 });
 
 test('strings, lists and maps carry methods', () => {
-  assert.equal(run('"pedag".upper()').value, 'PEDAG');
+  assert.equal(run('"smarsh".upper()').value, 'SMARSH');
   assert.deepEqual(run('[3,1,2].sort()').value, [1, 2, 3]);
   assert.equal(run('[1,2,3].reduce(fn(a,b){ return a + b }, 0)').value, 6);
   assert.equal(run('var m = {"a": 1}\nm["b"] = 2\nm.len()').value, 2);

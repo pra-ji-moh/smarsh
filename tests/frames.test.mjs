@@ -14,7 +14,7 @@ function run(source, compiled) {
   interp.compiled = compiled;
   interp.stepLimit = 5000000;
   try {
-    interp.run(source, 't.pedag');
+    interp.run(source, 't.smarsh');
     return out;
   } finally {
     interp.devices.shutdown();
@@ -221,7 +221,7 @@ test('a remembered method still refuses a value bound with let', () => {
         'xs.push(1)',
         'let frozen = xs',
         'xs.push(2)',
-      ].join('\n'), 't.pedag'),
+      ].join('\n'), 't.smarsh'),
       (e) => e.kind === 'ImmutableError',
     );
   } finally {
@@ -302,7 +302,7 @@ test('a broken postcondition still fails, after the same call has succeeded', ()
       'print(f(1))',
       'print(f(2))',
       'print(f(3))',
-    ].join('\n'), 't.pedag'), (e) => e.kind === 'ContractError' && /promised/.test(e.message));
+    ].join('\n'), 't.smarsh'), (e) => e.kind === 'ContractError' && /promised/.test(e.message));
   } finally {
     interp.devices.shutdown();
   }
@@ -316,7 +316,7 @@ test('a broken precondition still fails on a later call', () => {
       'print(f(1))',
       'print(f(2))',
       'print(f(0 - 1))',
-    ].join('\n'), 't.pedag'), (e) => e.kind === 'ContractError' && /requires/.test(e.message));
+    ].join('\n'), 't.smarsh'), (e) => e.kind === 'ContractError' && /requires/.test(e.message));
   } finally {
     interp.devices.shutdown();
   }
@@ -387,7 +387,7 @@ test('a grounded block still refuses a value that came through a method', () => 
   const interp = new Interpreter({ out: () => {}, seed: 1 });
   try {
     assert.throws(
-      () => interp.run('let u = untrusted("abc")\ngrounded { print(u.upper()) }', 't.pedag'),
+      () => interp.run('let u = untrusted("abc")\ngrounded { print(u.upper()) }', 't.smarsh'),
       (e) => e.kind === 'TaintError',
     );
   } finally {

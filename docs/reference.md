@@ -1,4 +1,4 @@
-# Pēdāg reference
+# Smarsh reference
 
 Complete list of keywords, block forms and builtins. For what any of it is
 *for*, see the README.
@@ -15,8 +15,8 @@ Complete list of keywords, block forms and builtins. For what any of it is
 | `fn name(a, b) { }` | function |
 | `fn(a, b) { }` | anonymous function (an expression) |
 | `agent Name(args) { var s = ...  on msg(a) { } }` | actor template |
-| `import "./m.pedag"` | bring a module's top level into scope |
-| `import "./m.pedag" as m` | bind that top level as a map |
+| `import "./m.smarsh"` | bring a module's top level into scope |
+| `import "./m.smarsh" as m` | bind that top level as a map |
 | `redefine fn name(...) { }` | replace a live function (validated) |
 | `redefine on Agent.msg(...) { }` | replace a live handler (state survives) |
 
@@ -161,7 +161,7 @@ Optional everywhere. `num` `str` `bool` `nil` `dyn` `dec` `tensor`, `list<T>`,
 ## Standard library
 
 `import "std/list" as list` — resolves to the library shipped with the runtime,
-from anywhere. All four modules are written in Pēdāg.
+from anywhere. All four modules are written in Smarsh.
 
 - **std/list** — `take` `drop` `find` `index_of` `any` `all` `count` `zip`
   `enumerate` `flatten` `unique` `chunk` `windows` `sort_by` `min_by` `max_by`
@@ -185,16 +185,16 @@ Values are converted rather than shared, and everything returned is labelled
 ## Command line
 
 ```
-pedag run <file> [--seed n] [--grant a,b] [--trace] [--profile]
-pedag check <file>              types, undefined names, fork races, taint
-pedag verify <file>             prove contracts for every input
-pedag test [path]               tests, contracts, types and races together
-pedag fmt <path> [--check]      one canonical layout, no options
-pedag explain <code>            a longer explanation of an error code
-pedag prove <file> [--trials n] [--seed n]
-pedag build <file> [-o out.mjs]
-pedag repl [--seed n] [--grant a,b]
-pedag eval "<source>"
+smarsh run <file> [--seed n] [--grant a,b] [--trace] [--profile]
+smarsh check <file>              types, undefined names, fork races, taint
+smarsh verify <file>             prove contracts for every input
+smarsh test [path]               tests, contracts, types and races together
+smarsh fmt <path> [--check]      one canonical layout, no options
+smarsh explain <code>            a longer explanation of an error code
+smarsh prove <file> [--trials n] [--seed n]
+smarsh build <file> [-o out.mjs]
+smarsh repl [--seed n] [--grant a,b]
+smarsh eval "<source>"
 ```
 
 ## Error kinds
@@ -244,7 +244,7 @@ and it is matched by the same patterns. A variant may carry an `invariant`, and
 it is checked when one is built, exactly as for a record.
 
 What the choice adds is that the set is **closed**, and a closed set is what
-lets `pedag check` prove a `match` handles every case:
+lets `smarsh check` prove a `match` handles every case:
 
 ```
 error[E0605]: this match on `Payment` does not handle `Refused`
@@ -293,7 +293,7 @@ boundary turns the stop into an ordinary `BudgetError`, for whoever set it.
 
 `memory` is a deterministic estimate, not a reading of the host heap. Sampling
 real memory would make a run depend on what else the machine was doing, and
-every replay guarantee in Pēdāg rests on a run being reproducible from its seed.
+every replay guarantee in Smarsh rests on a run being reproducible from its seed.
 The figure is therefore a fixed charge per allocating operation: it bounds
 runaway growth, and it is not a profiler.
 

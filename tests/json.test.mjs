@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
-// `--json` is the interface a program uses to drive this one, and most Pedag
+// `--json` is the interface a program uses to drive this one, and most Smarsh
 // will be written by a program.
 //
 // The rendered output draws a caret under a span with box characters, which is
@@ -15,11 +15,11 @@ import { execFileSync } from 'node:child_process';
 // `code` to fix its own output must not have those disappear or be renamed.
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CLI = path.join(ROOT, 'bin', 'pedag.mjs');
+const CLI = path.join(ROOT, 'bin', 'smarsh.mjs');
 
 let dir;
 const write = (name, body) => {
-  if (!dir) dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pedag-json-'));
+  if (!dir) dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smarsh-json-'));
   const p = path.join(dir, name);
   fs.writeFileSync(p, body);
   return p;
@@ -42,7 +42,7 @@ const json = (args) => {
 };
 
 test('check --json reports a problem as data', () => {
-  const f = write('bad.pedag', 'let z = undefined_name\n');
+  const f = write('bad.smarsh', 'let z = undefined_name\n');
   const { json: j, code } = json(['check', f, '--json']);
   assert.equal(code, 1, 'a file with a problem must exit non-zero');
   assert.equal(j.ok, false);
@@ -55,11 +55,11 @@ test('check --json reports a problem as data', () => {
   assert.equal(d.line, 1);
   assert.ok(d.column >= 1, 'a column is what an editor needs');
   assert.match(d.message, /undefined_name/);
-  assert.equal(d.explain, 'pedag explain E0201');
+  assert.equal(d.explain, 'smarsh explain E0201');
 });
 
 test('check --json on a clean file says so', () => {
-  const f = write('good.pedag', 'let x = 1\nprint(x)\n');
+  const f = write('good.smarsh', 'let x = 1\nprint(x)\n');
   const { json: j, code } = json(['check', f, '--json']);
   assert.equal(code, 0);
   assert.equal(j.ok, true);
@@ -67,7 +67,7 @@ test('check --json on a clean file says so', () => {
 });
 
 test('check --json carries the suggestion, which is the point of it', () => {
-  const f = write('typo.pedag', 'let total = 1\nprint(totl)\n');
+  const f = write('typo.smarsh', 'let total = 1\nprint(totl)\n');
   const { json: j } = json(['check', f, '--json']);
   const d = j.diagnostics.find((x) => x.code === 'E0201');
   assert.ok(d, 'the typo was not reported');
@@ -76,7 +76,7 @@ test('check --json carries the suggestion, which is the point of it', () => {
 });
 
 test('run --json separates what the program printed from how it failed', () => {
-  const f = write('fail.pedag', [
+  const f = write('fail.smarsh', [
     'fn half(x) requires x > 0 { return x / 2 }',
     'print("before")',
     'print(half(0 - 4))',
@@ -93,7 +93,7 @@ test('run --json separates what the program printed from how it failed', () => {
 });
 
 test('run --json on success reports the output and how to replay it', () => {
-  const f = write('ok.pedag', 'print(1 + 1)\n');
+  const f = write('ok.smarsh', 'print(1 + 1)\n');
   const { json: j, code } = json(['run', f, '--json']);
   assert.equal(code, 0);
   assert.equal(j.ok, true);
@@ -104,7 +104,7 @@ test('run --json on success reports the output and how to replay it', () => {
 });
 
 test('run --json reports a refused capability as such', () => {
-  const f = write('caps.pedag', 'fn save(t) { write("out.txt", t) }\nsave("x")\n');
+  const f = write('caps.smarsh', 'fn save(t) { write("out.txt", t) }\nsave("x")\n');
   const { json: j } = json(['run', f, '--json']);
   assert.equal(j.ok, false);
   assert.equal(j.failure.kind, 'CapabilityError');
@@ -113,13 +113,13 @@ test('run --json reports a refused capability as such', () => {
 });
 
 test('run --json still produces one JSON document when nothing is wrong', () => {
-  const f = write('quiet.pedag', 'let x = 1\n');
+  const f = write('quiet.smarsh', 'let x = 1\n');
   const r = cli(['run', f, '--json']);
   assert.doesNotThrow(() => JSON.parse(r.out), 'stdout must be exactly one document');
 });
 
 test('test --json names what failed and why', () => {
-  const f = write('demo_test.pedag', [
+  const f = write('demo_test.smarsh', [
     'fn double(x) requires x >= 0 ensures result == x * 2 { return x + x }',
     '',
     'fn test_passes() { assert(double(2) == 4, "two doubled") }',
@@ -140,7 +140,7 @@ test('test --json names what failed and why', () => {
 });
 
 test('test --json reports a contract counterexample with its arguments', () => {
-  const f = write('broken_test.pedag', [
+  const f = write('broken_test.smarsh', [
     'fn triple(x) requires x >= 0 ensures result == x * 3 { return x * 2 }',
     '',
     'fn test_nothing() { assert(true, "placeholder") }',
@@ -155,9 +155,9 @@ test('test --json reports a contract counterexample with its arguments', () => {
 });
 
 test('every --json command uses the same shape for a failure', () => {
-  const bad = write('shape.pedag', 'fn f(x) requires x > 0 { return x }\nf(0 - 1)\n');
+  const bad = write('shape.smarsh', 'fn f(x) requires x > 0 { return x }\nf(0 - 1)\n');
   const run = json(['run', bad, '--json']).json.failure;
-  const chk = json(['check', write('shape2.pedag', 'let a = nope\n'), '--json']).json.diagnostics[0];
+  const chk = json(['check', write('shape2.smarsh', 'let a = nope\n'), '--json']).json.diagnostics[0];
   for (const key of ['severity', 'code', 'message', 'file', 'line', 'helps', 'notes', 'explain']) {
     assert.ok(key in run, "run's failure is missing " + key);
     assert.ok(key in chk, "check's diagnostic is missing " + key);

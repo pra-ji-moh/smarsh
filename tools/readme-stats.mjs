@@ -10,7 +10,7 @@
 // anything harder.
 //
 // The coverage figure needs one piece of care. Running the suite generates
-// bundles -- `pedag build` writes a self-contained .mjs into a temp directory --
+// bundles -- `smarsh build` writes a self-contained .mjs into a temp directory --
 // and Node's coverage counts those as source. They are ten thousand lines each
 // at 40% covered, and including them reports 63% for a tree that is at 95%.
 // Excluding them is not massaging the number; a generated artifact is not

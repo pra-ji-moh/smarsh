@@ -33,7 +33,7 @@ function time(source, compiled) {
     interp.stepLimit = Infinity;
     const t0 = process.hrtime.bigint();
     try {
-      interp.run(source, 'bench.pedag');
+      interp.run(source, 'bench.smarsh');
     } catch (e) {
       interp.devices.shutdown();
       return { failed: `${e && e.kind ? e.kind : 'error'}: ${e && e.message}` };

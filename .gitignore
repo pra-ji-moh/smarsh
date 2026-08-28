@@ -1,7 +1,7 @@
 node_modules/
 *.log
 
-# `pedag build` output.
+# `smarsh build` output.
 #
 # This used to be a bare `*.mjs` with an exception per source directory, and the
 # exception list was a trap: `tools/` was missing, so the scripts CI depends on
@@ -14,7 +14,7 @@ node_modules/
 /*.mjs
 
 # arena spill directories and scratch written by examples
-.pedag-spill/
+.smarsh-spill/
 scratch/
 note.txt
 out.txt

@@ -1,5 +1,5 @@
 import { NativeFunction, stringify, unwrap } from './values.js';
-import { pedagError } from './errors.js';
+import { smarshError } from './errors.js';
 
 const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 
@@ -20,9 +20,9 @@ export class RecordType {
     // full set of siblings a match is obliged to cover.
     this.choice = null;
   }
-  get pedagType() { return 'record_type'; }
+  get smarshType() { return 'record_type'; }
   toString() { return `<record ${this.name}(${this.fields.join(', ')})>`; }
-  pedagMembers() {
+  smarshMembers() {
     return {
       name: this.name,
       fields: [...this.fields],
@@ -43,7 +43,7 @@ export class RecordType {
 // Each variant is an ordinary record, so construction, fields, structural
 // equality, printing, `.with()` and pattern matching all work already and
 // none of it needed a second implementation. What the choice adds is the
-// closed set -- and a closed set is the thing that lets `pedag check` prove a
+// closed set -- and a closed set is the thing that lets `smarsh check` prove a
 // `match` handles every case before the program runs, instead of a missed
 // variant becoming a MatchError in production.
 //
@@ -55,9 +55,9 @@ export class ChoiceType {
     this.line = line;
     this.variants = new Map();   // variant name -> RecordType
   }
-  get pedagType() { return 'choice_type'; }
+  get smarshType() { return 'choice_type'; }
   toString() { return `<choice ${this.name}(${[...this.variants.keys()].join(' | ')})>`; }
-  pedagMembers() {
+  smarshMembers() {
     return { name: this.name, variants: [...this.variants.keys()] };
   }
 }
@@ -67,7 +67,7 @@ export class RecordValue {
     this.type = type;
     this.values = values;
   }
-  get pedagType() { return this.type.name; }
+  get smarshType() { return this.type.name; }
 
   get(field) {
     const i = this.type.fields.indexOf(field);
@@ -79,7 +79,7 @@ export class RecordValue {
   with(field, value, line) {
     const i = this.type.fields.indexOf(field);
     if (i === -1) {
-      throw pedagError('AttributeError', `\`${this.type.name}\` has no field \`${field}\``, line);
+      throw smarshError('AttributeError', `\`${this.type.name}\` has no field \`${field}\``, line);
     }
     const next = this.values.slice();
     next[i] = value;
@@ -93,7 +93,7 @@ export class RecordValue {
     return `${this.type.name}(${parts.join(', ')})`;
   }
 
-  pedagMembers(interp, line) {
+  smarshMembers(interp, line) {
     const out = {};
     this.type.fields.forEach((f, i) => { out[f] = this.values[i]; });
     out.fields = [...this.type.fields];

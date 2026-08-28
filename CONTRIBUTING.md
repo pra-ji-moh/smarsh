@@ -1,10 +1,10 @@
-# Contributing to Pēdāg
+# Contributing to Smarsh
 
 ## The one rule
 
 **A feature's name must be true.**
 
-Pēdāg ships things that sound impossible — homomorphic arithmetic, zero-knowledge
+Smarsh ships things that sound impossible — homomorphic arithmetic, zero-knowledge
 proofs, quantum simulation, un-overridable kill switches. They are in the tree
 because each one actually does what its name says, and where a name would
 overclaim, the name changed rather than the claim.
@@ -26,7 +26,7 @@ Node 18 or newer. There are no dependencies to install.
 
 ```bash
 node --test tests/*.test.mjs
-node bin/pedag.mjs run examples/tour.pedag
+node bin/smarsh.mjs run examples/tour.smarsh
 ```
 
 ## What a pull request needs
@@ -37,7 +37,7 @@ node bin/pedag.mjs run examples/tour.pedag
 2. **The honest caveat, in the README.** If a feature is partial, bounded, or
    an approximation, the limitation goes in the caveats list in the same PR.
    Not the next one.
-3. **`pedag check` clean** on any `.pedag` you add.
+3. **`smarsh check` clean** on any `.smarsh` you add.
 4. **No dependencies.** The runtime has none and is not going to acquire any.
    `node:` builtins are fine.
 
@@ -61,9 +61,9 @@ about each one:
 
 ```js
 export class Thing {
-  get pedagType() { return 'thing'; }        // typeName() picks this up
+  get smarshType() { return 'thing'; }        // typeName() picks this up
   toString() { return '<thing>'; }          // print() picks this up
-  pedagMembers(interp, line) {               // `.field` and `.method()` dispatch
+  smarshMembers(interp, line) {               // `.field` and `.method()` dispatch
     return { size: 3, poke: nf('poke', 0, () => 42) };
   }
 }
@@ -89,8 +89,8 @@ If you touch it, or if you are chasing a wrong answer that looks like a scoping
 problem, run with the checks on:
 
 ```
-PEDAG_DEBUG_ENV=1 npm test
-PEDAG_DEBUG_ENV=1 node bin/pedag.mjs run the-program.pedag
+SMARSH_DEBUG_ENV=1 npm test
+SMARSH_DEBUG_ENV=1 node bin/smarsh.mjs run the-program.smarsh
 ```
 
 Every operation that could break an invariant then checks all of them, for every
@@ -101,8 +101,8 @@ shape the optimiser saw.
 
 ## Reporting a security issue
 
-pedag runs untrusted-ish code by design — capabilities, taint tracking and
+smarsh runs untrusted-ish code by design — capabilities, taint tracking and
 budgets are all load-bearing. If you find a way to escape any of them (reach the
 filesystem without `fs`, launder a taint label without `trust()`, or survive a
 `budget` block), that is a security bug. Open an issue with a reproducing
-`.pedag` file.
+`.smarsh` file.

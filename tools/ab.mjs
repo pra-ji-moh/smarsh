@@ -47,7 +47,7 @@ if (!dirty) {
   process.exit(0);
 }
 
-const work = fs.mkdtempSync(path.join(os.tmpdir(), 'pedag-ab-'));
+const work = fs.mkdtempSync(path.join(os.tmpdir(), 'smarsh-ab-'));
 const baseDir = path.join(work, 'base');
 const candDir = path.join(work, 'cand');
 const copy = (into) => {

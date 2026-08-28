@@ -6,14 +6,14 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError } from '../src/errors.js';
+import { SmarshError } from '../src/errors.js';
 import { Schema, negotiate, adapt } from '../src/schema.js';
 import { buildBundle } from '../src/bundle.js';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
 
 function project(files) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Pēdāg-mod-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Smarsh-mod-'));
   for (const [name, body] of Object.entries(files)) {
     const full = path.join(dir, name);
     fs.mkdirSync(path.dirname(full), { recursive: true });
@@ -37,7 +37,7 @@ function failsIn(dir, entry, opts = {}) {
   try {
     runIn(dir, entry, opts);
   } catch (e) {
-    if (e instanceof PedagError) return e;
+    if (e instanceof SmarshError) return e;
     throw e;
   }
   throw new Error('expected the program to fail, but it ran cleanly');
@@ -57,7 +57,7 @@ function fails(src, opts = {}) {
   try {
     run(src, opts);
   } catch (e) {
-    if (e instanceof PedagError) return e;
+    if (e instanceof SmarshError) return e;
     throw e;
   }
   throw new Error('expected the program to fail, but it ran cleanly');
@@ -69,45 +69,45 @@ function fails(src, opts = {}) {
 
 test('an import brings a module top level into scope', () => {
   const dir = project({
-    'lib.pedag': 'let rate = 3\nfn triple(x) { return x * rate }',
-    'main.pedag': 'import "./lib.pedag"\n[triple(5), rate]',
+    'lib.smarsh': 'let rate = 3\nfn triple(x) { return x * rate }',
+    'main.smarsh': 'import "./lib.smarsh"\n[triple(5), rate]',
   });
-  assert.deepEqual(runIn(dir, 'main.pedag').value, [15, 3]);
+  assert.deepEqual(runIn(dir, 'main.smarsh').value, [15, 3]);
 });
 
 test('an aliased import keeps the names together', () => {
   const dir = project({
-    'lib.pedag': 'fn double(x) { return x * 2 }\nlet unit = "m"',
-    'main.pedag': 'import "./lib.pedag" as lib\n[lib["double"](4), lib["unit"]]',
+    'lib.smarsh': 'fn double(x) { return x * 2 }\nlet unit = "m"',
+    'main.smarsh': 'import "./lib.smarsh" as lib\n[lib["double"](4), lib["unit"]]',
   });
-  assert.deepEqual(runIn(dir, 'main.pedag').value, [8, 'm']);
+  assert.deepEqual(runIn(dir, 'main.smarsh').value, [8, 'm']);
 });
 
 test('a module cannot see the program that imported it', () => {
   const dir = project({
-    'lib.pedag': 'fn peek() { return secret_value }',
-    'main.pedag': 'let secret_value = 42\nimport "./lib.pedag"\npeek()',
+    'lib.smarsh': 'fn peek() { return secret_value }',
+    'main.smarsh': 'let secret_value = 42\nimport "./lib.smarsh"\npeek()',
   });
-  assert.equal(failsIn(dir, 'main.pedag').kind, 'NameError');
+  assert.equal(failsIn(dir, 'main.smarsh').kind, 'NameError');
 });
 
 test('a name collision on import is refused, not silently resolved', () => {
   const dir = project({
-    'lib.pedag': 'fn helper() { return 1 }',
-    'main.pedag': 'fn helper() { return 2 }\nimport "./lib.pedag"',
+    'lib.smarsh': 'fn helper() { return 1 }',
+    'main.smarsh': 'fn helper() { return 2 }\nimport "./lib.smarsh"',
   });
-  const e = failsIn(dir, 'main.pedag');
+  const e = failsIn(dir, 'main.smarsh');
   assert.equal(e.kind, 'ImportError');
   assert.match(e.message, /already declared here/);
 });
 
 test('a module runs once even when imported twice', () => {
   const dir = project({
-    'lib.pedag': 'print("side effect")\nlet n = 1',
-    'a.pedag': 'import "./lib.pedag" as x',
-    'main.pedag': 'import "./a.pedag" as a\nimport "./lib.pedag" as b\nb["n"]',
+    'lib.smarsh': 'print("side effect")\nlet n = 1',
+    'a.smarsh': 'import "./lib.smarsh" as x',
+    'main.smarsh': 'import "./a.smarsh" as a\nimport "./lib.smarsh" as b\nb["n"]',
   });
-  const { value, out } = runIn(dir, 'main.pedag');
+  const { value, out } = runIn(dir, 'main.smarsh');
   assert.equal(value, 1);
   assert.deepEqual(out, ['side effect'], 'the module body should run exactly once');
 });
@@ -115,11 +115,11 @@ test('a module runs once even when imported twice', () => {
 test('identical content at two paths is one module, addressed by hash', () => {
   const body = 'let marker = 7';
   const dir = project({
-    'one.pedag': body,
-    'vendor/two.pedag': body,
-    'main.pedag': 'import "./one.pedag" as a\nimport "./vendor/two.pedag" as b\n[a["marker"], b["marker"]]',
+    'one.smarsh': body,
+    'vendor/two.smarsh': body,
+    'main.smarsh': 'import "./one.smarsh" as a\nimport "./vendor/two.smarsh" as b\n[a["marker"], b["marker"]]',
   });
-  const { value, interp } = runIn(dir, 'main.pedag');
+  const { value, interp } = runIn(dir, 'main.smarsh');
   assert.deepEqual(value, [7, 7]);
   assert.equal(interp.moduleCache.size, 1, 'the same bytes must not become two modules');
   const paths = [...interp.modulePaths.values()][0];
@@ -128,36 +128,36 @@ test('identical content at two paths is one module, addressed by hash', () => {
 
 test('a different byte is a different module', () => {
   const dir = project({
-    'one.pedag': 'let marker = 7',
-    'two.pedag': 'let marker = 8',
-    'main.pedag': 'import "./one.pedag" as a\nimport "./two.pedag" as b\n[a["marker"], b["marker"]]',
+    'one.smarsh': 'let marker = 7',
+    'two.smarsh': 'let marker = 8',
+    'main.smarsh': 'import "./one.smarsh" as a\nimport "./two.smarsh" as b\n[a["marker"], b["marker"]]',
   });
-  const { value, interp } = runIn(dir, 'main.pedag');
+  const { value, interp } = runIn(dir, 'main.smarsh');
   assert.deepEqual(value, [7, 8]);
   assert.equal(interp.moduleCache.size, 2);
 });
 
 test('an import cycle is refused', () => {
   const dir = project({
-    'a.pedag': 'import "./b.pedag"\nlet fromA = 1',
-    'b.pedag': 'import "./a.pedag"\nlet fromB = 2',
-    'main.pedag': 'import "./a.pedag"',
+    'a.smarsh': 'import "./b.smarsh"\nlet fromA = 1',
+    'b.smarsh': 'import "./a.smarsh"\nlet fromB = 2',
+    'main.smarsh': 'import "./a.smarsh"',
   });
-  const e = failsIn(dir, 'main.pedag');
+  const e = failsIn(dir, 'main.smarsh');
   assert.equal(e.kind, 'ImportError');
   assert.match(e.message, /cannot form a cycle/);
 });
 
 test('an import cannot escape the program directory', () => {
-  const dir = project({ 'main.pedag': 'import "../outside.pedag"' });
-  const e = failsIn(dir, 'main.pedag');
+  const dir = project({ 'main.smarsh': 'import "../outside.smarsh"' });
+  const e = failsIn(dir, 'main.smarsh');
   assert.equal(e.kind, 'ImportError');
   assert.match(e.message, /outside/);
 });
 
 test('a missing module says so', () => {
-  const dir = project({ 'main.pedag': 'import "./nope.pedag"' });
-  assert.equal(failsIn(dir, 'main.pedag').kind, 'ImportError');
+  const dir = project({ 'main.smarsh': 'import "./nope.smarsh"' });
+  assert.equal(failsIn(dir, 'main.smarsh').kind, 'ImportError');
 });
 
 // ---------------------------------------------------------------------------
@@ -371,26 +371,26 @@ test('a bundle is self-contained and produces the same output', { timeout: 12000
     print("tensor", (tensor [[1,2],[3,4]] @ tensor [1,1]).tolist())
     maybe 0.5 { print("took it") } else { print("skipped it") }
   `;
-  const bundle = buildBundle(program, 'test.pedag', { seed: 1 });
+  const bundle = buildBundle(program, 'test.smarsh', { seed: 1 });
   assert.ok(!/^\s*import\s+.*from\s+['"]\./m.test(bundle), 'no relative imports may survive');
   assert.ok(!/^\s*export\s/m.test(bundle), 'no export statements may survive');
 
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Pēdāg-bundle-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Smarsh-bundle-'));
   const file = path.join(dir, 'app.mjs');
   fs.writeFileSync(file, bundle, 'utf8');
   const fromBundle = execFileSync(process.execPath, [file], { encoding: 'utf8' });
 
   const direct = [];
   const interp = new Interpreter({ seed: 1, out: (s) => direct.push(s) });
-  interp.run(program, 'test.pedag');
+  interp.run(program, 'test.smarsh');
   interp.devices.shutdown();
 
   assert.deepEqual(fromBundle.trim().split(/\r?\n/), direct);
 });
 
 test('a bundle reports a failing program the same way', { timeout: 120000 }, () => {
-  const bundle = buildBundle('fn f(n) requires n > 0 { return n }\nf(0)', 'bad.pedag', { seed: 0 });
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Pēdāg-bundle-'));
+  const bundle = buildBundle('fn f(n) requires n > 0 { return n }\nf(0)', 'bad.smarsh', { seed: 0 });
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Smarsh-bundle-'));
   const file = path.join(dir, 'bad.mjs');
   fs.writeFileSync(file, bundle, 'utf8');
   try {

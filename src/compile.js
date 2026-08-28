@@ -33,9 +33,9 @@
 // than wrong. `tools/differential.mjs` runs both engines over every example and
 // test program and compares the output byte for byte.
 
-import { pedagError, ReturnSignal, BreakSignal, ContinueSignal } from './errors.js';
+import { smarshError, ReturnSignal, BreakSignal, ContinueSignal } from './errors.js';
 import {
-  PedagFunction, NativeFunction, Tainted,
+  SmarshFunction, NativeFunction, Tainted,
   unwrap, retaint, retaintFrom, truthy, freezeDeep, stringify, withArticle, assertMutable,
 } from './values.js';
 import { Tensor } from './tensor.js';
@@ -276,7 +276,7 @@ function buildExpr(node) {
 
     case 'Assign': return buildAssign(node);
 
-    case 'Fn': return (itp) => new PedagFunction(node, itp.env);
+    case 'Fn': return (itp) => new SmarshFunction(node, itp.env);
 
     default:
       // Not compiled: hand it back to the tree-walker. Slower, never wrong.
@@ -322,7 +322,7 @@ function buildAssign(node) {
       const env = itp.env;
       if (env === cachedEnv && cachedVersion === version.v) {
         if (!cachedSlot.mutable) {
-          throw pedagError('ImmutableError',
+          throw smarshError('ImmutableError',
             `'${name}' was declared with let and cannot be reassigned (use var if it must change)`, line);
         }
         cachedSlot.value = v;
@@ -330,10 +330,10 @@ function buildAssign(node) {
       }
       const slot = env.slot(name);
       if (slot === undefined || slot === null) {
-        throw pedagError('NameError', `'${name}' is not defined`, line);
+        throw smarshError('NameError', `'${name}' is not defined`, line);
       }
       if (!slot.mutable) {
-        throw pedagError('ImmutableError',
+        throw smarshError('ImmutableError',
           `'${name}' was declared with let and cannot be reassigned (use var if it must change)`, line);
       }
       cachedEnv = env;
@@ -362,25 +362,25 @@ function buildAssign(node) {
       for (let i = 0; i < n; i++) idx[i] = unwrap(indices[i](itp));
 
       if (obj instanceof Tensor) {
-        throw pedagError('ImmutableError',
+        throw smarshError('ImmutableError',
           'tensors are immutable; build a new one instead of writing into this one', line);
       }
       if (Array.isArray(obj)) {
-        assertMutable(obj, 'this list', line, pedagError);
+        assertMutable(obj, 'this list', line, smarshError);
         let i = Math.trunc(itp.asNumber(idx[0], 'a list index', line));
         if (i < 0) i += obj.length;
         if (i < 0 || i >= obj.length) {
-          throw pedagError('IndexError', `list index ${idx[0]} out of range (length ${obj.length})`, line);
+          throw smarshError('IndexError', `list index ${idx[0]} out of range (length ${obj.length})`, line);
         }
         obj[i] = v;
         return v;
       }
       if (obj instanceof Map) {
-        assertMutable(obj, 'this map', line, pedagError);
+        assertMutable(obj, 'this map', line, smarshError);
         obj.set(String(idx[0]), v);
         return v;
       }
-      throw pedagError('TypeError', `cannot index-assign into ${withArticle(obj)}`, line);
+      throw smarshError('TypeError', `cannot index-assign into ${withArticle(obj)}`, line);
     };
   }
 
@@ -392,11 +392,11 @@ function buildAssign(node) {
     const v = value(itp);
     const obj = unwrap(object(itp));
     if (obj instanceof Map) {
-      assertMutable(obj, 'this map', line, pedagError);
+      assertMutable(obj, 'this map', line, smarshError);
       obj.set(name, v);
       return v;
     }
-    throw pedagError('TypeError', `cannot assign to '.${name}' on ${withArticle(obj)}`, line);
+    throw smarshError('TypeError', `cannot assign to '.${name}' on ${withArticle(obj)}`, line);
   };
 }
 
@@ -558,7 +558,7 @@ function buildCall(node) {
       cachedFn = fn;
       // The instanceof is inline so that a site which always calls a builtin
       // or a record constructor settles it without a method call.
-      cachedSimple = fn instanceof PedagFunction && itp.canCallSimple(fn);
+      cachedSimple = fn instanceof SmarshFunction && itp.canCallSimple(fn);
     }
     // `profiling` is checked here rather than trusted from the cache: it is one
     // boolean load, and it can be switched on between calls.
@@ -633,7 +633,7 @@ function buildStmt(node) {
       const line = node.line;
       return (itp) => {
         { if (++itp.steps > itp.tickCheck) itp.tickDue(node); };
-        const fn = new PedagFunction(node.fn, itp.env);
+        const fn = new SmarshFunction(node.fn, itp.env);
         itp.redeclareIfAllowed(name);
         itp.env.declare(name, fn, false, line);
         itp.graph.define(name, node.fn);
@@ -854,7 +854,7 @@ function buildFor(node) {
       const stop = a.length === 1 ? itp.asNumber(a[0], 'a range end', line)
         : itp.asNumber(a[1], 'a range end', line);
       const step = a.length === 3 ? itp.asNumber(a[2], 'a range step', line) : 1;
-      if (step === 0) throw pedagError('ValueError', 'range step cannot be 0', line);
+      if (step === 0) throw smarshError('ValueError', 'range step cannot be 0', line);
       counted = { start, stop, step };
     }
 

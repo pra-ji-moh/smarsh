@@ -235,7 +235,7 @@ test('an invariant false on entry is refuted', () => {
 });
 
 test('the rational domain is respected, and that is not a bug', () => {
-  // `i > 0` does not give `i - 1 >= 0` unless i is an integer, and Pēdāg's `num`
+  // `i > 0` does not give `i - 1 >= 0` unless i is an integer, and Smarsh's `num`
   // is a float. Refuting this is correct: countdown(0.5) really does break it.
   const results = verify(`
     fn f(from) requires from >= 0 {
@@ -280,8 +280,8 @@ test('a function with no contract produces no obligations', () => {
 // ---------------------------------------------------------------------------
 
 test('verify and prove agree on the shipped contracts example', () => {
-  const source = fs.readFileSync(path.join(ROOT, 'examples', 'contracts.pedag'), 'utf8');
-  const verified = verifyProgram(parse(source, 'contracts.pedag'));
+  const source = fs.readFileSync(path.join(ROOT, 'examples', 'contracts.smarsh'), 'utf8');
+  const verified = verifyProgram(parse(source, 'contracts.smarsh'));
   const proved = proveSource(source, { trials: 120 });
 
   const refutedByVerify = new Set(verified.filter((r) => r.result === false).map((r) => r.fn));

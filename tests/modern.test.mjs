@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError } from '../src/errors.js';
+import { SmarshError } from '../src/errors.js';
 import { parse } from '../src/parser.js';
 import { typecheck } from '../src/types.js';
 
@@ -20,7 +20,7 @@ function fails(src, opts = {}) {
   try {
     run(src, opts);
   } catch (e) {
-    if (e instanceof PedagError) return e;
+    if (e instanceof SmarshError) return e;
     throw e;
   }
   throw new Error('expected the program to fail, but it ran cleanly');

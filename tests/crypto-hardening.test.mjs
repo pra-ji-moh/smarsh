@@ -27,7 +27,7 @@ function run(source, opts = {}) {
     out: (s) => out.push(s), warn: (s) => warns.push(s), seed: 1, ...CRYPTO, ...opts,
   });
   try {
-    interp.run(source, 't.pedag');
+    interp.run(source, 't.smarsh');
     return { out, warns, error: null, interp };
   } catch (e) {
     return { out, warns, error: e.kind ?? 'error', message: e.message ?? '', interp };
@@ -242,7 +242,7 @@ test('the insecure name needs the same capability as the rest', () => {
   const interp = new Interpreter({ out: (s) => out.push(s), warn: () => {}, caps: ['crypto'], seed: 1 });
   try {
     assert.throws(
-      () => interp.run('paillier_keygen_insecure(512)', 't.pedag'),
+      () => interp.run('paillier_keygen_insecure(512)', 't.smarsh'),
       (e) => e.kind === 'CapabilityError',
     );
   } finally {

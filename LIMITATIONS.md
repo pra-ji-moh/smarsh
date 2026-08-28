@@ -14,7 +14,7 @@ Things that behave in a way a reasonable person would not predict.
 
 ### `let` freezes shared structure, including through an alias
 
-```pedag
+```smarsh
 var xs = [1, 2]
 let ys = xs        // freezes the list itself
 xs.push(3)         // ImmutableError, even though xs is a var
@@ -23,9 +23,9 @@ xs.push(3)         // ImmutableError, even though xs is a var
 `let` freezes the *value*, and `xs` and `ys` are the same value. Binding
 something with `let` therefore reaches back and freezes it everywhere. This is
 consistent, and it is not what most people expect. Rust solves this with
-ownership; Pēdāg does not have ownership.
+ownership; Smarsh does not have ownership.
 
-`pedag check` now reports both shapes before the program runs (E0203), naming
+`smarsh check` now reports both shapes before the program runs (E0203), naming
 the `let` that did the freezing. It only speaks when the value is a list or map
 written as a literal — a context window, a ledger or an agent bound with `let`
 is a live handle that `freezeDeep` leaves alone, and reporting those was a real
@@ -35,7 +35,7 @@ false positive found by running the checker over the examples.
 
 ### A record is only as immutable as what you put in it
 
-```pedag
+```smarsh
 var items = [1]
 let h = Holder(items)
 items.push(2)          // h.items is now [1, 2]
@@ -46,11 +46,11 @@ stays mutable through the original binding. Records are shallowly immutable.
 
 ### Type errors do not stop a run
 
-`pedag check` reports them; `pedag run` executes anyway. A program with a proven
+`smarsh check` reports them; `smarsh run` executes anyway. A program with a proven
 type error still runs until the value actually misbehaves at runtime. This is
 deliberate for a gradual system but it means `run` is not a gate.
 
-**Workaround:** run `pedag check` in CI. It exits non-zero.
+**Workaround:** run `smarsh check` in CI. It exits non-zero.
 
 ### Determinism is per-version, not forever
 
@@ -67,7 +67,7 @@ surprising if you expected transactional semantics.
 
 ## 2. The verifier
 
-`pedag verify` is real but narrow. What it cannot do matters as much as what it
+`smarsh verify` is real but narrow. What it cannot do matters as much as what it
 can.
 
 ### No interprocedural reasoning — the biggest gap
@@ -75,13 +75,13 @@ can.
 A call is an opaque value. The verifier does **not** use a callee's contract at
 the call site:
 
-```pedag
+```smarsh
 fn callee(n) requires n > 0 ensures result > n { return n + 1 }
 fn caller(n) requires n > 0 ensures result > 1 { return callee(n) }
 //  -> undecided, even though callee's own contract makes it obvious
 ```
 
-Dafny does this and it is the single largest thing standing between Pēdāg's
+Dafny does this and it is the single largest thing standing between Smarsh's
 verifier and usefulness on real code. Anything built from function calls is
 undecidable to it today.
 
@@ -110,7 +110,7 @@ semantics end to end. Reasoning about `dec` is exact, because `dec` is exact.
 
 A refutation says "there is an input for which this does not hold" and does not
 say which. The solver knows the constraint system is satisfiable but does not
-extract a model. `pedag prove` gives you concrete inputs; `verify` does not.
+extract a model. `smarsh prove` gives you concrete inputs; `verify` does not.
 
 ### Hard caps, silently reached
 
@@ -133,7 +133,7 @@ The README says no other language verifies "functional contracts, information
 flow, capability sufficiency and termination in one pass." That is an overclaim
 and it is mine.
 
-`pedag verify` does contracts and termination. `pedag check` does information flow
+`smarsh verify` does contracts and termination. `smarsh check` does information flow
 and races, in a *different engine*, with a different algorithm. They are one
 toolchain, not one pass — the taint analysis is not part of the verification
 condition system and cannot use its solver. Unifying them is real work that has
@@ -187,7 +187,7 @@ not been done.
 - **No flow-sensitive narrowing.** Testing `if type(x) == "num"` teaches the
   checker nothing.
 - **Exhaustiveness is syntactic, not type-directed.** `choice` gives closed sets
-  and `pedag check` reports a `match` that misses a variant, but it works off
+  and `smarsh check` reports a `match` that misses a variant, but it works off
   the arms rather than off an inferred type for the subject. So it says nothing
   when the arms span two choices, when a variant name belongs to more than one
   choice, or when there is a wildcard. It also cannot report an *unreachable*
@@ -196,7 +196,7 @@ not been done.
   bites, which is a forgotten variant.
 - **No subtyping, no interfaces, no traits.**
 - **Local inference only.** No Hindley-Milner, no inference across statements.
-- **Capabilities are not in the type system.** `pedag check` now reports a
+- **Capabilities are not in the type system.** `smarsh check` now reports a
   function that uses authority it did not declare (E0406), so the common case
   is caught before the program runs — but it works off direct calls to a
   name, not off types. A call through a value, a method on an object, or a
@@ -228,7 +228,7 @@ not been done.
   Inside a permitted module every guarantee is still gone: there is no
   membrane, so a value handed across can be retained and mutated by host code
   the runtime cannot see.
-- **No host sandbox.** Capabilities bound what Pēdāg code reaches, not what the
+- **No host sandbox.** Capabilities bound what Smarsh code reaches, not what the
   process can do. `fs` is scoped to the program directory and that is all.
 - **`budget memory N` is an estimate, not a measurement.** It charges a fixed
   number of bytes per allocating operation — list literals, `.push`, `map.set` —
@@ -285,8 +285,8 @@ partial file IO — `read` and `write` handle whole files only. No networking.
 - **`--profile` prints a table**, with inclusive time only. No flamegraph, no
   allocation profile.
 - **The bundler is bespoke** and handles this codebase, not JavaScript generally.
-- **No coverage tooling for `.pedag` code** — the coverage figures below are of
-  the interpreter, not of programs written in Pēdāg.
+- **No coverage tooling for `.smarsh` code** — the coverage figures below are of
+  the interpreter, not of programs written in Smarsh.
 - **The fuzzer is grammar-based, not coverage-guided.** See §10.
 
 ---
@@ -308,7 +308,7 @@ partial file IO — `read` and `write` handle whole files only. No networking.
   branches). Note that the headline figure `node --test` prints is around 63%,
   because the run writes generated bundles and FFI fixtures into temp
   directories and counts them as source — the number to read is `src/`.
-- **The CLI itself is barely covered.** `bin/pedag.mjs` is exercised end to end
+- **The CLI itself is barely covered.** `bin/smarsh.mjs` is exercised end to end
   by CI, not by unit tests, so its argument handling had a real defect
   (repeated `--grant` discarding all but the last) that no test would have
   caught.

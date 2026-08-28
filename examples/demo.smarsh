@@ -1,6 +1,6 @@
 // The demo: an AI agent handling customer data, and the receipt it leaves.
-//     pedag demo
-//     pedag run examples/demo.pedag --grant fs --principal compliance
+//     smarsh demo
+//     smarsh run examples/demo.smarsh --grant fs --principal compliance
 //
 // Nothing below is narration. Every refusal is enforced by the runtime, and
 // every one of them lands in a signed record the program cannot edit.
@@ -56,7 +56,7 @@ print("  3. THE MODEL'S OUTPUT CANNOT BECOME A FINDING BY ACCIDENT")
 let claim = summarise(raw)
 print("     labels     ${labels(claim)}")
 attempt {
-  // pedag-allow: taint  (deliberate -- this is the refusal being demonstrated)
+  // smarsh-allow: taint  (deliberate -- this is the refusal being demonstrated)
   grounded {
     print("     filed to the regulator: ${claim}")
   }

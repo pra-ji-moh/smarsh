@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError } from '../src/errors.js';
+import { SmarshError } from '../src/errors.js';
 import { parse } from '../src/parser.js';
 import { formatSource } from '../src/format.js';
 import { typecheck } from '../src/types.js';
@@ -22,7 +22,7 @@ function run(source, compiled = true) {
   const interp = new Interpreter({ out: (s) => out.push(s), seed: 1 });
   interp.compiled = compiled;
   try {
-    interp.run(source, 't.pedag');
+    interp.run(source, 't.smarsh');
     return { out, error: null };
   } catch (e) {
     return { out, error: e.kind ?? 'error' };
@@ -91,7 +91,7 @@ test('`d` is still an ordinary name', () => {
 test('a number followed by a name is not a decimal literal', () => {
   // `2 dozen` is two tokens; only `d` immediately after digits, and not itself
   // the start of a longer name, makes a decimal.
-  assert.doesNotThrow(() => parse('let dozen = 12\nprint(2 * dozen)', 't.pedag'));
+  assert.doesNotThrow(() => parse('let dozen = 12\nprint(2 * dozen)', 't.smarsh'));
   assert.deepEqual(both('let dozen = 12\nprint(2 * dozen)').out, ['24']);
   assert.deepEqual(both('let data = [1]\nprint(len(data))').out, ['1']);
 });
@@ -99,8 +99,8 @@ test('a number followed by a name is not a decimal literal', () => {
 test('an exponent cannot be a decimal literal', () => {
   // `1e3d` would be a value that came through a float, which is the thing the
   // literal exists to avoid. It is refused rather than quietly converted.
-  assert.throws(() => parse('print(1e3d)', 't.pedag'),
-    (e) => e instanceof PedagError && /exponent/.test(e.message));
+  assert.throws(() => parse('print(1e3d)', 't.smarsh'),
+    (e) => e instanceof SmarshError && /exponent/.test(e.message));
 });
 
 test('a decimal literal works everywhere a value does', () => {
@@ -117,20 +117,20 @@ test('a decimal literal works everywhere a value does', () => {
 
 test('the formatter round-trips it without rounding', () => {
   for (const source of ['let a = 19.99d\n', 'let a = 0.10d\n', 'let a = 2d\n', 'let a = -1.5d\n']) {
-    const once = formatSource(source, 't.pedag');
-    assert.equal(formatSource(once, 't.pedag'), once, 'formatting is not stable');
-    assert.doesNotThrow(() => parse(once, 't.pedag'));
+    const once = formatSource(source, 't.smarsh');
+    assert.equal(formatSource(once, 't.smarsh'), once, 'formatting is not stable');
+    assert.doesNotThrow(() => parse(once, 't.smarsh'));
     assert.match(once, /d$/m, `the suffix was lost: ${once}`);
   }
   // The digits themselves must survive exactly.
-  assert.match(formatSource('let a = 1.50d\n', 't.pedag'), /1\.50d/);
+  assert.match(formatSource('let a = 1.50d\n', 't.smarsh'), /1\.50d/);
 });
 
 test('the type checker sees a dec', () => {
   const interp = new Interpreter({ out: () => {} });
   const builtins = [...interp.prelude.vars.keys()];
   interp.devices.shutdown();
-  const messages = (source) => typecheck(parse(source, 't.pedag'), { builtins }).map((d) => d.message);
+  const messages = (source) => typecheck(parse(source, 't.smarsh'), { builtins }).map((d) => d.message);
 
   // Annotated as dec and initialised with a literal: consistent, so silent.
   assert.deepEqual(messages('let a: dec = 19.99d'), []);

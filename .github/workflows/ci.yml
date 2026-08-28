@@ -28,7 +28,7 @@ jobs:
         shell: bash
         run: |
           if [ -f package-lock.json ] || [ -d node_modules ]; then
-            echo "Pēdāg has no dependencies; something added one."
+            echo "Smarsh has no dependencies; something added one."
             exit 1
           fi
 
@@ -36,7 +36,7 @@ jobs:
         shell: bash
         run: |
           pkg=$(node -p "require('./package.json').version")
-          cli=$(node bin/pedag.mjs --version)
+          cli=$(node bin/smarsh.mjs --version)
           if [ "$pkg" != "$cli" ]; then
             echo "package.json says $pkg, the CLI says $cli"
             exit 1
@@ -56,31 +56,31 @@ jobs:
           mkdir -p "$RUNNER_TEMP/install-check"
           cd "$RUNNER_TEMP/install-check"
           npm init -y > /dev/null
-          npm install "$RUNNER_TEMP"/pedag-*.tgz
-          printf 'import "std/math" as math\nprint(math.mean([2, 4, 6]))\n' > hello.pedag
-          test "$(npx pedag run hello.pedag)" = "4"
+          npm install "$RUNNER_TEMP"/smarsh-*.tgz
+          printf 'import "std/math" as math\nprint(math.mean([2, 4, 6]))\n' > hello.smarsh
+          test "$(npx smarsh run hello.smarsh)" = "4"
 
           # The README's headline claim is that an auditor can check a record
           # without trusting this project. That is only true if the verifier
           # actually ships -- it did not: `tools/` was missing from the package
           # file list, exactly as `std/` once was. So the whole auditor workflow
           # runs here, against the installed package only.
-          npx pedag keygen -o audit.pem
-          npx pedag run node_modules/pedag/examples/demo.pedag --grant fs --principal compliance --audit run.json --key audit.pem
-          npx pedag-verify run.json audit.pem.pub | grep -q INTACT
+          npx smarsh keygen -o audit.pem
+          npx smarsh run node_modules/smarsh/examples/demo.smarsh --grant fs --principal compliance --audit run.json --key audit.pem
+          npx smarsh-verify run.json audit.pem.pub | grep -q INTACT
 
           # And it has to reject a tampered one, or it proves nothing.
           node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('run.json','utf8'));m.events[0].event='data.release_allowed';fs.writeFileSync('tampered.json',JSON.stringify(m));"
-          if npx pedag-verify tampered.json audit.pem.pub; then
+          if npx smarsh-verify tampered.json audit.pem.pub; then
             echo "the shipped verifier accepted a tampered record"
             exit 1
           fi
 
       - name: The standard library's own tests
-        run: node bin/pedag.mjs test std/
+        run: node bin/smarsh.mjs test std/
 
       - name: Everything is formatted
-        run: node bin/pedag.mjs fmt examples/ --check
+        run: node bin/smarsh.mjs fmt examples/ --check
 
       # Every example, run the way its own header says to run it. This used to
       # be a hand-written list here, and it drifted: `crypto` was split into two
@@ -98,7 +98,7 @@ jobs:
       # The compiled engine is only allowed to change how fast a program runs.
       # Every example, every std module and three thousand generated programs
       # run on both engines and are compared on stdout, failure, result, step
-      # count, call count and the whole audit trace. `pedag audit` signs a claim
+      # count, call count and the whole audit trace. `smarsh audit` signs a claim
       # that a run replays from its seed; an engine that quietly diverged would
       # make that claim false.
       - name: The README's numbers must be the repository's numbers
@@ -120,20 +120,20 @@ jobs:
           # had fallen five examples behind the directory.
           #
           # `std/` is included because it was not, and a false positive from the
-          # type checker had been sitting in std/str.pedag unnoticed: `+` is
+          # type checker had been sitting in std/str.smarsh unnoticed: `+` is
           # overloaded, and two `dyn` operands were being typed as `num`.
           #
-          # agents.pedag is the one exclusion: it contains a deliberate race,
+          # agents.smarsh is the one exclusion: it contains a deliberate race,
           # and the step below asserts that the checker still finds it.
-          for f in examples/*.pedag std/*.pedag; do
-            [ "$f" = "examples/agents.pedag" ] && continue
-            node bin/pedag.mjs check "$f"
+          for f in examples/*.smarsh std/*.smarsh; do
+            [ "$f" = "examples/agents.smarsh" ] && continue
+            node bin/smarsh.mjs check "$f"
           done
 
       - name: The verifier must not overclaim on the known-bad contracts
         shell: bash
         run: |
-          # examples/contracts.pedag contains deliberately false contracts. The
+          # examples/contracts.smarsh contains deliberately false contracts. The
           # false ones are nonlinear, so the solver cannot settle them and
           # correctly reports `undecided` rather than `refuted` -- being unable
           # to decide is the sound answer, and `prove` is the tool that catches
@@ -143,7 +143,7 @@ jobs:
           # exist, so CI had never run.
           #
           # What must hold is that it does not claim to have proved them.
-          out=$(node bin/pedag.mjs verify examples/contracts.pedag)
+          out=$(node bin/smarsh.mjs verify examples/contracts.smarsh)
           echo "$out"
           echo "$out" | grep -q "undecided" || {
             echo "verify settled everything in a file it should not be able to settle"
@@ -153,9 +153,9 @@ jobs:
       - name: Contracts must still hold where they are supposed to
         shell: bash
         run: |
-          # examples/contracts.pedag ships deliberate counterexamples, so a
+          # examples/contracts.smarsh ships deliberate counterexamples, so a
           # zero exit here would mean the prover stopped finding them.
-          if node bin/pedag.mjs prove examples/contracts.pedag; then
+          if node bin/smarsh.mjs prove examples/contracts.smarsh; then
             echo "prove found nothing in a file that contains known-bad contracts"
             exit 1
           fi
@@ -163,16 +163,16 @@ jobs:
       - name: A bundle must run standalone
         shell: bash
         run: |
-          node bin/pedag.mjs build examples/tour.pedag -o ci-tour.mjs
+          node bin/smarsh.mjs build examples/tour.smarsh -o ci-tour.mjs
           node ci-tour.mjs > ci-bundled.txt
-          node bin/pedag.mjs run examples/tour.pedag > ci-direct.txt
+          node bin/smarsh.mjs run examples/tour.smarsh > ci-direct.txt
           diff ci-bundled.txt ci-direct.txt
           rm -f ci-tour.mjs ci-bundled.txt ci-direct.txt
 
       - name: The race checker must still see the planted race
         shell: bash
         run: |
-          if node bin/pedag.mjs check examples/agents.pedag; then
+          if node bin/smarsh.mjs check examples/agents.smarsh; then
             echo "check found no race in a file that contains one"
             exit 1
           fi

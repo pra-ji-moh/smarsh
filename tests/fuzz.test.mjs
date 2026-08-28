@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError, BudgetExceeded } from '../src/errors.js';
+import { SmarshError, BudgetExceeded } from '../src/errors.js';
 import { parse, parseAll } from '../src/parser.js';
 import { tokenize } from '../src/lexer.js';
 import { formatSource } from '../src/format.js';
@@ -11,8 +11,8 @@ import { Rng } from '../src/rng.js';
 
 // Fuzzing the runtime against input nobody would write on purpose.
 //
-// The contract being tested is narrow and absolute: for *any* input, Pēdāg
-// either runs it, or fails with a PedagError that names a kind and a line. It
+// The contract being tested is narrow and absolute: for *any* input, Smarsh
+// either runs it, or fails with a SmarshError that names a kind and a line. It
 // must never surface a raw JavaScript error, because a `TypeError: cannot read
 // properties of undefined` tells a user nothing, tells a tool nothing, and
 // usually means an internal invariant broke somewhere further back.
@@ -33,8 +33,8 @@ function attempt(source, { caps = [], run = true } = {}) {
   const interp = new Interpreter({ out: () => {}, caps, seed: 1 });
   interp.stepLimit = 20000;      // a fuzzer will write infinite loops
   try {
-    if (run) interp.run(source, 'fuzz.pedag');
-    else parse(source, 'fuzz.pedag');
+    if (run) interp.run(source, 'fuzz.smarsh');
+    else parse(source, 'fuzz.smarsh');
     return null;
   } catch (e) {
     return e;
@@ -44,7 +44,7 @@ function attempt(source, { caps = [], run = true } = {}) {
 }
 
 const acceptable = (e) => e === null
-  || e instanceof PedagError
+  || e instanceof SmarshError
   || e instanceof BudgetExceeded
   // A genuine stack overflow is converted at the boundary; the raw form can
   // still escape from deep inside a native callback, and is not a leak.
@@ -96,7 +96,7 @@ test('unterminated everything is a clean syntax error', () => {
   ];
   for (const source of cases) {
     const e = attempt(source);
-    assert.ok(e instanceof PedagError, describeLeak(e, source, 'n/a'));
+    assert.ok(e instanceof SmarshError, describeLeak(e, source, 'n/a'));
     assert.ok(CLEAN_KINDS.has(e.kind) || e.kind === 'NameError',
       `${JSON.stringify(source)} gave ${e.kind}, expected a syntax error`);
     assert.ok(e.line >= 1, `${JSON.stringify(source)} produced no line number`);
@@ -212,7 +212,7 @@ test('a control-flow keyword with no target is a clean error, not a leaked signa
   ];
   for (const source of cases) {
     const e = attempt(source);
-    assert.ok(e instanceof PedagError, describeLeak(e, source, 'control flow'));
+    assert.ok(e instanceof SmarshError, describeLeak(e, source, 'control flow'));
     assert.equal(e.kind, 'ControlFlowError', `${JSON.stringify(source)} gave ${e.kind}`);
     assert.ok(e.line >= 1, `${JSON.stringify(source)} produced no line number`);
   }
@@ -222,7 +222,7 @@ test('a break inside a function does not reach into the caller\'s loop', () => {
   // The dangerous shape: before the fix this silently ended the caller's loop
   // after one pass, an effect the callee has no business having.
   const e = attempt('fn bad() { break }\nvar seen = 0\nfor i in range(3) { seen = seen + 1\n bad() }');
-  assert.ok(e instanceof PedagError);
+  assert.ok(e instanceof SmarshError);
   assert.equal(e.kind, 'ControlFlowError');
 });
 
@@ -237,7 +237,7 @@ test('control flow that does have a target still works', () => {
       '  return n',
       '}',
       'f()',
-    ].join('\n'), 't.pedag');
+    ].join('\n'), 't.smarsh');
     // 3 from the while, then 0 + 2 + 3 + 4 with i == 1 skipped.
     assert.equal(result, 12);
   } finally {
@@ -246,7 +246,7 @@ test('control flow that does have a target still works', () => {
 });
 
 test('check reports a misplaced keyword before the program runs', () => {
-  const findings = analyze(parse('atomic { break }', 't.pedag'));
+  const findings = analyze(parse('atomic { break }', 't.smarsh'));
   assert.equal(findings.length, 1);
   assert.equal(findings[0].kind, 'control flow');
   assert.match(findings[0].message, /no loop/);
@@ -262,7 +262,7 @@ test('check does not report control flow that is correctly placed', () => {
     'agent A(k) { on go() { return k } }',
   ];
   for (const source of sources) {
-    const findings = analyze(parse(source, 't.pedag')).filter((f) => f.kind === 'control flow');
+    const findings = analyze(parse(source, 't.smarsh')).filter((f) => f.kind === 'control flow');
     assert.equal(findings.length, 0, `${JSON.stringify(source)} was wrongly flagged`);
   }
 });
@@ -277,15 +277,15 @@ test('the formatter never leaks on soup, and never invents output', { timeout: 1
     const source = soup(rng, 4 + Math.floor(rng.next() * 20));
     let formatted = null;
     try {
-      formatted = formatSource(source, 'fuzz.pedag');
+      formatted = formatSource(source, 'fuzz.smarsh');
     } catch (e) {
       // Only a parse failure, or an explicit refusal to print unknown syntax.
-      assert.ok(e instanceof PedagError || /does not know/.test(e.message),
+      assert.ok(e instanceof SmarshError || /does not know/.test(e.message),
         describeLeak(e, source, seed));
       continue;
     }
     // Anything it did format must parse back.
-    assert.doesNotThrow(() => parse(formatted, 'fuzz.pedag'),
+    assert.doesNotThrow(() => parse(formatted, 'fuzz.smarsh'),
       `seed ${seed}: formatter produced unparseable output from ${JSON.stringify(source)}`);
   }
 });
@@ -294,7 +294,7 @@ test('error recovery terminates on soup and stays bounded', { timeout: 120000 },
   for (let seed = 0; seed < 200; seed++) {
     const rng = new Rng(seed ^ 0x1234);
     const source = soup(rng, 4 + Math.floor(rng.next() * 30));
-    const { errors } = parseAll(source, 'fuzz.pedag');
+    const { errors } = parseAll(source, 'fuzz.smarsh');
     assert.ok(Array.isArray(errors), `seed ${seed}: recovery returned nothing`);
     assert.ok(errors.length <= 25, `seed ${seed}: ${errors.length} errors, cap is 25`);
   }
@@ -306,7 +306,7 @@ test('the lexer never loops on any single character', () => {
     try {
       tokenize(ch);
     } catch (e) {
-      assert.ok(e instanceof PedagError,
+      assert.ok(e instanceof SmarshError,
         `U+${code.toString(16)} leaked ${e && e.constructor && e.constructor.name}`);
     }
   }
@@ -318,7 +318,7 @@ test('the lexer never loops on any single character', () => {
 
 test('an unbounded allocation loop is stopped by a memory budget', () => {
   const e = attempt('budget memory 20000 { var xs = []\n  while true { xs.push(1) } }');
-  assert.ok(e instanceof PedagError);
+  assert.ok(e instanceof SmarshError);
   assert.equal(e.kind, 'BudgetError');
   assert.match(e.message, /memory/);
 });
@@ -328,7 +328,7 @@ test('memory budgets nest and only tighten', () => {
   try {
     assert.throws(() => interp.run(
       'budget memory 5000 { budget memory 999999 { var xs = []\n while true { xs.push(1) } } }',
-      't.pedag',
+      't.smarsh',
     ));
     assert.ok(interp.allocated < 50000, `the inner budget raised the ceiling (${interp.allocated} bytes)`);
   } finally {
@@ -339,7 +339,7 @@ test('memory budgets nest and only tighten', () => {
 test('allocation accounting is deterministic', () => {
   const measure = () => {
     const interp = new Interpreter({ out: () => {}, seed: 3 });
-    interp.run('var xs = []\nfor i in range(500) { xs.push(i) }', 't.pedag');
+    interp.run('var xs = []\nfor i in range(500) { xs.push(i) }', 't.smarsh');
     const n = interp.allocated;
     interp.devices.shutdown();
     return n;

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Verify a Pedag audit record. Standalone, on purpose.
+// Verify a Smarsh audit record. Standalone, on purpose.
 //
-// This file imports nothing from Pedag. It uses only `node:crypto`, and it is
+// This file imports nothing from Smarsh. It uses only `node:crypto`, and it is
 // short enough to read in full before you trust it -- which is the point.
 // Evidence that can only be checked by the tool that produced it is not
 // evidence, it is a claim.

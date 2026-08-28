@@ -1,10 +1,10 @@
-// A tour of Pēdāg. Run it with:
-//     node bin/pedag.mjs run examples/tour.pedag
+// A tour of Smarsh. Run it with:
+//     node bin/smarsh.mjs run examples/tour.smarsh
 // Add --trace to see every probabilistic branch the run took.
 // Nothing here needs a capability, so it runs with no --grant at all.
 print("== 1. the ordinary parts ==================================")
 
-let language = "Pēdāg"
+let language = "Smarsh"
 var count = 0
 while count < 3 {
   count = count + 1
@@ -89,7 +89,7 @@ grounded {
 }
 
 attempt {
-  // pedag-allow: taint  (deliberate -- this section exists to show the refusal)
+  // smarsh-allow: taint  (deliberate -- this section exists to show the refusal)
   grounded {
     print(reply)
   }
@@ -110,7 +110,7 @@ region "eu" {
   print("   inside the eu region:", record)
 }
 attempt {
-  // pedag-allow: taint  (deliberate)
+  // smarsh-allow: taint  (deliberate)
   region "us" {
     print(record)
   }
@@ -126,10 +126,10 @@ fn save_note(text) needs fs {
   return true
 }
 
-// pedag-allow: undeclared capability  (deliberate -- this is the refusal being shown)
+// smarsh-allow: undeclared capability  (deliberate -- this is the refusal being shown)
 fn sneaky(text) {
   // declares nothing, so it holds nothing -- even if its caller held fs.
-  // `pedag check` reports this before the program runs; the suppression above
+  // `smarsh check` reports this before the program runs; the suppression above
   // is what keeps the demonstration from failing its own file's check.
   return write("note.txt", text)
 }

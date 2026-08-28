@@ -8,13 +8,13 @@ import { execFileSync } from 'node:child_process';
 
 // The standalone verifier, tested as an outsider would use it.
 //
-// The claim being defended: a Pedag audit record can be checked by someone who
-// does not trust Pedag and will not install it. tools/verify-manifest.mjs
+// The claim being defended: a Smarsh audit record can be checked by someone who
+// does not trust Smarsh and will not install it. tools/verify-manifest.mjs
 // imports nothing from src/, so these tests are also a guard against it
 // quietly growing a dependency and the claim becoming false.
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CLI = path.join(ROOT, 'bin', 'pedag.mjs');
+const CLI = path.join(ROOT, 'bin', 'smarsh.mjs');
 const VERIFY = path.join(ROOT, 'tools', 'verify-manifest.mjs');
 
 let dir;
@@ -23,12 +23,12 @@ let manifestFile;
 
 function setup() {
   if (dir) return;
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pedag-verify-'));
+  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smarsh-verify-'));
   keyFile = path.join(dir, 'k.pem');
   manifestFile = path.join(dir, 'run.json');
   execFileSync(process.execPath, [CLI, 'keygen', '-o', keyFile], { encoding: 'utf8' });
   execFileSync(process.execPath, [
-    CLI, 'run', path.join(ROOT, 'examples', 'demo.pedag'),
+    CLI, 'run', path.join(ROOT, 'examples', 'demo.smarsh'),
     '--grant', 'fs', '--principal', 'compliance',
     '--audit', manifestFile, '--key', keyFile,
   ], { encoding: 'utf8' });
@@ -99,7 +99,7 @@ test('it rejects every edit, using only node crypto', () => {
   }
 });
 
-test('it agrees with `pedag audit` on the same record', () => {
+test('it agrees with `smarsh audit` on the same record', () => {
   setup();
   const standalone = verify(manifestFile);
   const own = execFileSync(process.execPath, [CLI, 'audit', manifestFile], { encoding: 'utf8' });
@@ -114,14 +114,14 @@ test('it agrees with `pedag audit` on the same record', () => {
   } catch {
     ownRejected = true;
   }
-  assert.ok(ownRejected, '`pedag audit` accepted a record the standalone verifier rejected');
+  assert.ok(ownRejected, '`smarsh audit` accepted a record the standalone verifier rejected');
 });
 
 test('a kept key signs many runs with one identity', () => {
   setup();
   const second = path.join(dir, 'second.json');
   execFileSync(process.execPath, [
-    CLI, 'run', path.join(ROOT, 'examples', 'money.pedag'),
+    CLI, 'run', path.join(ROOT, 'examples', 'money.smarsh'),
     '--audit', second, '--key', keyFile,
   ], { encoding: 'utf8' });
 

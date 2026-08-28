@@ -7,8 +7,8 @@ is here because skipping it has a specific failure mode.
 
 ```bash
 node --test tests/*.test.mjs        # all green, no skips
-node bin/pedag.mjs test std/         # the standard library's own suite
-node bin/pedag.mjs fmt . --check     # everything formatted
+node bin/smarsh.mjs test std/         # the standard library's own suite
+node bin/smarsh.mjs fmt . --check     # everything formatted
 node bench/run.mjs                  # note the numbers; investigate a regression
 ```
 
@@ -29,10 +29,10 @@ it.**
 
 ```bash
 npm pack --pack-destination /tmp
-mkdir /tmp/Pēdāg-check && cd /tmp/Pēdāg-check && npm init -y
-npm install /tmp/pedag-<version>.tgz
-printf 'import "std/math" as math\nprint(math.mean([2, 4, 6]))\n' > hello.pedag
-npx pedag run hello.pedag
+mkdir /tmp/Smarsh-check && cd /tmp/Smarsh-check && npm init -y
+npm install /tmp/smarsh-<version>.tgz
+printf 'import "std/math" as math\nprint(math.mean([2, 4, 6]))\n' > hello.smarsh
+npx smarsh run hello.smarsh
 ```
 
 This exists because `std/` was once missing from the `files` list in
@@ -59,7 +59,7 @@ npm publish --access public
 Then confirm the published artefact, not the local one:
 
 ```bash
-cd /tmp && npm install pedag@<version> && npx pedag --version
+cd /tmp && npm install smarsh@<version> && npx smarsh --version
 ```
 
 ## After

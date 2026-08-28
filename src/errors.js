@@ -1,11 +1,11 @@
-// Every failure in Pēdāg is one of a small, named set of kinds. The kind is part
+// Every failure in Smarsh is one of a small, named set of kinds. The kind is part
 // of the language's surface: `CapabilityError` and `TaintError` are not library
 // concepts bolted on, they are things the runtime itself can refuse to do.
 
-export class PedagError extends Error {
+export class SmarshError extends Error {
   constructor(kind, message, line = null) {
     super(message);
-    this.name = 'PedagError';
+    this.name = 'SmarshError';
     this.kind = kind;
     this.line = line;
     this.span = null;       // [start, end] offsets, when the raiser knew them
@@ -24,8 +24,8 @@ export class PedagError extends Error {
   format(source = null, file = null, options = {}) {
     // Rendering lives in diagnostics.js; this keeps errors.js dependency-free
     // so every other module can import it without pulling the renderer in.
-    if (typeof PedagError.renderer === 'function') {
-      return PedagError.renderer(this, source, file, options);
+    if (typeof SmarshError.renderer === 'function') {
+      return SmarshError.renderer(this, source, file, options);
     }
     const where = this.line != null ? ` (line ${this.line}${file ? ` of ${file}` : ''})` : '';
     return `${this.kind}: ${this.message}${where}`;
@@ -33,9 +33,9 @@ export class PedagError extends Error {
 }
 
 // Installed by diagnostics-aware entry points (the CLI, tests that want it).
-PedagError.renderer = null;
+SmarshError.renderer = null;
 
-export const pedagError = (kind, message, line) => new PedagError(kind, message, line);
+export const smarshError = (kind, message, line) => new SmarshError(kind, message, line);
 
 // Non-error control flow. These are thrown, and caught by the construct that
 // owns them: a call for `return`, a loop for `break` and `continue`.
@@ -54,7 +54,7 @@ export class ContinueSignal {
   constructor(line = null) { this.line = line; }
 }
 
-// A budget running out is deliberately NOT a PedagError, so `attempt` cannot
+// A budget running out is deliberately NOT a SmarshError, so `attempt` cannot
 // catch it. Code inside a budget block has no way to talk its way out of being
 // stopped; only the boundary itself converts it into an ordinary, catchable
 // failure for whoever set the budget.

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { Tensor } from './tensor.js';
-import { pedagError, PedagError } from './errors.js';
+import { smarshError, SmarshError } from './errors.js';
 import { bigFromHex } from './bigmath.js';
 import {
   sha256Hex, PAILLIER_MIN_BITS,
@@ -20,7 +20,7 @@ import { loadForeign } from './ffi.js';
 import { Decimal, expectDec } from './decimal.js';
 import { Labelled, Label, Policy, Trust, requireAuthority } from './labels.js';
 import { Grant, Revoker, expectGrant } from './grants.js';
-import { PedagFunction } from './values.js';
+import { SmarshFunction } from './values.js';
 import {
   NativeFunction, Tainted, ContextWindow, Ledger,
   unwrap, retaint, stringify, typeName, withArticle, truthy, countTokens,
@@ -87,11 +87,11 @@ export function installBuiltins(interp) {
     if (typeof u === 'string') {
       const n = Number(u.trim());
       if (u.trim() === '' || Number.isNaN(n)) {
-        throw pedagError('ValueError', `cannot read '${u}' as a num`, line);
+        throw smarshError('ValueError', `cannot read '${u}' as a num`, line);
       }
       return retaint(n, a[0]);
     }
-    throw pedagError('TypeError', `cannot convert ${withArticle(u)} to a num`, line);
+    throw smarshError('TypeError', `cannot convert ${withArticle(u)} to a num`, line);
   });
 
   def('len', 1, (a, line) => {
@@ -101,30 +101,30 @@ export function installBuiltins(interp) {
     if (u instanceof Tensor) return u.size;
     if (u instanceof ContextWindow) return u.length;
     if (u instanceof Ledger) return u.length;
-    throw pedagError('TypeError', `${withArticle(u)} has no length`, line);
+    throw smarshError('TypeError', `${withArticle(u)} has no length`, line);
   });
 
   def('type', 1, (a) => typeName(unwrap(a[0])), { transparent: true });
 
   def('assert', -1, (a, line) => {
     if (a.length < 1 || a.length > 2) {
-      throw pedagError('ArityError', `assert takes 1 or 2 arguments, got ${a.length}`, line);
+      throw smarshError('ArityError', `assert takes 1 or 2 arguments, got ${a.length}`, line);
     }
     if (!truthy(a[0])) {
       const msg = a.length === 2 ? stringify(unwrap(a[1]), 0) : 'assertion failed';
-      throw pedagError('AssertError', msg, line);
+      throw smarshError('AssertError', msg, line);
     }
     return true;
   });
 
   def('range', -1, (a, line) => {
     if (a.length < 1 || a.length > 3) {
-      throw pedagError('ArityError', `range takes 1 to 3 arguments, got ${a.length}`, line);
+      throw smarshError('ArityError', `range takes 1 to 3 arguments, got ${a.length}`, line);
     }
     const start = a.length === 1 ? 0 : num(a[0], 'a range start', line);
     const stop = a.length === 1 ? num(a[0], 'a range end', line) : num(a[1], 'a range end', line);
     const step = a.length === 3 ? num(a[2], 'a range step', line) : 1;
-    if (step === 0) throw pedagError('ValueError', 'range step cannot be 0', line);
+    if (step === 0) throw smarshError('ValueError', 'range step cannot be 0', line);
     const out = [];
     if (step > 0) for (let i = start; i < stop; i += step) out.push(i);
     else for (let i = start; i > stop; i += step) out.push(i);
@@ -149,7 +149,7 @@ export function installBuiltins(interp) {
   def('sqrt', 1, (a, line) => {
     const u = unwrap(a[0]);
     const check = (x) => {
-      if (x < 0) throw pedagError('ValueError', `sqrt of a negative number (${fmt(x)})`, line);
+      if (x < 0) throw smarshError('ValueError', `sqrt of a negative number (${fmt(x)})`, line);
       return Math.sqrt(x);
     };
     if (u instanceof Tensor) return retaint(u.map(check), a[0]);
@@ -158,7 +158,7 @@ export function installBuiltins(interp) {
 
   def('log', -1, (a, line) => {
     const x = num(a[0], 'the argument to log', line);
-    if (x <= 0) throw pedagError('ValueError', `log of ${fmt(x)}, which is not positive`, line);
+    if (x <= 0) throw smarshError('ValueError', `log of ${fmt(x)}, which is not positive`, line);
     const base = a.length > 1 ? num(a[1], 'a log base', line) : Math.E;
     return retaint(a.length > 1 ? Math.log(x) / Math.log(base) : Math.log(x), a[0]);
   });
@@ -176,19 +176,19 @@ export function installBuiltins(interp) {
 
   def('min', -1, (a, line) => {
     const v = spread(a, line);
-    if (v.length === 0) throw pedagError('ValueError', 'min of nothing', line);
+    if (v.length === 0) throw smarshError('ValueError', 'min of nothing', line);
     return Math.min(...v);
   });
   def('max', -1, (a, line) => {
     const v = spread(a, line);
-    if (v.length === 0) throw pedagError('ValueError', 'max of nothing', line);
+    if (v.length === 0) throw smarshError('ValueError', 'max of nothing', line);
     return Math.max(...v);
   });
   def('clamp', 3, (a, line) => {
     const x = num(a[0], 'the value to clamp', line);
     const lo = num(a[1], 'a clamp lower bound', line);
     const hi = num(a[2], 'a clamp upper bound', line);
-    if (lo > hi) throw pedagError('ValueError', `clamp bounds are inverted (${fmt(lo)} > ${fmt(hi)})`, line);
+    if (lo > hi) throw smarshError('ValueError', `clamp bounds are inverted (${fmt(lo)} > ${fmt(hi)})`, line);
     return retaint(Math.min(hi, Math.max(lo, x)), a[0]);
   });
 
@@ -199,20 +199,20 @@ export function installBuiltins(interp) {
   def('randint', 2, (a, line) => {
     const lo = Math.trunc(num(a[0], 'a randint lower bound', line));
     const hi = Math.trunc(num(a[1], 'a randint upper bound', line));
-    if (hi < lo) throw pedagError('ValueError', `randint bounds are inverted (${lo} > ${hi})`, line);
+    if (hi < lo) throw smarshError('ValueError', `randint bounds are inverted (${lo} > ${hi})`, line);
     return lo + Math.floor(interp.rng.next() * (hi - lo + 1));
   });
 
   def('sample', 1, (a, line) => {
     const u = unwrap(a[0]);
-    if (!Array.isArray(u)) throw pedagError('TypeError', `sample needs a list, got ${typeName(u)}`, line);
-    if (u.length === 0) throw pedagError('ValueError', 'sample from an empty list', line);
+    if (!Array.isArray(u)) throw smarshError('TypeError', `sample needs a list, got ${typeName(u)}`, line);
+    if (u.length === 0) throw smarshError('ValueError', 'sample from an empty list', line);
     return u[Math.floor(interp.rng.next() * u.length)];
   });
 
   def('shuffle', 1, (a, line) => {
     const u = unwrap(a[0]);
-    if (!Array.isArray(u)) throw pedagError('TypeError', `shuffle needs a list, got ${typeName(u)}`, line);
+    if (!Array.isArray(u)) throw smarshError('TypeError', `shuffle needs a list, got ${typeName(u)}`, line);
     const out = [...u];
     for (let i = out.length - 1; i > 0; i--) {
       const j = Math.floor(interp.rng.next() * (i + 1));
@@ -229,7 +229,7 @@ export function installBuiltins(interp) {
 
   def('eye', 1, (a, line) => {
     const n = Math.trunc(num(a[0], 'the size of eye', line));
-    if (n < 0) throw pedagError('ValueError', `eye needs a non-negative size, got ${n}`, line);
+    if (n < 0) throw smarshError('ValueError', `eye needs a non-negative size, got ${n}`, line);
     const t = Tensor.filled([n, n], 0);
     for (let i = 0; i < n; i++) t.data[i * n + i] = 1;
     return t;
@@ -237,7 +237,7 @@ export function installBuiltins(interp) {
 
   def('arange', 1, (a, line) => {
     const n = Math.trunc(num(a[0], 'the size of arange', line));
-    if (n < 0) throw pedagError('ValueError', `arange needs a non-negative size, got ${n}`, line);
+    if (n < 0) throw smarshError('ValueError', `arange needs a non-negative size, got ${n}`, line);
     const d = new Float64Array(n);
     for (let i = 0; i < n; i++) d[i] = i;
     return new Tensor(d, [n]);
@@ -256,10 +256,10 @@ export function installBuiltins(interp) {
     const x = interp.toTensor(unwrap(a[0]), line);
     const y = interp.toTensor(unwrap(a[1]), line);
     if (x.rank !== 1 || y.rank !== 1) {
-      throw pedagError('ShapeError', 'dot needs two rank-1 tensors', line);
+      throw smarshError('ShapeError', 'dot needs two rank-1 tensors', line);
     }
     if (x.size !== y.size) {
-      throw pedagError('ShapeError', `dot needs equal lengths, got ${x.size} and ${y.size}`, line);
+      throw smarshError('ShapeError', `dot needs equal lengths, got ${x.size} and ${y.size}`, line);
     }
     let s = 0;
     for (let i = 0; i < x.size; i++) s += x.data[i] * y.data[i];
@@ -270,11 +270,11 @@ export function installBuiltins(interp) {
     const x = interp.toTensor(unwrap(a[0]), line);
     const y = interp.toTensor(unwrap(a[1]), line);
     if (x.size !== y.size) {
-      throw pedagError('ShapeError', `cosine needs equal lengths, got ${x.size} and ${y.size}`, line);
+      throw smarshError('ShapeError', `cosine needs equal lengths, got ${x.size} and ${y.size}`, line);
     }
     const nx = x.norm();
     const ny = y.norm();
-    if (nx === 0 || ny === 0) throw pedagError('ValueError', 'cosine of a zero vector is undefined', line);
+    if (nx === 0 || ny === 0) throw smarshError('ValueError', 'cosine of a zero vector is undefined', line);
     let s = 0;
     for (let i = 0; i < x.size; i++) s += x.data[i] * y.data[i];
     return retaint(s / (nx * ny), a[0], a[1]);
@@ -286,7 +286,7 @@ export function installBuiltins(interp) {
 
   def('softmax', 1, (a, line) => {
     const t = interp.toTensor(unwrap(a[0]), line);
-    if (t.size === 0) throw pedagError('ValueError', 'softmax of an empty tensor', line);
+    if (t.size === 0) throw smarshError('ValueError', 'softmax of an empty tensor', line);
     const m = t.max();
     const ex = t.map((x) => Math.exp(x - m));
     const total = ex.sum();
@@ -295,7 +295,7 @@ export function installBuiltins(interp) {
 
   def('argmax', 1, (a, line) => {
     const t = interp.toTensor(unwrap(a[0]), line);
-    if (t.size === 0) throw pedagError('ValueError', 'argmax of an empty tensor', line);
+    if (t.size === 0) throw smarshError('ValueError', 'argmax of an empty tensor', line);
     let best = 0;
     for (let i = 1; i < t.size; i++) if (t.data[i] > t.data[best]) best = i;
     return best;
@@ -309,7 +309,7 @@ export function installBuiltins(interp) {
   def('restrict', 2, (a, line) => {
     const region = unwrap(a[1]);
     if (typeof region !== 'string') {
-      throw pedagError('TypeError', `restrict needs a region name string, got ${typeName(region)}`, line);
+      throw smarshError('TypeError', `restrict needs a region name string, got ${typeName(region)}`, line);
     }
     return new Tainted(a[0], [`region:${region}`]);
   }, { transparent: true });
@@ -320,14 +320,14 @@ export function installBuiltins(interp) {
 
   def('classify', -1, (a, line) => {
     if (a.length < 2 || a.length > 3) {
-      throw pedagError('ArityError', 'classify takes a value, an owner, and optionally a list of readers', line);
+      throw smarshError('ArityError', 'classify takes a value, an owner, and optionally a list of readers', line);
     }
     const owner = stringify(unwrap(a[1]), 0);
     const readers = a.length === 3
       ? (unwrap(a[2]) ?? []).map((r) => stringify(unwrap(r), 0))
       : [];
     if (!Array.isArray(unwrap(a[2] ?? []))) {
-      throw pedagError('TypeError', 'the readers must be a list of principal names', line);
+      throw smarshError('TypeError', 'the readers must be a list of principal names', line);
     }
     return new Labelled(a[0], new Label([new Policy(owner, readers)]));
   }, { transparent: true });
@@ -353,13 +353,13 @@ export function installBuiltins(interp) {
     const owner = stringify(unwrap(a[1]), 0);
     const reason = unwrap(a[2]);
     if (typeof reason !== 'string' || reason.trim() === '') {
-      throw pedagError('ValueError', 'declassify needs a non-empty reason', line);
+      throw smarshError('ValueError', 'declassify needs a non-empty reason', line);
     }
     requireAuthority(interp, owner, `declassifying \`${owner}\`'s data`, line);
 
     if (!(a[0] instanceof Labelled)) return a[0];
     if (!a[0].label.policies.has(owner)) {
-      throw pedagError('AuthorityError',
+      throw smarshError('AuthorityError',
         `this value carries no policy owned by \`${owner}\``, line)
         .note(`its label is ${a[0].label}`);
     }
@@ -380,7 +380,7 @@ export function installBuiltins(interp) {
     const owner = stringify(unwrap(a[1]), 0);
     const reason = unwrap(a[2]);
     if (typeof reason !== 'string' || reason.trim() === '') {
-      throw pedagError('ValueError', 'endorse needs a non-empty reason', line);
+      throw smarshError('ValueError', 'endorse needs a non-empty reason', line);
     }
     requireAuthority(interp, owner, `vouching for a value as \`${owner}\``, line);
     const before = a[0] instanceof Labelled ? a[0].label.toString() : '{}';
@@ -395,7 +395,7 @@ export function installBuiltins(interp) {
     const owner = stringify(unwrap(a[1]), 0);
     const reason = unwrap(a[2]);
     if (typeof reason !== 'string' || reason.trim() === '') {
-      throw pedagError('ValueError', 'retract needs a non-empty reason', line);
+      throw smarshError('ValueError', 'retract needs a non-empty reason', line);
     }
     if (!(a[0] instanceof Labelled)) return a[0];
     interp.trace.endorsements.push({
@@ -427,12 +427,12 @@ export function installBuiltins(interp) {
   // that stops a grant from manufacturing authority out of nothing.
   def('grant', -1, (a, line) => {
     if (a.length < 1 || a.length > 2) {
-      throw pedagError('ArityError', 'grant takes a capability name, and optionally a note', line);
+      throw smarshError('ArityError', 'grant takes a capability name, and optionally a note', line);
     }
     const capability = stringify(unwrap(a[0]), 0);
     if (!interp.caps.has(capability)) {
       const held = interp.caps.size ? [...interp.caps].sort().join(', ') : 'nothing';
-      throw pedagError('CapabilityError',
+      throw smarshError('CapabilityError',
         `cannot grant \`${capability}\`, which this frame does not hold; it holds ${held}`, line)
         .note('a grant delegates authority you have, it does not create any');
     }
@@ -451,8 +451,8 @@ export function installBuiltins(interp) {
 
   def('revoke', 1, (a, line) => {
     const r = unwrap(a[0]);
-    if (!r || r.pedagType !== 'revoker') {
-      throw pedagError('TypeError', 'revoke needs a revoker, the half of a caretaker you kept', line);
+    if (!r || r.smarshType !== 'revoker') {
+      throw smarshError('TypeError', 'revoke needs a revoker, the half of a caretaker you kept', line);
     }
     const first = r.revoke();
     if (first) interp.trace.revocations.push({ line, capability: r.capability });
@@ -469,7 +469,7 @@ export function installBuiltins(interp) {
   def('trust', 2, (a, line) => {
     const reason = unwrap(a[1]);
     if (typeof reason !== 'string' || reason.trim() === '') {
-      throw pedagError('ValueError', 'trust needs a non-empty reason string', line);
+      throw smarshError('ValueError', 'trust needs a non-empty reason string', line);
     }
     const before = a[0] instanceof Tainted ? [...a[0].labels] : [];
     interp.trace.laundered.push({ line, reason, cleared: before });
@@ -486,13 +486,13 @@ export function installBuiltins(interp) {
 
   def('context', -1, (a, line) => {
     if (a.length < 1 || a.length > 2) {
-      throw pedagError('ArityError', `context takes 1 or 2 arguments, got ${a.length}`, line);
+      throw smarshError('ArityError', `context takes 1 or 2 arguments, got ${a.length}`, line);
     }
     const budget = Math.trunc(num(a[0], 'a context budget', line));
-    if (budget <= 0) throw pedagError('ValueError', `a context budget must be positive, got ${budget}`, line);
+    if (budget <= 0) throw smarshError('ValueError', `a context budget must be positive, got ${budget}`, line);
     const policy = a.length === 2 ? String(unwrap(a[1])) : 'fifo';
     if (!['fifo', 'none'].includes(policy)) {
-      throw pedagError('ValueError', `unknown eviction policy '${policy}' (known: fifo, none)`, line);
+      throw smarshError('ValueError', `unknown eviction policy '${policy}' (known: fifo, none)`, line);
     }
     return new ContextWindow(budget, policy);
   });
@@ -509,7 +509,7 @@ export function installBuiltins(interp) {
     const full = path.resolve(interp.cwd, String(p));
     const root = path.resolve(interp.cwd);
     if (full !== root && !full.startsWith(root + path.sep)) {
-      throw pedagError('CapabilityError',
+      throw smarshError('CapabilityError',
         `the 'fs' capability is scoped to ${root}; '${p}' resolves outside it`, line);
     }
     return full;
@@ -520,7 +520,7 @@ export function installBuiltins(interp) {
     try {
       return fs.readFileSync(p, 'utf8');
     } catch (e) {
-      throw pedagError('IOError', `cannot read '${unwrap(a[0])}': ${e.code ?? e.message}`, line);
+      throw smarshError('IOError', `cannot read '${unwrap(a[0])}': ${e.code ?? e.message}`, line);
     }
   }, { needs: ['fs'] });
 
@@ -530,7 +530,7 @@ export function installBuiltins(interp) {
       fs.writeFileSync(p, stringify(unwrap(a[1]), 0), 'utf8');
       return true;
     } catch (e) {
-      throw pedagError('IOError', `cannot write '${unwrap(a[0])}': ${e.code ?? e.message}`, line);
+      throw smarshError('IOError', `cannot write '${unwrap(a[0])}': ${e.code ?? e.message}`, line);
     }
   }, { needs: ['fs'] });
 
@@ -559,10 +559,10 @@ export function installBuiltins(interp) {
 function installSimulation(interp, def, num) {
   def('schedule', 2, (a, line) => {
     const delay = num(a[0], 'a delay', line);
-    if (delay < 0) throw pedagError('ValueError', 'events cannot be scheduled into the past', line);
+    if (delay < 0) throw smarshError('ValueError', 'events cannot be scheduled into the past', line);
     const action = unwrap(a[1]);
-    if (!(action instanceof PedagFunction) && !(action instanceof NativeFunction)) {
-      throw pedagError('TypeError', `schedule needs a function to run, got ${typeName(action)}`, line);
+    if (!(action instanceof SmarshFunction) && !(action instanceof NativeFunction)) {
+      throw smarshError('TypeError', `schedule needs a function to run, got ${typeName(action)}`, line);
     }
     const at = interp.logicalTime + delay;
     interp.events.push({ at, seq: interp.eventSeq++, action });
@@ -588,7 +588,7 @@ function installSimulation(interp, def, num) {
       interp.callValue(event.action, [], line, 'a scheduled event');
       fired += 1;
       if (fired > 1000000) {
-        throw pedagError('ValueError', 'the simulation scheduled more than a million events', line);
+        throw smarshError('ValueError', 'the simulation scheduled more than a million events', line);
       }
     }
     if (until !== Infinity) interp.logicalTime = Math.max(interp.logicalTime, until);
@@ -632,7 +632,7 @@ function installSimulation(interp, def, num) {
 function installSchemas(interp, def, num) {
   const asSchema = (v, what, line) => {
     const u = unwrap(v);
-    if (!(u instanceof Schema)) throw pedagError('TypeError', `${what}, got ${typeName(u)}`, line);
+    if (!(u instanceof Schema)) throw smarshError('TypeError', `${what}, got ${typeName(u)}`, line);
     return u;
   };
 
@@ -642,7 +642,7 @@ function installSchemas(interp, def, num) {
     const name = stringify(unwrap(a[0]), 0);
     const spec = unwrap(a[1]);
     if (!(spec instanceof Map)) {
-      throw pedagError('TypeError', `a schema body is a map of field to kind, got ${typeName(spec)}`, line);
+      throw smarshError('TypeError', `a schema body is a map of field to kind, got ${typeName(spec)}`, line);
     }
     const fields = new Map();
     for (const [key, rawKind] of spec) {
@@ -658,7 +658,7 @@ function installSchemas(interp, def, num) {
       if (optional) text = text.slice(0, -1);
       const known = ['num', 'str', 'bool', 'list', 'map', 'tensor', 'any'];
       if (!known.includes(text)) {
-        throw pedagError('SchemaError',
+        throw smarshError('SchemaError',
           `unknown kind '${text}' for field '${key}'; known kinds are ${known.join(', ')}`, line);
       }
       fields.set(key, { kind: text, required: !optional && fallback === undefined, fallback });
@@ -689,7 +689,7 @@ function installSchemas(interp, def, num) {
   def('migrate', 3, (a, line) => {
     const records = unwrap(a[0]);
     if (!Array.isArray(records)) {
-      throw pedagError('TypeError', `migrate needs a list of records, got ${typeName(records)}`, line);
+      throw smarshError('TypeError', `migrate needs a list of records, got ${typeName(records)}`, line);
     }
     const r = migrate(records,
       asSchema(a[1], 'migrate needs the source schema second', line),
@@ -742,7 +742,7 @@ function installLifecycle(interp, def, num) {
     try {
       state = JSON.parse(stringify(unwrap(a[0]), 0));
     } catch (e) {
-      throw pedagError('RestoreError', `this is not a snapshot: ${e.message}`, line);
+      throw smarshError('RestoreError', `this is not a snapshot: ${e.message}`, line);
     }
     return restore(interp, state, line);
   });
@@ -768,7 +768,7 @@ function installLifecycle(interp, def, num) {
   def('leaks', 0, (_a, line) => {
     const samples = interp.watches;
     if (samples.length < 3) {
-      throw pedagError('ValueError',
+      throw smarshError('ValueError',
         `leak detection needs at least 3 watch() samples, and has ${samples.length}`, line);
     }
     const out = [];
@@ -817,14 +817,14 @@ function installDevices(interp, def, num) {
 
   def('arena', -1, (a, line) => {
     if (a.length < 1 || a.length > 2) {
-      throw pedagError('ArityError', `arena takes 1 or 2 arguments, got ${a.length}`, line);
+      throw smarshError('ArityError', `arena takes 1 or 2 arguments, got ${a.length}`, line);
     }
     const bytes = Math.trunc(num(a[0], 'an arena budget', line));
-    if (bytes <= 0) throw pedagError('ValueError', `an arena budget must be positive, got ${bytes}`, line);
+    if (bytes <= 0) throw smarshError('ValueError', `an arena budget must be positive, got ${bytes}`, line);
     let dir = null;
     if (a.length === 2) {
       if (!interp.caps.has('fs')) {
-        throw pedagError('CapabilityError',
+        throw smarshError('CapabilityError',
           "an arena that spills to disk needs the 'fs' capability", line);
       }
       dir = path.resolve(interp.cwd, stringify(unwrap(a[1]), 0));
@@ -840,7 +840,7 @@ function installDevices(interp, def, num) {
     try {
       return new Weights(file, shape, dtype);
     } catch (e) {
-      throw pedagError('IOError', e.message, line);
+      throw smarshError('IOError', e.message, line);
     }
   }, { needs: ['fs'] });
 }
@@ -853,23 +853,23 @@ function installAgents(interp, def, num) {
   const asAgent = (v, what, line) => {
     const u = unwrap(v);
     if (u === null && interp.currentAgent) {
-      throw pedagError('AgentError',
+      throw smarshError('AgentError',
         'this message came from the top level, so `sender` is nil; only a message sent by another agent has one', line);
     }
     if (!(u instanceof AgentRef)) {
-      throw pedagError('TypeError', `${what}, got ${typeName(u)}`, line);
+      throw smarshError('TypeError', `${what}, got ${typeName(u)}`, line);
     }
     return u;
   };
 
   def('send', -1, (a, line) => {
     if (a.length < 2) {
-      throw pedagError('ArityError', 'send needs at least an agent and a message name', line);
+      throw smarshError('ArityError', 'send needs at least an agent and a message name', line);
     }
     const to = asAgent(a[0], 'send needs an agent first', line);
     const message = stringify(unwrap(a[1]), 0);
     if (!to.template.handlers.has(message)) {
-      throw pedagError('AgentError',
+      throw smarshError('AgentError',
         `agent ${to.template.name} has no handler for '${message}'`, line);
     }
     // `sender` is whichever agent is running now, or nil from the top level.
@@ -904,7 +904,7 @@ function installQuantum(interp, def, num) {
   const reg = (v, line) => {
     const u = unwrap(v);
     if (!(u instanceof QubitRegister)) {
-      throw pedagError('TypeError', `this gate needs a qubit register, got ${typeName(u)}`, line);
+      throw smarshError('TypeError', `this gate needs a qubit register, got ${typeName(u)}`, line);
     }
     return u;
   };
@@ -915,7 +915,7 @@ function installQuantum(interp, def, num) {
     try {
       return new QubitRegister(n);
     } catch (e) {
-      throw pedagError('ValueError', e.message, line);
+      throw smarshError('ValueError', e.message, line);
     }
   });
 
@@ -953,18 +953,18 @@ function installTemporal(interp, def, num) {
     const x = unwrap(a[0]);
     const y = unwrap(a[1]);
     if (!(x instanceof Stamp) || !(y instanceof Stamp)) {
-      throw pedagError('TypeError', 'before() compares two stamps', line);
+      throw smarshError('TypeError', 'before() compares two stamps', line);
     }
     return x.compare(y) < 0;
   });
 
   def('liquid', -1, (a, line) => {
     if (a.length < 2 || a.length > 3) {
-      throw pedagError('ArityError', `liquid takes 2 or 3 arguments, got ${a.length}`, line);
+      throw smarshError('ArityError', `liquid takes 2 or 3 arguments, got ${a.length}`, line);
     }
     const initial = num(a[0], 'a starting value', line);
     const halflife = num(a[1], 'a half-life', line);
-    if (halflife <= 0) throw pedagError('ValueError', `a half-life must be positive, got ${halflife}`, line);
+    if (halflife <= 0) throw smarshError('ValueError', `a half-life must be positive, got ${halflife}`, line);
     const anchor = a.length === 3 ? num(a[2], 'an anchor time', line) : interp.logicalTime;
     return new Liquid(initial, halflife, anchor);
   });
@@ -973,7 +973,7 @@ function installTemporal(interp, def, num) {
   // replays identically, which is the whole point.
   def('advance', 1, (a, line) => {
     const by = num(a[0], 'a time step', line);
-    if (by < 0) throw pedagError('ValueError', 'time does not run backwards', line);
+    if (by < 0) throw smarshError('ValueError', 'time does not run backwards', line);
     interp.logicalTime += by;
     return interp.logicalTime;
   });
@@ -1008,7 +1008,7 @@ function installCrypto(interp, def, num) {
   const toBig = (v, what, line) => {
     const u = unwrap(v);
     if (typeof u !== 'number' || !Number.isInteger(u)) {
-      throw pedagError('TypeError', `${what} must be a whole number, got ${typeName(u)}`, line);
+      throw smarshError('TypeError', `${what} must be a whole number, got ${typeName(u)}`, line);
     }
     return BigInt(u);
   };
@@ -1016,7 +1016,7 @@ function installCrypto(interp, def, num) {
   const fromBig = (b, line) => {
     const limit = BigInt(Number.MAX_SAFE_INTEGER);
     if (b > limit || b < -limit) {
-      throw pedagError('ValueError',
+      throw smarshError('ValueError',
         'this result is outside the range a num holds exactly; work in scaled integers', line);
     }
     return Number(b);
@@ -1024,7 +1024,7 @@ function installCrypto(interp, def, num) {
 
   const expect = (v, cls, what, line) => {
     const u = unwrap(v);
-    if (!(u instanceof cls)) throw pedagError('TypeError', `${what}, got ${typeName(u)}`, line);
+    if (!(u instanceof cls)) throw smarshError('TypeError', `${what}, got ${typeName(u)}`, line);
     return u;
   };
 
@@ -1032,14 +1032,14 @@ function installCrypto(interp, def, num) {
     try {
       return fn();
     } catch (e) {
-      if (e instanceof PedagError) throw e;
-      throw pedagError('CryptoError', e.message, line);
+      if (e instanceof SmarshError) throw e;
+      throw smarshError('CryptoError', e.message, line);
     }
   };
 
   // Loading foreign code needs the `ffi` capability, and for the strongest
   // reason any capability exists: once control crosses into JavaScript, none of
-  // Pēdāg's guarantees apply to what happens there. Better to make the boundary
+  // Smarsh's guarantees apply to what happens there. Better to make the boundary
   // something you have to ask for than to leave it open by default.
   def('foreign', 1, (a, line) => loadForeign(stringify(unwrap(a[0]), 0), interp, line), { needs: ['ffi'] });
 
@@ -1056,7 +1056,7 @@ function installCrypto(interp, def, num) {
 
   def('dec_sum', 1, (a, line) => {
     const xs = unwrap(a[0]);
-    if (!Array.isArray(xs)) throw pedagError('TypeError', `dec_sum needs a list, got ${typeName(xs)}`, line);
+    if (!Array.isArray(xs)) throw smarshError('TypeError', `dec_sum needs a list, got ${typeName(xs)}`, line);
     let total = new Decimal(0n, 0);
     for (const x of xs) total = total.add(expectDec(x, 'every element', line));
     return total;
@@ -1142,7 +1142,7 @@ function installCrypto(interp, def, num) {
 
   def('lineage', 2, (a, line) => {
     const kp = expect(a[1], KeyPair, 'lineage needs a signing keypair second', line);
-    if (!kp.canSign) throw pedagError('CryptoError', 'a lineage chain needs a keypair that can sign', line);
+    if (!kp.canSign) throw smarshError('CryptoError', 'a lineage chain needs a keypair that can sign', line);
     return new LineageChain(stringify(unwrap(a[0]), 0), kp);
   });
 
@@ -1152,7 +1152,7 @@ function installCrypto(interp, def, num) {
 
   def('random_secret', 1, (a, line) => {
     const n = Math.trunc(num(a[0], 'a secret length', line));
-    if (n <= 0 || n > 4096) throw pedagError('ValueError', `a secret of ${n} bytes is not sensible`, line);
+    if (n <= 0 || n > 4096) throw smarshError('ValueError', `a secret of ${n} bytes is not sensible`, line);
     return interp.trackSecret(randomSecret(n));
   }, { needs: ['crypto'] });
 

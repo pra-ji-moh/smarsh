@@ -1,5 +1,5 @@
 import { NativeFunction, unwrap } from './values.js';
-import { pedagError } from './errors.js';
+import { smarshError } from './errors.js';
 
 const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 
@@ -21,7 +21,7 @@ export class Stamp {
     this.counter = counter;
     this.node = node;
   }
-  get pedagType() { return 'stamp'; }
+  get smarshType() { return 'stamp'; }
 
   // Total order: counter first, node id as the tiebreak.
   compare(other) {
@@ -31,7 +31,7 @@ export class Stamp {
   }
 
   toString() { return `<stamp ${this.counter}@${this.node}>`; }
-  pedagMembers() {
+  smarshMembers() {
     return { counter: this.counter, node: this.node };
   }
 }
@@ -41,7 +41,7 @@ export class LogicalClock {
     this.node = node;
     this.counter = 0;
   }
-  get pedagType() { return 'clock'; }
+  get smarshType() { return 'clock'; }
 
   // A local event.
   tick() {
@@ -62,7 +62,7 @@ export class LogicalClock {
   }
 
   toString() { return `<clock ${this.node} at ${this.counter}>`; }
-  pedagMembers(interp, line) {
+  smarshMembers(interp, line) {
     return {
       node: this.node,
       counter: this.counter,
@@ -76,7 +76,7 @@ export class LogicalClock {
 function expectStamp(v, line) {
   const u = unwrap(v);
   if (!(u instanceof Stamp)) {
-    throw pedagError('TypeError', 'this needs a stamp from another clock', line);
+    throw smarshError('TypeError', 'this needs a stamp from another clock', line);
   }
   return u;
 }
@@ -99,7 +99,7 @@ export class Liquid {
     this.halflife = halflife;
     this.anchor = anchor;
   }
-  get pedagType() { return 'liquid'; }
+  get smarshType() { return 'liquid'; }
 
   at(t) {
     return this.initial * (0.5 ** ((t - this.anchor) / this.halflife));
@@ -113,7 +113,7 @@ export class Liquid {
 
   toString() { return `<liquid ${this.initial} halving every ${this.halflife}>`; }
 
-  pedagMembers(interp) {
+  smarshMembers(interp) {
     const now = interp.logicalTime;
     return {
       initial: this.initial,

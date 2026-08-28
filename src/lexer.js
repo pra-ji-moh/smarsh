@@ -1,4 +1,4 @@
-import { pedagError } from './errors.js';
+import { smarshError } from './errors.js';
 
 export const KEYWORDS = new Set([
   'let', 'var', 'fn', 'return', 'if', 'else', 'while', 'for', 'in',
@@ -39,7 +39,7 @@ const isIdentPart = (c) => /[A-Za-z0-9_]/.test(c);
 
 export function tokenize(source) {
   const tokens = [];
-  // Comments are kept, not discarded: `pedag fmt` has to put them back, and a
+  // Comments are kept, not discarded: `smarsh fmt` has to put them back, and a
   // formatter that eats comments is worse than no formatter at all.
   const comments = [];
   let i = 0;
@@ -98,7 +98,7 @@ export function tokenize(source) {
         if (source[i] === '*' && source[i + 1] === '/') { i += 2; closed = true; break; }
         i++;
       }
-      if (!closed) throw pedagError('SyntaxError', 'unterminated block comment', openLine);
+      if (!closed) throw smarshError('SyntaxError', 'unterminated block comment', openLine);
       comments.push({ text: source.slice(start, i), start, line: openLine, standalone });
       continue;
     }
@@ -133,7 +133,7 @@ export function tokenize(source) {
       if (source[i] === 'd' && (i + 1 >= n || !isIdentPart(source[i + 1]))) {
         const digits = source.slice(start, i);
         if (/[eE]/.test(digits)) {
-          throw pedagError('SyntaxError',
+          throw smarshError('SyntaxError',
             `\`${digits}d\` is not a decimal literal; exponents are for \`num\``, line)
             .help('write the digits out, or use `dec("...")`');
         }
@@ -147,7 +147,7 @@ export function tokenize(source) {
       // An integer literal past 2^53 cannot be held exactly by a `num`, and
       // silently rounding it is how money goes missing. Refuse it instead.
       if (!/[.eE]/.test(text) && !Number.isSafeInteger(value)) {
-        throw pedagError('SyntaxError',
+        throw smarshError('SyntaxError',
           `\`${text}\` is too large for \`num\` to hold exactly`, line)
           .help(`use \`dec("${text}")\` for exact arithmetic`)
           .note('`num` is a 64-bit float and is exact only up to 9007199254740991');
@@ -182,7 +182,7 @@ export function tokenize(source) {
           const esc = source[i + 1];
           const map = { n: '\n', t: '\t', r: '\r', '0': '\0', '\\': '\\', '"': '"', "'": "'", $: '$' };
           if (esc in map) { out += map[esc]; i += 2; continue; }
-          throw pedagError('SyntaxError', `unknown escape \\${esc}`, line);
+          throw smarshError('SyntaxError', `unknown escape \\${esc}`, line);
         }
         if (source[i] === '$' && source[i + 1] === '{') {
           parts.push({ text: out });
@@ -207,10 +207,10 @@ export function tokenize(source) {
             }
             if (depth > 0) i++;
           }
-          if (depth !== 0) throw pedagError('SyntaxError', 'unterminated `${` in a string', exprLine);
+          if (depth !== 0) throw smarshError('SyntaxError', 'unterminated `${` in a string', exprLine);
           const embedded = source.slice(exprStart, i);
           if (embedded.trim() === '') {
-            throw pedagError('SyntaxError', 'empty `${}` in a string', exprLine);
+            throw smarshError('SyntaxError', 'empty `${}` in a string', exprLine);
           }
           parts.push({ source: embedded, line: exprLine });
           i++;                 // closing brace
@@ -220,7 +220,7 @@ export function tokenize(source) {
         out += source[i];
         i++;
       }
-      if (i >= n) throw pedagError('SyntaxError', 'unterminated string', openLine);
+      if (i >= n) throw smarshError('SyntaxError', 'unterminated string', openLine);
       i++; // closing quote
 
       if (parts.length === 0) {
@@ -243,7 +243,7 @@ export function tokenize(source) {
       continue;
     }
 
-    throw pedagError('SyntaxError', `unexpected character '${c}'`, line);
+    throw smarshError('SyntaxError', `unexpected character '${c}'`, line);
   }
 
   tokens.push({ type: 'eof', value: null, line, start: n, end: n, nlBefore: pendingNewline });

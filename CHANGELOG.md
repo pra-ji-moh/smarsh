@@ -11,6 +11,39 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- **The language is now called Smarsh.** It was Pedag, and briefly Sarvm before
+  that. Nothing has been published under any of those names, so this renames a
+  thing no one has installed -- but it renames all of it, and the parts that are
+  interfaces rather than prose are listed here because a reader coming from a
+  local checkout will hit them.
+
+  | was | is |
+  |---|---|
+  | `pedag` on the command line | `smarsh` |
+  | `pedag-verify` | `smarsh-verify` |
+  | `.pedag` source files | `.smarsh` |
+  | the `pedag` npm package | `smarsh` |
+  | `PEDAG_DEBUG_ENV` | `SMARSH_DEBUG_ENV` |
+  | `pedagError`, `pedagType`, `pedagMembers`, `PedagError` | `smarsh*`, `SmarshError` |
+
+- **Pedersen commitments computed before this change no longer open.** The
+  second generator is derived from a nothing-up-my-sleeve string that contained
+  the project's name:
+
+  ```
+  H = (sha256("Smarsh/pedersen/generator/v1"))^2 mod p     // was "Pedag/..."
+  ```
+
+  Renaming the project changed the string, which changed `H`, which changes
+  every commitment. The construction is exactly as sound as before -- `H` is
+  still in the order-q subgroup and its discrete log with respect to `G` is
+  still unknown -- but a commitment stored under the old name will not verify
+  against a value opened under the new one. This is the only behavioural change
+  in the rename, and it is called out because nothing about "we renamed the
+  project" suggests it.
+
 ### Added
 
 - **`choice` — sum types with static exhaustiveness checking.**
@@ -27,7 +60,7 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
   Each variant is an ordinary record, so construction, fields, structural
   equality, printing, `.with()`, invariants and pattern matching all worked
   already and none of it needed a second implementation. What a choice adds is
-  that the set is *closed*, and a closed set is what lets `pedag check` prove a
+  that the set is *closed*, and a closed set is what lets `smarsh check` prove a
   `match` is total:
 
   ```
@@ -35,7 +68,7 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
   ```
 
   Without it the four records above run identically — right up until a payment
-  is refused in production and nothing has a case for it. `pedag explain E0605`.
+  is refused in production and nothing has a case for it. `smarsh explain E0605`.
 
   The checker is deliberately quiet where it cannot be certain: a wildcard or
   bare binding, arms spanning two choices, a variant name declared by more than
@@ -55,14 +88,14 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
   ignored"; now that is enforced rather than asserted, because a match that
   forgets the failing case is a build failure. `None()` is written `None`.
 
-- **`examples/choices.pedag`**, and `choice` in `docs/reference.md`.
+- **`examples/choices.smarsh`**, and `choice` in `docs/reference.md`.
 
 ### Fixed
 
 - **The type checker no longer invents a type for `+`.** It is the one
   overloaded operator — numbers, text, lists — and with both operands `dyn` the
   checker returned `num` anyway. That produced a false error on correct code in
-  the shipped standard library (`std/str.pedag`), which nobody had seen because
+  the shipped standard library (`std/str.smarsh`), which nobody had seen because
   CI only ran `check` over `examples/`. `std/` is now checked too.
 
 ### Security
@@ -82,7 +115,7 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
   outside a function, and `break` or `continue` outside a loop, threw the
   interpreter's internal signal all the way out to the user — an object with no
   kind, no line and no message. They are now `ControlFlowError` (`E0604`), and
-  `pedag check` reports them statically, before the program runs.
+  `smarsh check` reports them statically, before the program runs.
 
   The serious case was a `break` inside a function called from a loop: the signal
   travelled out of the call and was caught by the **caller's** loop, silently
@@ -93,17 +126,17 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
   `a agent has no 'ping'`.
 - **Repeated `--grant` and `--principal` flags accumulate.** `--grant fs --grant
   net` previously kept only `net` and discarded the earlier flag without a word.
-- **CI had never run.** Every step invoked `bin/Pēdāg.mjs`, a path that does not
-  exist — the file is `bin/pedag.mjs`, and a rename script had rewritten the
+- **CI had never run.** Every step invoked `bin/Smarsh.mjs`, a path that does not
+  exist — the file is `bin/smarsh.mjs`, and a rename script had rewritten the
   workflow's command lines along with the prose. Nothing in the workflow could
   have passed. Fixing it exposed three assertions that had quietly gone stale
   behind it:
   - the examples were run from a hand-written list that still passed
     `--grant crypto` after `crypto` was split into `crypto` and
-    `unaudited_crypto`, so `examples/crypto.pedag` had been failing;
+    `unaudited_crypto`, so `examples/crypto.smarsh` had been failing;
   - the type-check step listed eight examples by hand and had fallen five
     behind the directory;
-  - the verifier step asserted a non-zero exit on `examples/contracts.pedag`,
+  - the verifier step asserted a non-zero exit on `examples/contracts.smarsh`,
     which the verifier does not produce there: the planted false contracts are
     nonlinear, so the solver correctly answers `undecided` rather than
     `refuted`, and `prove` is what catches them.
@@ -112,9 +145,9 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
   `tools/run-examples.mjs`, which reads each example's own documented command
   line out of its header, so a new example is covered as soon as it exists and a
   stale header is a build failure rather than a misleading comment.
-- **`examples/agents.pedag` demonstrates its race again.** The file said "run
-  `pedag check` on this file: the fork below is reported", and then suppressed
-  that exact finding with `pedag-allow`, so a reader saw `no problems found`.
+- **`examples/agents.smarsh` demonstrates its race again.** The file said "run
+  `smarsh check` on this file: the fork below is reported", and then suppressed
+  that exact finding with `smarsh-allow`, so a reader saw `no problems found`.
   The suppression is gone.
 
 ### Added
@@ -131,7 +164,7 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
   wrong-type, recursion and cyclic-value cases.
 - **`tools/run-examples.mjs`** — runs every example the way its own header says
   to run it, and reports how many examples document no invocation at all.
-- **`E0604`** joins the explainable error codes: `pedag explain E0604`.
+- **`E0604`** joins the explainable error codes: `smarsh explain E0604`.
 
 ## [0.3.0] — unreleased, first public release
 
@@ -153,7 +186,7 @@ were found, three of which contradicted claims the documentation was making.
   first and refuse the second. A Paillier modulus under 2048 bits is recorded in
   the run trace.
 - **Taint is now checked statically**, over every path, not only the one a run
-  took. `pedag check` reports a labelled value reaching a `grounded` or `region`
+  took. `smarsh check` reports a labelled value reaching a `grounded` or `region`
   sink through call chains, collections, interpolation and branch merges.
 
 ### Breaking
@@ -174,9 +207,9 @@ were found, three of which contradicted claims the documentation was making.
   `dec("0.1") + dec("0.2") == dec("0.3")` is true and a thousand additions of
   `dec("0.01")` is exactly `10.00`. Division states its scale and rounds
   half-to-even. Decimals do not mix with floats implicitly.
-- **`pedag-allow` suppressions.** A source comment scoped to the statement it
+- **`smarsh-allow` suppressions.** A source comment scoped to the statement it
   introduces, counted in the summary so a silenced finding stays visible.
-- Parser error recovery: `pedag check` reports every syntax error in a file
+- Parser error recovery: `smarsh check` reports every syntax error in a file
   rather than stopping at the first.
 
 ### Fixed
@@ -190,13 +223,13 @@ were found, three of which contradicted claims the documentation was making.
 
 - Gradual type system with optional annotations, local bidirectional inference
   and a consistency relation, so unannotated programs check clean.
-- Rendered diagnostics: source spans with carets, error codes, `pedag explain`,
+- Rendered diagnostics: source spans with carets, error codes, `smarsh explain`,
   Damerau-Levenshtein suggestions, and runtime stack traces.
 - Records, pattern matching with guards and destructuring, string interpolation.
 - Standard library — `std/list`, `std/str`, `std/math`, `std/result` — written
-  in Pēdāg.
-- `pedag test` (unit tests, contracts, types and races in one command),
-  `pedag fmt` (one canonical layout, no options), `pedag build` (one
+  in Smarsh.
+- `smarsh test` (unit tests, contracts, types and races in one command),
+  `smarsh fmt` (one canonical layout, no options), `smarsh build` (one
   self-contained `.mjs`).
 - `foreign()` FFI into JavaScript, capability-gated, values converted rather
   than shared, results labelled `untrusted`.
@@ -225,6 +258,6 @@ were found, three of which contradicted claims the documentation was making.
 - `fork` for isolated reasoning paths.
 - Capability security with attenuation.
 - Provenance labels with `grounded` and `region` enforcement.
-- Contracts (`requires` / `ensures`) and `pedag prove`, which generates inputs
+- Contracts (`requires` / `ensures`) and `smarsh prove`, which generates inputs
   from them.
 - Token-accounted context windows, hash-chained ledgers.

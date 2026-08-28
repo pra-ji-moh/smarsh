@@ -28,7 +28,7 @@ function builtinNeeds() {
 }
 
 const NEEDS = builtinNeeds();
-const findings = (source) => analyze(parse(source, 't.pedag'), { builtinNeeds: NEEDS })
+const findings = (source) => analyze(parse(source, 't.smarsh'), { builtinNeeds: NEEDS })
   .filter((f) => f.kind === 'undeclared capability');
 
 test('a function that reaches the filesystem without saying so is reported', () => {
@@ -117,7 +117,7 @@ test('what the checker reports is what the runtime refuses', () => {
   const interp = new Interpreter({ out: () => {}, caps: ['fs'] });
   try {
     assert.throws(
-      () => interp.run(source, 't.pedag'),
+      () => interp.run(source, 't.smarsh'),
       (e) => e.kind === 'CapabilityError',
       'the runtime did not refuse what the checker reported',
     );
@@ -132,7 +132,7 @@ test('what the checker passes, the runtime allows', () => {
   const out = [];
   const interp = new Interpreter({ out: (s) => out.push(s), caps: ['fs'] });
   try {
-    interp.run(source, 't.pedag');
+    interp.run(source, 't.smarsh');
     assert.deepEqual(out, ['x']);
   } finally {
     interp.devices.shutdown();

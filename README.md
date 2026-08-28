@@ -1,4 +1,4 @@
-# Pēdāg
+# Smarsh
 
 **Software that can prove what it was allowed to do, and what it actually did.**
 
@@ -6,7 +6,7 @@ Every system produces logs. Logs are written by the code being audited, after
 the fact, and can be edited by anyone who can edit the code. They are a record
 of what a program *says* it did.
 
-Pēdāg produces evidence instead. A program holds only the authority it declared,
+Smarsh produces evidence instead. A program holds only the authority it declared,
 data carries where it came from, and every run emits a hash-chained,
 cryptographically signed manifest of every power exercised — and every one
 **refused**.
@@ -21,9 +21,9 @@ That refusal is not a log line. It is enforced by the runtime, and it lands in a
 record the program cannot forge:
 
 ```
-$ pedag audit run.json
+$ smarsh audit run.json
 
-run of billing.pedag  (pedag 0.3.0, outcome: completed)
+run of billing.smarsh  (smarsh 0.3.0, outcome: completed)
   program sha256   4b1d7412488c8db29cfbda6fa644aacf...
   replay with      --seed 0 --grant fs
 
@@ -65,14 +65,14 @@ Four properties make that worth something to a reviewer:
   evidence.
 
 ```bash
-npm install -g pedag
+npm install -g smarsh
 
-pedag keygen -o compliance.pem                 # an identity, kept
-pedag run app.pedag --audit run.json --key compliance.pem
-pedag-verify run.json compliance.pem.pub       # the 98-line one, no trust required
+smarsh keygen -o compliance.pem                 # an identity, kept
+smarsh run app.smarsh --audit run.json --key compliance.pem
+smarsh-verify run.json compliance.pem.pub       # the 98-line one, no trust required
 ```
 
-`pedag-verify` is a separate entry point on purpose: an auditor checking a
+`smarsh-verify` is a separate entry point on purpose: an auditor checking a
 record should never have to install or learn a language. CI runs that exact
 sequence against the packaged build, and then feeds it a tampered record to
 confirm it says no.
@@ -104,7 +104,7 @@ the process can reach, and nothing writes down what it reached.
 | **Capabilities** | A function holds only what it declared with `needs` — never what its caller held. Reading a signature tells you the worst it can do. |
 | **Information flow** | Values carry owner-scoped policies, both halves of Myers & Liskov's decentralized label model: who may read it, and whose word is behind it. Combining data joins the rules — and drops a vouch that does not cover both sides. |
 | **Declassification** | Removing a restriction requires the owner's authority and a written reason, and both land in the manifest. |
-| **Contracts** | `requires` / `ensures` / `old()` / invariants, in the language. `pedag verify` proves them where it can; `pedag prove` finds counterexamples where it cannot. |
+| **Contracts** | `requires` / `ensures` / `old()` / invariants, in the language. `smarsh verify` proves them where it can; `smarsh prove` finds counterexamples where it cannot. |
 | **Exhaustiveness** | `choice` gives closed sets, so a `match` that forgets a case is a build failure, not a production incident. |
 | **Exact money** | `dec` is integer coefficient and scale on BigInt. Floats are refused near it, loudly. |
 | **Budgets** | Steps, tokens and memory. Not catchable from inside; a runaway process cannot talk its way out of being stopped. |
@@ -112,7 +112,7 @@ the process can reach, and nothing writes down what it reached.
 
 ## Adopting it does not mean rewriting anything
 
-Nobody rewrites a working system to adopt a language, so Pēdāg calls the code
+Nobody rewrites a working system to adopt a language, so Smarsh calls the code
 you already have (`ffi`) and returns its results labelled `untrusted`, because a
 foreign function's output is exactly as trustworthy as anything else from
 outside.
@@ -125,13 +125,13 @@ what was refused, and where data went.
 ## Try the thing above
 
 ```bash
-git clone <this repo> && cd pedag
-node bin/pedag.mjs demo
+git clone <this repo> && cd smarsh
+node bin/smarsh.mjs demo
 ```
 
 One command, no arguments, nothing to write first. It runs a real program with
 real capabilities and prints the signed record it left. The record is a file —
-edit any line of it, run `pedag audit` on it, and the chain breaks. That claim
+edit any line of it, run `smarsh audit` on it, and the chain breaks. That claim
 is [tested](tests/demo.test.mjs), not asserted: seven edits an interested party
 would actually want to make, including deleting the inconvenient event and
 attaching the record to a different program.
@@ -150,36 +150,36 @@ Zero dependencies, Node 18 or later. 702 passing tests over 94% of the lines in
 **New here?** [docs/getting-started.md](docs/getting-started.md) — twenty
 minutes, assumes nothing. Or `docs/reference.md` for the whole language.
 
-**Generating Pēdāg from a program?** [docs/for-llms.md](docs/for-llms.md) is the
+**Generating Smarsh from a program?** [docs/for-llms.md](docs/for-llms.md) is the
 whole language on one page, under 2,400 words, written for a model that has to
 emit it correctly rather than a person browsing. Every builtin it names, every
 method, every example and every claimed error is checked against the runtime by
 `tests/for-llms.test.mjs`, so it cannot drift. Pair it with `--json`.
 
-Other commands: `pedag check` (types, races, taint, exhaustiveness — without
-running), `pedag verify`, `pedag prove`, `pedag test`, `pedag build`,
-`pedag fmt`, `pedag repl`, `pedag explain E0402`.
+Other commands: `smarsh check` (types, races, taint, exhaustiveness — without
+running), `smarsh verify`, `smarsh prove`, `smarsh test`, `smarsh build`,
+`smarsh fmt`, `smarsh repl`, `smarsh explain E0402`.
 
 ---
 
-## What it is like to be wrong in Pēdāg
+## What it is like to be wrong in Smarsh
 
 The thing a language is judged on is not its best day, it is what happens when
 you make a mistake. So:
 
 ```
 error[E0201]: `totl` is not defined
- --> tally.pedag:6:10
+ --> tally.smarsh:6:10
   |
 6 |   return totl
   |          ^^^^ not found in this scope
   |
 help: there is a name in scope with a similar spelling: `total`
-  run `pedag explain E0201` for a longer explanation
+  run `smarsh explain E0201` for a longer explanation
 stack:
-  at tally (tally.pedag:6)
-  at report (tally.pedag:10)
-  at <top level> (tally.pedag:13)
+  at tally (tally.smarsh:6)
+  at report (tally.smarsh:10)
+  at <top level> (tally.smarsh:13)
 ```
 
 Exact spans, a suggestion that accounts for transposed letters, an error code
@@ -191,7 +191,7 @@ And a lot of it arrives before the program runs at all:
 
 ```
 error[E0301]: expected `num`, found `str`
- --> orders.pedag:6:6
+ --> orders.smarsh:6:6
   |
 6 | area("3", 4)
   |      ^^^ argument 1 of `area`
@@ -199,7 +199,7 @@ error[E0301]: expected `num`, found `str`
 help: `num(x)` reads a number out of text
 
 error[E0302]: `area` takes 2 arguments, but 1 was supplied
- --> orders.pedag:7:1
+ --> orders.smarsh:7:1
   |
 7 | area(3)
   | ^^^^^^^ 1 supplied
@@ -209,13 +209,13 @@ note: its type is `fn(num, num) -> num`
 
 ## Types, if you want them
 
-```pedag
+```smarsh
 fn area(width: num, height: num) -> num { return width * height }
 fn total(prices: list<num>) -> num { ... }
 let rate: num = 1.08
 ```
 
-Pēdāg is **gradually typed**, following Siek and Taha: there is a type `dyn` for
+Smarsh is **gradually typed**, following Siek and Taha: there is a type `dyn` for
 "not known statically", and the checker uses a *consistency* relation rather
 than equality, under which `dyn` is consistent with everything. That single
 choice is what keeps annotations optional instead of viral — a program with no
@@ -232,7 +232,7 @@ a gradual system the second is much worse.
 
 ## Records, matching, interpolation
 
-```pedag
+```smarsh
 record Point(x, y)
 
 let a = Point(3, 4)
@@ -260,7 +260,7 @@ same reason, and this repository's own agent tests, which have a handler called
 
 ## A closed set of cases, and a checker that knows when you missed one
 
-```pedag
+```smarsh
 choice Payment {
   Card(last4, amount)
   Transfer(iban, amount)
@@ -275,7 +275,7 @@ set is **closed**, and a closed set is what makes exhaustiveness decidable:
 
 ```
 error[E0605]: this match on `Payment` does not handle `Refused`
- --> billing.pedag:14:10
+ --> billing.smarsh:14:10
    |
 14 |   return match p {
    |          ^^^^^^^^^ inexhaustive match
@@ -300,7 +300,7 @@ swallow every other case that reached it.
 
 ## Money is exact, and floats are not allowed near it
 
-```pedag
+```smarsh
 let price = dec("12.50")
 print(price * 3)                       // 37.50, exactly
 
@@ -325,7 +325,7 @@ rounded — `9007199254740993` is a syntax error that points you at `dec`.
 
 ## `let` means immutable, all the way down
 
-```pedag
+```smarsh
 let xs = [1, 2]
 xs.push(3)          // ImmutableError: bound with `let`, which freezes it
 var ys = [1, 2]
@@ -338,7 +338,7 @@ people assume they are getting and are not. The freeze is deep: `let deep = {
 
 ## Taint is checked over every path, not just the one you ran
 
-```pedag
+```smarsh
 fn maybe_taint(flag) {
   if flag { return ungrounded(model_output) }
   return "a checked constant"
@@ -347,7 +347,7 @@ let value = maybe_taint(false)
 grounded { print(value) }
 ```
 
-This program *runs* clean — the tainted branch was not taken. `pedag check`
+This program *runs* clean — the tainted branch was not taken. `smarsh check`
 reports it anyway:
 
 ```
@@ -362,13 +362,13 @@ follow a value it assumes the worst rather than assuming safety.
 When a violation is intentional, you say so in the source, and the summary
 counts it:
 
-```pedag
-// pedag-allow: taint  (deliberate -- this section demonstrates the refusal)
+```smarsh
+// smarsh-allow: taint  (deliberate -- this section demonstrates the refusal)
 grounded { print(reply) }
 ```
 
 ```
-examples/tour.pedag: no problems found (2 suppressed by pedag-allow)
+examples/tour.smarsh: no problems found (2 suppressed by smarsh-allow)
 ```
 
 ## Unaudited cryptography is quarantined
@@ -391,12 +391,12 @@ This is the part Java structurally cannot do, and it is the reason the rest of
 the language exists.
 
 ```bash
-pedag run agent.pedag --grant fs --principal compliance --audit run.json --sign
-pedag audit run.json
+smarsh run agent.smarsh --grant fs --principal compliance --audit run.json --sign
+smarsh audit run.json
 ```
 
 ```
-run of examples/regulated.pedag  (pedag 0.3.0, outcome: completed)
+run of examples/regulated.smarsh  (smarsh 0.3.0, outcome: completed)
   program sha256   02d2859c794440679c593e86a0b6d06f...
   replay with      --seed 0 --grant fs
 
@@ -440,12 +440,12 @@ Java has no capability check to record, no label to observe, and no seed that
 makes the run reproducible — so there is nothing for a Java equivalent to write
 down, however carefully it is written.
 
-See [examples/regulated.pedag](examples/regulated.pedag) for the whole thing.
+See [examples/regulated.smarsh](examples/regulated.smarsh) for the whole thing.
 
 ## Proving, not testing
 
 ```bash
-pedag verify examples/contracts.pedag
+smarsh verify examples/contracts.smarsh
 ```
 
 ```
@@ -456,13 +456,13 @@ pedag verify examples/contracts.pedag
   REFUTED   safe_div: safe_div keeps its promise
 ```
 
-`pedag prove` throws generated inputs at a contract. `pedag verify` discharges it
+`smarsh prove` throws generated inputs at a contract. `smarsh verify` discharges it
 as a theorem: **for every input, unbounded, with no sampling.** Two conditions
 for `abs_` because there are two paths through it, and both are proved.
 
 It follows the shape Dafny uses — [weakest preconditions to verification
 conditions to a solver](https://www.cs.umd.edu/class/spring2025/cmsc433/code/VerificationConditions.pdf)
-— except Pēdāg has no dependencies, so it cannot pipe to Z3. It carries its own
+— except Smarsh has no dependencies, so it cannot pipe to Z3. It carries its own
 decision procedure: exact BigInt rationals, Fourier-Motzkin elimination, and a
 small DPLL search over the boolean structure. Loops produce four obligations —
 the invariant is established, a pass preserves it, the variant stays at or above
@@ -474,7 +474,7 @@ proof by silence. Two properties make that trustworthy:
 *It will not claim a refutation it cannot justify.* Anything the solver cannot
 model — a non-linear product, a call — becomes an unconstrained variable. That
 widens the models, which is sound for proving and unsound for refuting, so any
-refutation resting on one is downgraded to `undecided`. `pedag prove` still finds
+refutation resting on one is downgraded to `undecided`. `smarsh prove` still finds
 those by testing; the two tools cover different halves and agree where they
 overlap, which the test suite checks.
 
@@ -486,7 +486,7 @@ exact; reasoning about `num` does not model per-operation rounding, and says so.
 
 **A caveat on the obvious claim to make here.** It is tempting to say no other
 language verifies functional contracts, information flow, capability
-sufficiency and termination together. Pēdāg does check all four — but not in one
+sufficiency and termination together. Smarsh does check all four — but not in one
 pass and not in one engine. `verify` does contracts and termination against the
 solver; `check` does information flow, types and races with entirely different
 algorithms. One toolchain, four analyses, no shared logic between them.
@@ -501,7 +501,7 @@ and usefulness on real code. See [LIMITATIONS.md](LIMITATIONS.md).
 
 Following [Eiffel](https://www.eiffel.org/doc/eiffel/ET-_Design_by_Contract_(tm),_Assertions_and_Exceptions):
 
-```pedag
+```smarsh
 record Account(holder, balance) invariant balance >= 0
 
 fn withdraw(account, amount)
@@ -517,7 +517,7 @@ negative balance.
 
 And loops can prove they finish:
 
-```pedag
+```smarsh
 while i > 0
   invariant seen >= 0
   variant i
@@ -539,7 +539,7 @@ model](https://www.cs.cornell.edu/andru/papers/sp98/sp98.pdf). Flat labels
 answer "is this suspect". They cannot answer the question a system with several
 mutually distrusting parties actually has.
 
-```pedag
+```smarsh
 let salary  = classify(82000, "hr",    ["hr", "payroll"])
 let audited = classify(salary, "audit", ["audit", "payroll"])
 
@@ -553,7 +553,7 @@ never makes it more readable.
 
 The part a blanket `trust()` cannot express — **authority is per principal**:
 
-```pedag
+```smarsh
 authority "hr" {
   declassify(salary,  "hr",    "approved for the annual report")  // fine
   declassify(audited, "audit", "not hr's to release")             // refused
@@ -568,7 +568,7 @@ is granted at the boundary with `--principal`, never taken from inside.
 The same model, mirrored. `classify` says who may read a value; `endorse` says
 who stands behind it.
 
-```pedag
+```smarsh
 authority "payroll" {
   let salary = endorse(82000, "payroll", "system of record")
   vouched_by "payroll" { post(salary) }        // fine
@@ -611,7 +611,7 @@ Following the [object-capability
 patterns](https://people.mpi-sws.org/~dreyer/papers/ocpl/paper.pdf). `needs fs`
 is a static claim you cannot lend and cannot withdraw. A grant is a value:
 
-```pedag
+```smarsh
 let pair = caretaker(grant("fs", "the report worker"))
 report_worker(pair["grant"], "quarterly figures")   // works
 revoke(pair["revoker"])
@@ -626,29 +626,29 @@ grant kills everything derived from it.
 ## Tooling
 
 ```bash
-pedag test .          # unit tests, contracts, types and races, in one command
-pedag fmt .           # one canonical layout, no options
-pedag check file      # types and static checks, without running
-pedag explain E0402   # what an error code actually means
-pedag build file      # one self-contained .mjs, no dependencies
+smarsh test .          # unit tests, contracts, types and races, in one command
+smarsh fmt .           # one canonical layout, no options
+smarsh check file      # types and static checks, without running
+smarsh explain E0402   # what an error code actually means
+smarsh build file      # one self-contained .mjs, no dependencies
 ```
 
-`pedag test` runs three things at once: every `test_*` function, the type and
+`smarsh test` runs three things at once: every `test_*` function, the type and
 race checkers, and `prove` against every contracted function in the file. That
 last one is why the command earns its place — a contract *is* a specification,
 so adding a `requires` clause immediately buys you generated tests with no
 separate step to remember.
 
-`pedag fmt` has no options, on purpose. Its guarantee is checked by tests that
+`smarsh fmt` has no options, on purpose. Its guarantee is checked by tests that
 matter: formatting is idempotent, comments survive, and **a formatted program
 produces byte-identical output to the original**. Building it found two bugs
 where the formatter silently changed the program — a multi-statement lambda body
 replaced with a literal `{ ... }`, and `redefine fn f` printed as `fn f`, which
 turns a redefinition into a duplicate declaration.
 
-## A standard library, written in Pēdāg
+## A standard library, written in Smarsh
 
-```pedag
+```smarsh
 import "std/list" as list
 import "std/math" as math
 import "std/result" as res
@@ -662,14 +662,14 @@ match parse_price(input) {
 }
 ```
 
-`std/list`, `std/str`, `std/math` and `std/result` are written in Pēdāg, not
+`std/list`, `std/str`, `std/math` and `std/result` are written in Smarsh, not
 bolted on as builtins. If the language could not express its own standard
 library comfortably that would be worth finding out early, not hiding. It has
-its own test suite: `pedag test std/`.
+its own test suite: `smarsh test std/`.
 
 ## Interop, because nobody rewrites
 
-```pedag
+```smarsh
 let os = foreign("node:os")
 print(os.platform())
 ```
@@ -679,7 +679,7 @@ have. `foreign()` calls into JavaScript — built-in modules, CommonJS files,
 installed packages.
 
 It needs the `ffi` capability, and that is the entire design. Everything else in
-Pēdāg is bounded; a foreign call escapes all of it, because once control is
+Smarsh is bounded; a foreign call escapes all of it, because once control is
 inside JavaScript the runtime cannot see what happens. So the boundary is
 declared rather than ambient, values are **converted rather than shared** (a
 host function cannot reach back into your list), and everything coming back is
@@ -694,8 +694,8 @@ boundary even when the top level holds it.
 Familiar on the surface. Semicolons optional, `//` `#` `/* */` comments,
 `let` is immutable and `var` is not.
 
-```pedag
-let name = "Pēdāg"
+```smarsh
+let name = "Smarsh"
 var count = 0
 while count < 3 { count = count + 1 }
 
@@ -720,11 +720,11 @@ Types: `num` `str` `bool` `nil` `list` `map` `fn` `tensor` `context` `ledger`.
 
 ---
 
-## The seven things that make it Pēdāg
+## The seven things that make it Smarsh
 
 ### 1. Branches that admit they are uncertain
 
-```pedag
+```smarsh
 maybe 0.7 { explore() } else { exploit() }
 
 let strategy = choose {
@@ -740,7 +740,7 @@ A language with `maybe` in it would be undebuggable otherwise.
 
 ### 2. Forking a reasoning path
 
-```pedag
+```smarsh
 let scores = fork 5 {
   let prior = 0.4 + (_ * 0.05)
   prior * 0.6 + random() * 0.4
@@ -754,7 +754,7 @@ diverge from each other; the whole fan-out replays identically next run.
 
 ### 3. Tensors are values, not a library
 
-```pedag
+```smarsh
 let w = tensor [[0.2, -0.4, 0.1], [0.7, 0.3, -0.9]]
 let x = tensor [1.0, 2.0, 0.5]
 let h = relu(w @ x)          // matmul, rank-1 and rank-2
@@ -773,7 +773,7 @@ Tensors are immutable — writing into one is an error, not a silent aliasing bu
 
 ### 4. Where a value came from is part of the value
 
-```pedag
+```smarsh
 let reply = ungrounded("the filing says revenue was 9.9bn")
 let form  = untrusted(user_input)
 
@@ -794,7 +794,7 @@ remove one, it demands a written reason, and it records the laundering.
 
 ### 5. Jurisdiction travels with the data
 
-```pedag
+```smarsh
 let record = restrict("customer 4471, Dublin", "eu")
 
 region "eu" { print(record) }     // fine
@@ -805,7 +805,7 @@ Same machinery as above, different label namespace.
 
 ### 6. Capabilities are held, not assumed
 
-```pedag
+```smarsh
 fn save_note(text) needs fs {
   write("note.txt", text)
 }
@@ -818,7 +818,7 @@ fn sneaky(text) {
 A function holds exactly what it declared with `needs` — never what its caller
 held. That is real attenuation, not a policy file:
 
-```pedag
+```smarsh
 fn inner() needs clock { return now() }
 fn outer() needs fs { return inner() }   // CapabilityError, even when the top
 outer()                                  // level was granted both
@@ -830,18 +830,18 @@ touch the filesystem or read the clock — which is also why a program without
 
 ### 7. Contracts are checked, and generate their own tests
 
-```pedag
+```smarsh
 fn share(total, n) requires n > 0 ensures result * n == total {
   return total / n
 }
 ```
 
 Violations are runtime errors that quote the predicate. And because the contract
-*is* the specification, `pedag prove` generates inputs, discards the ones the
+*is* the specification, `smarsh prove` generates inputs, discards the ones the
 preconditions reject, and reports where a promise failed:
 
 ```
-prove examples/contracts.pedag (seed 0, 200 inputs per function)
+prove examples/contracts.smarsh (seed 0, 200 inputs per function)
   . abs_     held over 147 accepted inputs (53 outside its domain)
   . clamp01  held over 147 accepted inputs (53 outside its domain)
   X scale    3 counterexamples over 48 accepted inputs
@@ -859,7 +859,7 @@ promises nothing cannot be checked against anything.
 
 ### And: memory measured in tokens
 
-```pedag
+```smarsh
 let ctx = context(4000)
 ctx.pin("system: you verify claims, you do not invent them")
 ctx.push(user_turn)
@@ -869,7 +869,7 @@ print(ctx.tokens, "of", ctx.budget, "used")   // evicts oldest unpinned on overf
 
 ### 8. Arithmetic on data you cannot read
 
-```pedag
+```smarsh
 let k = paillier_keygen_insecure(512)   // `paillier_keygen` needs 2048; this warns
 let payroll = encrypt(k, 82000) + encrypt(k, 95000) + encrypt(k, 71000)
 let after_fee = payroll - 1000
@@ -884,7 +884,7 @@ still cannot decrypt the answer.
 
 ### 9. Proving without revealing, and provenance that travels
 
-```pedag
+```smarsh
 let pw = secret_of("correct horse battery staple")
 let proof = zk_prove(pw)
 print(zk_verify(zk_public(pw), proof))     // true, and the verifier learns nothing
@@ -905,7 +905,7 @@ generators lie in the order-*q* subgroup.
 
 ### 10. All of it or none of it, and secrets that do not linger
 
-```pedag
+```smarsh
 atomic {
   book.append("buy 100 ACME @ 12.50")
   mirror.append("buy 100 ACME @ 12.50")
@@ -921,7 +921,7 @@ A secret never renders its contents — printing one gives `<secret 32 bytes>`.
 
 ### 11. Quantum logic in the same file as everything else
 
-```pedag
+```smarsh
 let q = qubits(2)
 qh(q, 0)
 cnot(q, 0, 1)
@@ -937,7 +937,7 @@ register stops at 22.
 
 ### 12. Ordering across machines, and value that decays
 
-```pedag
+```smarsh
 let alice = clock("alice")
 let bob = clock("bob")
 let placed = alice.tick()
@@ -956,7 +956,7 @@ nothing to drift. Decay runs on the same logical time, so a schedule replays.
 
 ### 13. Agents that can only talk
 
-```pedag
+```smarsh
 agent Keeper(name) {
   var seen = 0
   var total = 0
@@ -987,7 +987,7 @@ write to them, which is the property an actor model exists to provide.
 
 ### 14. A kill switch the code inside cannot argue with
 
-```pedag
+```smarsh
 attempt {
   budget steps 5000 {
     attempt {
@@ -1013,11 +1013,11 @@ may push into context windows.
 ### 15. Problems found before the program runs
 
 ```bash
-pedag check examples/agents.pedag
+smarsh check examples/agents.smarsh
 ```
 
 ```
-examples/agents.pedag:128  race: every forked path assigns to 'tally', which is
+examples/agents.smarsh:128  race: every forked path assigns to 'tally', which is
 declared outside the fork; the paths are sharing one cell
       try: return a value from the path and combine the results afterwards
 ```
@@ -1035,7 +1035,7 @@ also printed as warnings on every `run`.
 
 ## Breadth, and where the names flatter it
 
-Pēdāg covers a wide surface, and breadth invites the reasonable suspicion that
+Smarsh covers a wide surface, and breadth invites the reasonable suspicion that
 some of it is thin. [docs/capabilities.md](docs/capabilities.md) is the
 accounting: every subsystem, what it actually does, and where the name promises
 more than the implementation delivers — a quantum *simulator* with no speedup, a
@@ -1090,7 +1090,7 @@ less than it looks: policy code runs once per decision, not in a hot loop.
 `--engine tree` runs the original tree-walker, and CI proves the two are
 indistinguishable across every example, every standard-library module and 3,000
 generated programs — compared on output, failures, step counts and the entire
-audit trace, because `pedag audit` signs a claim that a run replays from its
+audit trace, because `smarsh audit` signs a claim that a run replays from its
 seed.
 
 ## What is honest about this
@@ -1098,7 +1098,7 @@ seed.
 - `fork` evaluates paths in order, not on OS threads. The semantics — isolation
   and independent randomness — are real; the parallelism is not. Real
   parallelism needs worker threads and a serializable value representation.
-  This is also why `pedag check`'s race detection matters: the defect is real
+  This is also why `smarsh check`'s race detection matters: the defect is real
   even though today's scheduler happens not to expose it.
 - Agents run on one thread. Isolation and determinism are real; concurrency is
   cooperative, and nothing crosses a machine boundary yet.
@@ -1126,7 +1126,7 @@ seed.
 ## Layout
 
 ```
-bin/pedag.mjs           the CLI: run, check, test, prove, verify, fmt, build, audit, repl
+bin/smarsh.mjs           the CLI: run, check, test, prove, verify, fmt, build, audit, repl
 
 the front end
   src/lexer.js          tokens
@@ -1172,11 +1172,11 @@ the rest
   src/temporal.js       logical clocks, decaying values
   src/quantum.js        state-vector simulator
   src/snapshot.js       snapshot and restore of a running program
-  src/format.js         pedag fmt
-  src/bundle.js         pedag build -- one standalone .mjs
-  src/testrunner.js     pedag test
+  src/format.js         smarsh fmt
+  src/bundle.js         smarsh build -- one standalone .mjs
+  src/testrunner.js     smarsh test
 
-std/                    the standard library, written in Pedag
+std/                    the standard library, written in Smarsh
 examples/               15 programs, every one of them run by CI
 tests/                  702 tests across 30 files
 tools/                  the differential oracle, the fuzzer, the A/B harness

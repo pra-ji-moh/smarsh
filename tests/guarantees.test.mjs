@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError } from '../src/errors.js';
+import { SmarshError } from '../src/errors.js';
 import { Decimal } from '../src/decimal.js';
 
 // The four defects found in review, each pinned so it cannot come back.
@@ -24,14 +24,14 @@ function fails(src, opts = {}) {
   try {
     run(src, opts);
   } catch (e) {
-    if (e instanceof PedagError) return e;
+    if (e instanceof SmarshError) return e;
     throw e;
   }
   throw new Error('expected the program to fail, but it ran cleanly');
 }
 
 function project(files) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Pēdāg-guard-'));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'Smarsh-guard-'));
   for (const [name, body] of Object.entries(files)) {
     const full = path.join(dir, name);
     fs.mkdirSync(path.dirname(full), { recursive: true });
@@ -46,21 +46,21 @@ function project(files) {
 
 test('a module cannot perform effects at import time', () => {
   const dir = project({
-    'evil.pedag': 'write("pwned.txt", "ran with the importer\'s capability")\nlet harmless = 1',
-    'main.pedag': 'import "./evil.pedag" as m\nm["harmless"]',
+    'evil.smarsh': 'write("pwned.txt", "ran with the importer\'s capability")\nlet harmless = 1',
+    'main.smarsh': 'import "./evil.smarsh" as m\nm["harmless"]',
   });
   const e = (() => {
     try {
       const interp = new Interpreter({ caps: ['fs'], cwd: dir, out: () => {} });
-      interp.entryPath = path.join(dir, 'main.pedag');
-      interp.run(fs.readFileSync(path.join(dir, 'main.pedag'), 'utf8'), 'main.pedag');
+      interp.entryPath = path.join(dir, 'main.smarsh');
+      interp.run(fs.readFileSync(path.join(dir, 'main.smarsh'), 'utf8'), 'main.smarsh');
       interp.devices.shutdown();
       return null;
     } catch (err) {
       return err;
     }
   })();
-  assert.ok(e instanceof PedagError, 'the import should have been refused');
+  assert.ok(e instanceof SmarshError, 'the import should have been refused');
   assert.equal(e.kind, 'CapabilityError');
   assert.equal(fs.existsSync(path.join(dir, 'pwned.txt')), false,
     'the module wrote a file using authority it was never granted');
@@ -68,13 +68,13 @@ test('a module cannot perform effects at import time', () => {
 
 test('a module still exports functions that work under the caller capabilities', () => {
   const dir = project({
-    'lib.pedag': 'fn save(text) needs fs { return write("out.txt", text) }\nlet version = 2',
-    'main.pedag': 'import "./lib.pedag" as lib\n[lib.version, type(lib.save)]',
+    'lib.smarsh': 'fn save(text) needs fs { return write("out.txt", text) }\nlet version = 2',
+    'main.smarsh': 'import "./lib.smarsh" as lib\n[lib.version, type(lib.save)]',
   });
   const interp = new Interpreter({ caps: ['fs'], cwd: dir, out: () => {} });
-  interp.entryPath = path.join(dir, 'main.pedag');
+  interp.entryPath = path.join(dir, 'main.smarsh');
   try {
-    const value = interp.run(fs.readFileSync(path.join(dir, 'main.pedag'), 'utf8'), 'main.pedag');
+    const value = interp.run(fs.readFileSync(path.join(dir, 'main.smarsh'), 'utf8'), 'main.smarsh');
     assert.deepEqual(value, [2, 'fn']);
   } finally {
     interp.devices.shutdown();
@@ -83,13 +83,13 @@ test('a module still exports functions that work under the caller capabilities',
 
 test('a module loads fine when it needs nothing', () => {
   const dir = project({
-    'lib.pedag': 'let answer = 42',
-    'main.pedag': 'import "./lib.pedag" as lib\nlib.answer',
+    'lib.smarsh': 'let answer = 42',
+    'main.smarsh': 'import "./lib.smarsh" as lib\nlib.answer',
   });
   const interp = new Interpreter({ cwd: dir, out: () => {} });
-  interp.entryPath = path.join(dir, 'main.pedag');
+  interp.entryPath = path.join(dir, 'main.smarsh');
   try {
-    assert.equal(interp.run(fs.readFileSync(path.join(dir, 'main.pedag'), 'utf8'), 'main.pedag'), 42);
+    assert.equal(interp.run(fs.readFileSync(path.join(dir, 'main.smarsh'), 'utf8'), 'main.smarsh'), 42);
   } finally {
     interp.devices.shutdown();
   }

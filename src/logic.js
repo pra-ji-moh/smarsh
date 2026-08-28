@@ -1,6 +1,6 @@
 // A decision procedure for quantifier-free linear arithmetic.
 //
-// Pēdāg has no dependencies, so it cannot pipe verification conditions to Z3 the
+// Smarsh has no dependencies, so it cannot pipe verification conditions to Z3 the
 // way Dafny does. This is the solver it uses instead: exact rational
 // arithmetic, Fourier-Motzkin elimination to decide a conjunction of linear
 // constraints, and a small DPLL search over the boolean structure above them.

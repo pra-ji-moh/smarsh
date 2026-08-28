@@ -6,7 +6,7 @@ import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError } from '../src/errors.js';
+import { SmarshError } from '../src/errors.js';
 import { stringify } from '../src/values.js';
 import { proveSource, formatReports } from '../src/prove.js';
 import { analyze, formatFindings } from '../src/analysis.js';
@@ -23,19 +23,19 @@ import { generateKeypair, verifyMessage, exportKeypair, loadKeypair } from '../s
 
 const VERSION = '0.3.0';
 
-const HELP = `Pēdāg ${VERSION} -- proves what a program was allowed to do, and what it did
+const HELP = `Smarsh ${VERSION} -- proves what a program was allowed to do, and what it did
 
 usage:
-  pedag demo                           see what it does, in 30 seconds
-  pedag run <file.pedag> [options]     run a program
-  pedag check <file.pedag>             static checks, without running anything
-  pedag build <file.pedag> [-o out]    one self-contained .mjs, no dependencies
-  pedag prove <file.pedag> [options]   generate inputs and check every contract
-  pedag verify <file.pedag>            prove contracts hold for every input
-  pedag audit <manifest.json>          read back a run record and check it is intact
-  pedag keygen [-o key.pem]            a signing identity to bind records to
-  pedag repl [options]                interactive session
-  pedag eval "<source>" [options]     run a one-liner
+  smarsh demo                           see what it does, in 30 seconds
+  smarsh run <file.smarsh> [options]     run a program
+  smarsh check <file.smarsh>             static checks, without running anything
+  smarsh build <file.smarsh> [-o out]    one self-contained .mjs, no dependencies
+  smarsh prove <file.smarsh> [options]   generate inputs and check every contract
+  smarsh verify <file.smarsh>            prove contracts hold for every input
+  smarsh audit <manifest.json>          read back a run record and check it is intact
+  smarsh keygen [-o key.pem]            a signing identity to bind records to
+  smarsh repl [options]                interactive session
+  smarsh eval "<source>" [options]     run a one-liner
 
 options:
   --seed <n>          seed for all probabilistic control flow (default 0)
@@ -87,11 +87,11 @@ function parseArgs(argv) {
     else opts.positional.push(a);
   }
   if (opts.engine !== undefined && !['fast', 'tree'].includes(opts.engine)) {
-    console.error("Pēdāg: --engine takes 'fast' (the default) or 'tree'");
+    console.error("Smarsh: --engine takes 'fast' (the default) or 'tree'");
     process.exit(2);
   }
-  if (!Number.isFinite(opts.seed)) { console.error('Pēdāg: --seed needs a number'); process.exit(2); }
-  if (!Number.isFinite(opts.trials) || opts.trials < 1) { console.error('Pēdāg: --trials needs a positive number'); process.exit(2); }
+  if (!Number.isFinite(opts.seed)) { console.error('Smarsh: --seed needs a number'); process.exit(2); }
+  if (!Number.isFinite(opts.trials) || opts.trials < 1) { console.error('Smarsh: --trials needs a positive number'); process.exit(2); }
   return opts;
 }
 
@@ -101,7 +101,7 @@ function parseArgs(argv) {
 function readSource(file) {
   const full = path.resolve(process.cwd(), file);
   if (!fs.existsSync(full)) {
-    console.error(`pedag: no such file: ${file}`);
+    console.error(`smarsh: no such file: ${file}`);
     process.exit(2);
   }
   return { full, source: fs.readFileSync(full, 'utf8') };
@@ -119,7 +119,7 @@ const CODE_FOR_FINDING = {
 const COLOUR = process.stderr.isTTY && !process.env.NO_COLOR;
 
 function reportError(e, source, file) {
-  if (e instanceof PedagError) {
+  if (e instanceof SmarshError) {
     console.error(e.format(source, file, { colour: COLOUR }));
     return;
   }
@@ -161,7 +161,7 @@ function printProfile(interp) {
 
 function cmdRun(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('Pēdāg: run needs a file'); process.exit(2); }
+  if (!file) { console.error('Smarsh: run needs a file'); process.exit(2); }
   const { full, source } = readSource(file);
 
   // Static findings are worth knowing before the program runs, not instead of.
@@ -194,7 +194,7 @@ function cmdRun(opts) {
   try {
     interp.run(source, file);
   } catch (e) {
-    outcome = e instanceof PedagError ? `failed: ${e.kind}` : 'failed';
+    outcome = e instanceof SmarshError ? `failed: ${e.kind}` : 'failed';
     failure = e;
   }
 
@@ -203,7 +203,7 @@ function cmdRun(opts) {
   // see, so writing the manifest only on success would defeat the purpose.
   if (opts.audit) writeManifest(interp, { file, source, full, opts, outcome });
 
-  // A program that generates Pedag needs the failure as data: what kind, where,
+  // A program that generates Smarsh needs the failure as data: what kind, where,
   // and what to read about it. Scraping that back out of a rendered caret is
   // the thing that makes an automated fix loop brittle.
   if (opts.json) {
@@ -243,7 +243,7 @@ function cmdRun(opts) {
 // A runtime failure, as data. Mirrors Diagnostic.toJSON so that a caller sees
 // one shape whether the problem was found by `check` or by running.
 function failureJSON(e, source, file) {
-  if (!(e instanceof PedagError)) {
+  if (!(e instanceof SmarshError)) {
     return {
       severity: 'error',
       code: null,
@@ -269,20 +269,20 @@ function failureJSON(e, source, file) {
     notes: e.notes ?? [],
     // Innermost last, the way a person reads a stack.
     stack: (e.frames ?? []).map((f) => ({ function: f.name, line: f.line })),
-    explain: code ? `pedag explain ${code}` : null,
+    explain: code ? `smarsh explain ${code}` : null,
   };
 }
 
 // Read back a record someone else produced and check it has not been edited.
 function cmdAudit(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('pedag: audit needs a manifest file'); process.exit(2); }
+  if (!file) { console.error('smarsh: audit needs a manifest file'); process.exit(2); }
 
   let manifest;
   try {
     manifest = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), file), 'utf8'));
   } catch (e) {
-    console.error(`pedag: cannot read ${file}: ${e.message}`);
+    console.error(`smarsh: cannot read ${file}: ${e.message}`);
     process.exitCode = 2;
     return;
   }
@@ -326,13 +326,13 @@ function signingKey(opts) {
   if (!opts.key) return { key: generateKeypair(), persistent: false };
   const full = path.resolve(process.cwd(), opts.key);
   if (!fs.existsSync(full)) {
-    console.error(`pedag: no such key file: ${opts.key}  (make one with \`pedag keygen\`)`);
+    console.error(`smarsh: no such key file: ${opts.key}  (make one with \`smarsh keygen\`)`);
     process.exit(2);
   }
   try {
     return { key: loadKeypair(fs.readFileSync(full, 'utf8')), persistent: true };
   } catch (e) {
-    console.error(`pedag: cannot use ${opts.key}: ${e.message}`);
+    console.error(`smarsh: cannot use ${opts.key}: ${e.message}`);
     process.exit(2);
   }
 }
@@ -351,7 +351,7 @@ function writeManifest(interp, { file, source, opts, outcome }) {
     console.error(`signed with a throwaway key ${key.publicHex.slice(-16)}`);
     console.error('note: a throwaway key proves the record was not edited after this run, '
       + 'not who produced it. Use --key with a kept identity to claim that, '
-      + 'and `pedag keygen` to make one.');
+      + 'and `smarsh keygen` to make one.');
   }
 }
 
@@ -428,12 +428,12 @@ function diagnose(source, file) {
 // specific line and a specific kind, and counted in the summary. A suppression
 // nobody can see is the thing to avoid, not a suppression.
 //
-//     // pedag-allow: taint  (deliberate: this demonstrates the error)
+//     // smarsh-allow: taint  (deliberate: this demonstrates the error)
 //     grounded { print(reply) }
 function applySuppressions(diagnostics, program, source) {
   const pragmas = [];
   for (const c of program.comments ?? []) {
-    const m = /pedag-allow:\s*([a-z, ]+)/.exec(c.text);
+    const m = /smarsh-allow:\s*([a-z, ]+)/.exec(c.text);
     if (!m) continue;
     pragmas.push({ line: c.line, kinds: new Set(m[1].split(',').map((s) => s.trim()).filter(Boolean)) });
   }
@@ -470,7 +470,7 @@ function applySuppressions(diagnostics, program, source) {
 
 function cmdCheck(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('Pēdāg: check needs a file'); process.exit(2); }
+  if (!file) { console.error('Smarsh: check needs a file'); process.exit(2); }
   const { source } = readSource(file);
   let diagnostics;
   try {
@@ -482,7 +482,7 @@ function cmdCheck(opts) {
   }
   const errors = diagnostics.filter((d) => d.severity === 'error').length;
 
-  // Most Pedag will be written by a program, and a program cannot act on a
+  // Most Smarsh will be written by a program, and a program cannot act on a
   // caret drawn under a span with box characters. Same diagnostics, as data.
   if (opts.json) {
     for (const d of diagnostics) d.file = file;
@@ -505,7 +505,7 @@ function cmdCheck(opts) {
   // Suppressions are always reported. They are a decision someone made, and a
   // reviewer should be able to see how many were made without reading the file.
   const silenced = diagnostics.suppressed
-    ? ` (${diagnostics.suppressed} suppressed by pedag-allow)` : '';
+    ? ` (${diagnostics.suppressed} suppressed by smarsh-allow)` : '';
   console.log(errors === 0
     ? `${file}: no problems found${silenced}`
     : `${errors} problem${errors === 1 ? '' : 's'} found${silenced}`);
@@ -515,7 +515,7 @@ function cmdCheck(opts) {
 
 function cmdEval(opts) {
   const source = opts.positional[0];
-  if (!source) { console.error('Pēdāg: eval needs source text'); process.exit(2); }
+  if (!source) { console.error('Smarsh: eval needs source text'); process.exit(2); }
   const interp = new Interpreter({ seed: opts.seed, caps: opts.grant });
   try {
     const v = interp.run(source, '<eval>');
@@ -530,7 +530,7 @@ function cmdEval(opts) {
 
 function cmdProve(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('Pēdāg: prove needs a file'); process.exit(2); }
+  if (!file) { console.error('Smarsh: prove needs a file'); process.exit(2); }
   const { source } = readSource(file);
   let reports;
   try {
@@ -555,14 +555,14 @@ function cmdProve(opts) {
 
 function cmdBuild(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('Pēdāg: build needs a file'); process.exit(2); }
+  if (!file) { console.error('Smarsh: build needs a file'); process.exit(2); }
   const { source } = readSource(file);
-  const out = opts.output ?? `${path.basename(file, '.pedag')}.mjs`;
+  const out = opts.output ?? `${path.basename(file, '.smarsh')}.mjs`;
   let bundle;
   try {
     bundle = buildBundle(source, path.basename(file), { seed: opts.seed, caps: opts.grant });
   } catch (e) {
-    console.error(`Pēdāg: cannot build: ${e.message}`);
+    console.error(`Smarsh: cannot build: ${e.message}`);
     process.exitCode = 1;
     return;
   }
@@ -580,12 +580,12 @@ function cmdTest(opts) {
   try {
     files = discover(target);
   } catch (e) {
-    console.error(`Pēdāg: cannot read ${target}: ${e.code ?? e.message}`);
+    console.error(`Smarsh: cannot read ${target}: ${e.code ?? e.message}`);
     process.exitCode = 2;
     return;
   }
   if (files.length === 0) {
-    console.log(`no test files found in ${target} (they are named *_test.pedag)`);
+    console.log(`no test files found in ${target} (they are named *_test.smarsh)`);
     return;
   }
   const results = files.map((f) => runFile(f, { seed: opts.seed, caps: opts.grant, trials: opts.trials }));
@@ -642,7 +642,7 @@ function cmdTest(opts) {
 
 function cmdFmt(opts) {
   const target = opts.positional[0];
-  if (!target) { console.error('Pēdāg: fmt needs a file or directory'); process.exit(2); }
+  if (!target) { console.error('Smarsh: fmt needs a file or directory'); process.exit(2); }
 
   const files = [];
   const collect = (p) => {
@@ -652,13 +652,13 @@ function cmdFmt(opts) {
       if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
       const child = path.join(p, entry.name);
       if (entry.isDirectory()) collect(child);
-      else if (entry.name.endsWith('.pedag')) files.push(child);
+      else if (entry.name.endsWith('.smarsh')) files.push(child);
     }
   };
   try {
     collect(path.resolve(target));
   } catch (e) {
-    console.error(`Pēdāg: cannot read ${target}: ${e.code ?? e.message}`);
+    console.error(`Smarsh: cannot read ${target}: ${e.code ?? e.message}`);
     process.exitCode = 2;
     return;
   }
@@ -692,7 +692,7 @@ function cmdFmt(opts) {
 
 function cmdVerify(opts) {
   const file = opts.positional[0];
-  if (!file) { console.error('Pēdāg: verify needs a file'); process.exit(2); }
+  if (!file) { console.error('Smarsh: verify needs a file'); process.exit(2); }
   const { source } = readSource(file);
 
   let program;
@@ -715,7 +715,7 @@ function cmdVerify(opts) {
   console.log(`\n${report.summary}`);
   if (report.unknown > 0) {
     console.log('undecided means the solver could not settle it, not that it is false;');
-    console.log('the runtime still checks every contract, and `pedag prove` still tests them');
+    console.log('the runtime still checks every contract, and `smarsh prove` still tests them');
   }
   process.exitCode = report.failed === 0 ? 0 : 1;
   return;
@@ -724,7 +724,7 @@ function cmdVerify(opts) {
 function cmdExplain(opts) {
   const code = (opts.positional[0] ?? '').toUpperCase();
   if (!code) {
-    console.error('Pēdāg: explain needs an error code, e.g. Pēdāg explain E0402');
+    console.error('Smarsh: explain needs an error code, e.g. Smarsh explain E0402');
     process.exitCode = 2;
     return;
   }
@@ -738,7 +738,7 @@ function cmdExplain(opts) {
     console.log('there is no longer explanation for this code yet');
     return;
   }
-  console.error(`Pēdāg: no such error code \`${code}\``);
+  console.error(`Smarsh: no such error code \`${code}\``);
   const known = Object.keys(CODES).filter((c) => EXPLANATIONS[c]);
   console.error(`codes with a longer explanation: ${known.join(', ')}`);
   process.exitCode = 2;
@@ -749,7 +749,7 @@ function cmdRepl(opts) {
   const interp = new Interpreter({ seed: opts.seed, caps: opts.grant });
   interp.allowRedeclare = true;
 
-  console.log(`Pēdāg ${VERSION}  (seed ${opts.seed}, holding: ${opts.grant.length ? opts.grant.join(', ') : 'no capabilities'})`);
+  console.log(`Smarsh ${VERSION}  (seed ${opts.seed}, holding: ${opts.grant.length ? opts.grant.join(', ') : 'no capabilities'})`);
   console.log('type an expression, or .help / .exit');
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: '>> ' });
@@ -783,7 +783,7 @@ function cmdRepl(opts) {
       if (value !== null && value !== undefined) console.log(stringify(value, 0));
     } catch (e) {
       // An unfinished block is not an error yet -- keep reading.
-      if (e instanceof PedagError && e.kind === 'SyntaxError' && /end of file/.test(e.message)) {
+      if (e instanceof SmarshError && e.kind === 'SyntaxError' && /end of file/.test(e.message)) {
         rl.setPrompt('.. ');
         rl.prompt();
         return;
@@ -816,10 +816,10 @@ function main() {
   if (commands.has(first)) {
     command = first;
     opts.positional.shift();
-  } else if (first && first.endsWith('.pedag')) {
+  } else if (first && first.endsWith('.smarsh')) {
     command = 'run';
   } else {
-    console.error(`Pēdāg: unknown command '${first}'\n`);
+    console.error(`Smarsh: unknown command '${first}'\n`);
     console.log(HELP);
     process.exitCode = 2;
     return;
@@ -840,7 +840,7 @@ function main() {
   else if (command === 'repl') cmdRepl(opts);
 }
 
-// `pedag demo` -- no arguments, no file to write, nothing to read first.
+// `smarsh demo` -- no arguments, no file to write, nothing to read first.
 //
 // The point of the language is an artifact, not a syntax, and an artifact has
 // to be seen to mean anything. So this runs a real program with real
@@ -848,10 +848,10 @@ function main() {
 // worth evaluating.
 // A signing identity, in the formats every other tool already reads.
 function cmdKeygen(opts) {
-  const out = opts.output ?? 'pedag-key.pem';
+  const out = opts.output ?? 'smarsh-key.pem';
   const full = path.resolve(process.cwd(), out);
   if (fs.existsSync(full)) {
-    console.error(`pedag: ${out} already exists; refusing to overwrite a signing key`);
+    console.error(`smarsh: ${out} already exists; refusing to overwrite a signing key`);
     process.exitCode = 2;
     return;
   }
@@ -862,19 +862,19 @@ function cmdKeygen(opts) {
   console.log(`wrote ${out} (private, keep it) and ${out}.pub (public, hand it out)`);
   console.log(`fingerprint ${key.publicHex.slice(-16)}`);
   console.log('');
-  console.log('  sign a run   pedag run app.pedag --audit run.json --key ' + out);
+  console.log('  sign a run   smarsh run app.smarsh --audit run.json --key ' + out);
   console.log('  PKCS#8 and SPKI PEM, so openssl and every HSM already read these.');
 }
 
 function cmdDemo(opts) {
-  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'examples', 'demo.pedag');
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'examples', 'demo.smarsh');
   if (!fs.existsSync(file)) {
-    console.error('Pēdāg: the demo program is missing from this installation');
+    console.error('Smarsh: the demo program is missing from this installation');
     process.exitCode = 2;
     return;
   }
   const source = fs.readFileSync(file, 'utf8');
-  const manifestPath = path.join(os.tmpdir(), `pedag-demo-${process.pid}.json`);
+  const manifestPath = path.join(os.tmpdir(), `smarsh-demo-${process.pid}.json`);
 
   const interp = new Interpreter({
     seed: opts.seed,
@@ -886,10 +886,10 @@ function cmdDemo(opts) {
 
   let outcome = 'completed';
   try {
-    interp.run(source, 'demo.pedag');
+    interp.run(source, 'demo.smarsh');
   } catch (e) {
-    outcome = e instanceof PedagError ? `failed: ${e.kind}` : 'failed';
-    reportError(e, source, 'demo.pedag');
+    outcome = e instanceof SmarshError ? `failed: ${e.kind}` : 'failed';
+    reportError(e, source, 'demo.smarsh');
   }
 
   // The record. This is the part that does not exist anywhere else -- and it
@@ -897,7 +897,7 @@ function cmdDemo(opts) {
   // self-consistent, not that it is the one this run produced.
   const key = generateKeypair();
   const manifest = buildManifest(interp, {
-    file: 'demo.pedag', source, runtimeVersion: VERSION, signWith: key, outcome,
+    file: 'demo.smarsh', source, runtimeVersion: VERSION, signWith: key, outcome,
   });
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
@@ -920,9 +920,9 @@ function cmdDemo(opts) {
   console.log('');
   console.log('  ---------------------------------------------------------------');
   console.log(`  The record is at ${manifestPath}`);
-  console.log('  Edit any line of it and run `pedag audit` on it: the chain breaks.');
+  console.log('  Edit any line of it and run `smarsh audit` on it: the chain breaks.');
   console.log('');
-  console.log('  The program that produced this is examples/demo.pedag -- 90 lines.');
+  console.log('  The program that produced this is examples/demo.smarsh -- 90 lines.');
   console.log('  Nothing in it is narration; every refusal above was enforced.');
   console.log('');
   interp.devices.shutdown();

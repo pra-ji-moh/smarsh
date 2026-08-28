@@ -10,7 +10,7 @@
 //       Err(e) => report(e)
 //     }
 // These are closed sets, not two unrelated records that happen to be used
-// together. That is what makes the promise above enforceable: `pedag check`
+// together. That is what makes the promise above enforceable: `smarsh check`
 // knows a `Result` is an `Ok` or an `Err` and nothing else, so a match that
 // forgets the failing case is reported before the program runs, rather than
 // throwing a MatchError on the first input that actually fails.

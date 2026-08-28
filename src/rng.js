@@ -1,4 +1,4 @@
-// Pēdāg's probabilistic control flow is non-deterministic *in semantics* but
+// Smarsh's probabilistic control flow is non-deterministic *in semantics* but
 // reproducible *in execution*: every run with the same seed takes the same
 // branches. Without this, a language with `maybe` in it would be untestable and
 // undebuggable. mulberry32 -- small, fast, decent distribution, fully portable.

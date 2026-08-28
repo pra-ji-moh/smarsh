@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
 
-import { pedagError } from './errors.js';
+import { smarshError } from './errors.js';
 
 // ---------------------------------------------------------------------------
 // Functions
 // ---------------------------------------------------------------------------
 
-export class PedagFunction {
+export class SmarshFunction {
   constructor(decl, closure) {
     this.decl = decl;             // { name, params, body, needs, requires, ensures, line }
     this.closure = closure;
@@ -55,7 +55,7 @@ export const unwrap = (v) => {
   let out = v;
   for (let i = 0; i < 4 && out !== null && typeof out === 'object'; i++) {
     if (out instanceof Tainted) { out = out.value; continue; }
-    if (out.pedagType === 'labelled') { out = out.value; continue; }
+    if (out.smarshType === 'labelled') { out = out.value; continue; }
     break;
   }
   return out;
@@ -150,7 +150,7 @@ export function retaintFrom(result, source) {
 // Context windows
 // ---------------------------------------------------------------------------
 
-// A bounded, token-accounted buffer. Pēdāg treats this as a native memory
+// A bounded, token-accounted buffer. Smarsh treats this as a native memory
 // region: you declare a budget in tokens, push into it, and it evicts on its
 // own policy when the budget is exceeded. Nothing here calls a model; the token
 // count is a real, deterministic estimate over the actual text.
@@ -256,7 +256,7 @@ export class Ledger {
   }
 
   get length() { return this.entries.length; }
-  get pedagType() { return 'ledger'; }
+  get smarshType() { return 'ledger'; }
   toString() { return `<ledger ${this.name} n=${this.entries.length} head=${this.head.slice(0, 8)}>`; }
 }
 
@@ -266,7 +266,7 @@ export class Ledger {
 
 export function stringify(v, depth = 0) {
   if (v === null || v === undefined) return 'nil';
-  if (v && typeof v.pedagMembers === 'function' && v.type && v.values) return String(v);
+  if (v && typeof v.smarshMembers === 'function' && v.type && v.values) return String(v);
   if (typeof v === 'boolean') return v ? 'true' : 'false';
   if (typeof v === 'number') {
     if (Number.isInteger(v)) return String(v);
@@ -286,7 +286,7 @@ export function stringify(v, depth = 0) {
 export function typeName(v) {
   // Types added by later layers (crypto, quantum, clocks) name themselves,
   // so this function does not need to know about every one of them.
-  if (v && typeof v.pedagType === 'string') return v.pedagType;
+  if (v && typeof v.smarshType === 'string') return v.smarshType;
   if (v === null || v === undefined) return 'nil';
   if (typeof v === 'boolean') return 'bool';
   if (typeof v === 'number') return 'num';
@@ -294,7 +294,7 @@ export function typeName(v) {
   if (Array.isArray(v)) return 'list';
   if (v instanceof Map) return 'map';
   if (v instanceof Tainted) return `tainted ${typeName(v.value)}`;
-  if (v instanceof PedagFunction || v instanceof NativeFunction) return 'fn';
+  if (v instanceof SmarshFunction || v instanceof NativeFunction) return 'fn';
   if (v instanceof ContextWindow) return 'context';
   if (v instanceof Ledger) return 'ledger';
   if (v && v.constructor && v.constructor.name === 'Tensor') return 'tensor';
@@ -302,7 +302,7 @@ export function typeName(v) {
 }
 
 // `a agent has no 'ping'` is the sort of thing a reader notices and a compiler
-// author does not. Types name themselves through `pedagType`, so the set of
+// author does not. Types name themselves through `smarshType`, so the set of
 // vowel-initial names is open and the article has to be derived rather than
 // written into each message.
 export function withArticle(v) {
@@ -320,7 +320,7 @@ export const truthy = (v) => {
 export function expectNumber(v, what, line) {
   const u = unwrap(v);
   if (typeof u !== 'number') {
-    throw pedagError('TypeError', `${what} must be a num, got ${typeName(u)}`, line);
+    throw smarshError('TypeError', `${what} must be a num, got ${typeName(u)}`, line);
   }
   return u;
 }

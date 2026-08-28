@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError } from '../src/errors.js';
+import { SmarshError } from '../src/errors.js';
 import { parse } from '../src/parser.js';
 import { analyze } from '../src/analysis.js';
 import { typecheck } from '../src/types.js';
@@ -16,14 +16,14 @@ function run(source, { caps = [] } = {}) {
   const out = [];
   const interp = new Interpreter({ out: (s) => out.push(s), caps, seed: 1 });
   try {
-    const result = interp.run(source, 't.pedag');
+    const result = interp.run(source, 't.smarsh');
     return { out, result };
   } finally {
     interp.devices.shutdown();
   }
 }
 
-const findings = (source) => analyze(parse(source, 't.pedag'))
+const findings = (source) => analyze(parse(source, 't.smarsh'))
   .filter((f) => f.kind === 'inexhaustive match');
 
 const SHAPE = `choice Shape {
@@ -66,7 +66,7 @@ test('the choice itself names its variants', () => {
 test('a variant may carry an invariant, like any record', () => {
   const source = 'choice N { Pos(v) invariant v > 0\n  Zero }\n';
   assert.deepEqual(run(`${source}print(Pos(1))`).out, ['Pos(v: 1)']);
-  assert.throws(() => run(`${source}print(Pos(0))`), (e) => e instanceof PedagError && e.kind === 'ContractError');
+  assert.throws(() => run(`${source}print(Pos(0))`), (e) => e instanceof SmarshError && e.kind === 'ContractError');
 });
 
 test('matching destructures the variant', () => {
@@ -165,21 +165,21 @@ test('check reports it with its own code', () => {
 // ---------------------------------------------------------------------------
 
 test('the type checker knows the variants', () => {
-  const problems = typecheck(parse(`${SHAPE}print(Circle(2))\nprint(Empty)`, 't.pedag'), { builtins: ['print'] });
+  const problems = typecheck(parse(`${SHAPE}print(Circle(2))\nprint(Empty)`, 't.smarsh'), { builtins: ['print'] });
   assert.deepEqual(problems.map((d) => d.message), []);
 });
 
 test('a choice declared after its use still type-checks', () => {
-  const problems = typecheck(parse(`fn f() { return Empty }\n${SHAPE}`, 't.pedag'), { builtins: [] });
+  const problems = typecheck(parse(`fn f() { return Empty }\n${SHAPE}`, 't.smarsh'), { builtins: [] });
   assert.deepEqual(problems.map((d) => d.message), []);
 });
 
 test('the formatter round-trips a choice', () => {
   const source = `${SHAPE}print(Empty)\n`;
-  const once = formatSource(source, 't.pedag');
-  const twice = formatSource(once, 't.pedag');
+  const once = formatSource(source, 't.smarsh');
+  const twice = formatSource(once, 't.smarsh');
   assert.equal(once, twice, 'formatting is not stable');
-  assert.doesNotThrow(() => parse(once, 't.pedag'));
+  assert.doesNotThrow(() => parse(once, 't.smarsh'));
   assert.match(once, /choice Shape \{/);
   // A nullary variant keeps its parenthesis-free form.
   assert.match(once, /^ {2}Empty$/m);
@@ -201,13 +201,13 @@ test('a choice with one variant is allowed', () => {
 });
 
 test('a choice with no variants is a syntax error', () => {
-  assert.throws(() => run('choice Nothing { }\n'), (e) => e instanceof PedagError && e.kind === 'SyntaxError');
+  assert.throws(() => run('choice Nothing { }\n'), (e) => e instanceof SmarshError && e.kind === 'SyntaxError');
 });
 
 test('a repeated variant name is a syntax error', () => {
   assert.throws(
     () => run('choice A { One(v)  One(w) }\n'),
-    (e) => e instanceof PedagError && /twice/.test(e.message),
+    (e) => e instanceof SmarshError && /twice/.test(e.message),
   );
 });
 
@@ -216,7 +216,7 @@ test('an unmatched variant at run time is still a MatchError', () => {
   // `check` must still fail safely rather than silently.
   assert.throws(
     () => run(`${SHAPE}fn f(s) { return match s { Circle(r) => 1 } }\nf(Empty)`),
-    (e) => e instanceof PedagError && e.kind === 'MatchError',
+    (e) => e instanceof SmarshError && e.kind === 'MatchError',
   );
 });
 
@@ -230,7 +230,7 @@ print(total)`;
     const out = [];
     const interp = new Interpreter({ out: (s) => out.push(s), seed: 1 });
     interp.compiled = compiled;
-    try { interp.run(source, 't.pedag'); } finally { interp.devices.shutdown(); }
+    try { interp.run(source, 't.smarsh'); } finally { interp.devices.shutdown(); }
     return out.join('\n');
   });
   assert.equal(both[0], both[1]);

@@ -20,7 +20,7 @@ function run(source, { principals = [], engine } = {}) {
   const out = [];
   const interp = new Interpreter({ out: (s) => out.push(s), principals, seed: 1, engine });
   try {
-    interp.run(source, 't.pedag');
+    interp.run(source, 't.smarsh');
     return { out, error: null, interp };
   } catch (e) {
     return { out, error: e.kind ?? 'error', message: e.message ?? '', help: (e.helps ?? []).join(' '), interp };
@@ -284,7 +284,7 @@ test('the manifest reports endorsements apart from declassifications', () => {
     '  let y = retract(x, "alice", "no longer mine to back")',
     '  let z = declassify(classify(2, "alice"), "alice", "agreed")',
   ].join('\n')), { principals: ['alice'] });
-  const m = buildManifest(r.interp, { file: 't.pedag', source: 'x', outcome: 'completed' });
+  const m = buildManifest(r.interp, { file: 't.smarsh', source: 'x', outcome: 'completed' });
   assert.equal(m.data.endorsements, 1);
   assert.equal(m.data.vouches_withdrawn, 1);
   assert.equal(m.data.declassifications, 1);
@@ -302,7 +302,7 @@ test('the manifest names the principals the run could act for', () => {
   // Without this the events read as `data.endorsed alice` with nothing saying
   // the run was ever empowered to do that -- and the replay line was wrong.
   const r = run(asAlice('  let x = endorse(1, "alice", "measured")'), { principals: ['alice'] });
-  const m = buildManifest(r.interp, { file: 't.pedag', source: 'x', outcome: 'completed' });
+  const m = buildManifest(r.interp, { file: 't.smarsh', source: 'x', outcome: 'completed' });
   assert.deepEqual(m.replay.principals, ['alice']);
   const text = summarise(m);
   assert.match(text, /acted for\s+alice/);
@@ -331,7 +331,7 @@ test('the compiled engine agrees with the reference on all of it', () => {
 
 test('a labelled value carries both halves in its members', () => {
   const v = new Labelled(1, new Label([new Policy('alice', ['bob'])], [new Trust('alice', [])]));
-  const m = v.pedagMembers();
+  const m = v.smarshMembers();
   assert.deepEqual(m.owners, ['alice']);
   assert.deepEqual(m.readers, ['alice', 'bob']);
   assert.deepEqual(m.vouchers, ['alice']);

@@ -1,4 +1,4 @@
-// Pedag against CPython and V8, interleaved, reported as a ratio.
+// Smarsh against CPython and V8, interleaved, reported as a ratio.
 //
 // Absolute timings on a shared machine are not comparable across minutes: the
 // same unchanged code measured 531 ms one hour and 892 ms the next, purely
@@ -23,7 +23,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const N = Number(process.argv[2] ?? 27);
 const SAMPLES = Number(process.argv[3] ?? 5);
 
-const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pedag-bench-'));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'smarsh-bench-'));
 const pyFile = path.join(dir, 'fib.py');
 const jsFile = path.join(dir, 'fib.js');
 fs.writeFileSync(pyFile, `import time
@@ -45,9 +45,9 @@ function sample(cmd, args) {
 
 // One process per sample, and the three alternate, so a machine that gets busy
 // partway through affects all of them rather than whichever ran last.
-const runs = { pedag: [], cpython: [], node: [] };
+const runs = { smarsh: [], cpython: [], node: [] };
 for (let i = 0; i < SAMPLES; i++) {
-  runs.pedag.push(sample(process.execPath, [path.join(here, 'workload.mjs'), 'recursion', '5']));
+  runs.smarsh.push(sample(process.execPath, [path.join(here, 'workload.mjs'), 'recursion', '5']));
   runs.cpython.push(sample('python', [pyFile]));
   runs.node.push(sample(process.execPath, [jsFile]));
 }
@@ -58,7 +58,7 @@ const best = (xs) => {
   return ok.length ? Math.min(...ok) : null;
 };
 
-const p = best(runs.pedag);
+const p = best(runs.smarsh);
 const c = best(runs.cpython);
 const n = best(runs.node);
 const row = (name, ms) => '  ' + name.padEnd(18)
@@ -66,12 +66,12 @@ const row = (name, ms) => '  ' + name.padEnd(18)
 
 console.log('fib(' + N + '), best of ' + SAMPLES + ', one process per sample');
 console.log('');
-console.log(row('Pedag', p));
+console.log(row('Smarsh', p));
 console.log(row('CPython', c));
 console.log(row('Node (V8 JIT)', n));
 console.log('');
-if (p && c) console.log('  Pedag / CPython   ' + (p / c).toFixed(2) + 'x');
-if (p && n) console.log('  Pedag / Node      ' + (p / n).toFixed(0) + 'x');
+if (p && c) console.log('  Smarsh / CPython   ' + (p / c).toFixed(2) + 'x');
+if (p && n) console.log('  Smarsh / Node      ' + (p / n).toFixed(0) + 'x');
 console.log('');
 console.log('  The ratios are the durable numbers. Absolute milliseconds move by');
 console.log('  a factor of two on this machine depending on what else is running.');

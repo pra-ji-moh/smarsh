@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { Env, versionOf } from '../src/env.js';
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError } from '../src/errors.js';
+import { SmarshError } from '../src/errors.js';
 
 // `Env` carries six interacting fields and two representations, and the rules
 // between them are not obvious. One of them has already been broken in a way
@@ -214,7 +214,7 @@ test('scopes stay consistent across a program that exercises all of it', () => {
   const out = [];
   const interp = new Interpreter({ out: (s) => out.push(s), seed: 1 });
   try {
-    interp.run(source, 't.pedag');
+    interp.run(source, 't.smarsh');
     assert.deepEqual(out, ['23', '66', '2']);
     // Every scope the run left behind, checked.
     interp.globals.assertInvariants('globals');
@@ -228,8 +228,8 @@ test('a scope survives being used after a failure inside it', () => {
   const interp = new Interpreter({ out: () => {}, seed: 1 });
   try {
     assert.throws(
-      () => interp.run('fn f() { let a = 1\n  return nope }\nf()', 't.pedag'),
-      (e) => e instanceof PedagError,
+      () => interp.run('fn f() { let a = 1\n  return nope }\nf()', 't.smarsh'),
+      (e) => e instanceof SmarshError,
     );
     interp.globals.assertInvariants('globals after a failure');
   } finally {

@@ -15,38 +15,38 @@ test('several syntax errors are all reported', () => {
     'fn f( { return 1 }',
     'let c = 3',
     'let = 4',
-  ].join('\n'), 't.pedag');
+  ].join('\n'), 't.smarsh');
   assert.ok(errors.length >= 3, `expected several errors, got ${errors.length}`);
   assert.ok(errors.every((e) => e.kind === 'SyntaxError'));
 });
 
 test('recovery keeps the statements that did parse', () => {
-  const { program, errors } = parseAll('let a = 1\nlet = 2\nlet c = 3\n', 't.pedag');
+  const { program, errors } = parseAll('let a = 1\nlet = 2\nlet c = 3\n', 't.smarsh');
   assert.equal(errors.length, 1);
   const names = program.body.filter((s) => s.type === 'Declare').map((s) => s.name);
   assert.deepEqual(names, ['a', 'c'], 'the good statements on both sides should survive');
 });
 
 test('a clean file reports nothing and parses fully', () => {
-  const { program, errors } = parseAll('let a = 1\nfn f() { return a }\n', 't.pedag');
+  const { program, errors } = parseAll('let a = 1\nfn f() { return a }\n', 't.smarsh');
   assert.deepEqual(errors, []);
   assert.equal(program.body.length, 2);
 });
 
 test('recovery always terminates, even on hostile input', () => {
   for (const src of ['{{{{{{', '}}}}}}', 'fn fn fn', '((((', 'let let let', '=]=]=]']) {
-    const { errors } = parseAll(src, 't.pedag');
+    const { errors } = parseAll(src, 't.smarsh');
     assert.ok(Array.isArray(errors), `did not terminate on ${JSON.stringify(src)}`);
   }
 });
 
 test('the error cap stops a pathological file from flooding', () => {
-  const { errors } = parseAll('let = 1\n'.repeat(200), 't.pedag');
+  const { errors } = parseAll('let = 1\n'.repeat(200), 't.smarsh');
   assert.ok(errors.length <= 25);
 });
 
 test('a lexer failure still comes back as one error', () => {
-  const { errors } = parseAll('let x = "unterminated', 't.pedag');
+  const { errors } = parseAll('let x = "unterminated', 't.smarsh');
   assert.equal(errors.length, 1);
   assert.equal(errors[0].kind, 'SyntaxError');
 });
@@ -54,14 +54,14 @@ test('a lexer failure still comes back as one error', () => {
 test('running a file still stops at the first error', () => {
   // parse() is what execution uses: there is no point running a file that does
   // not parse, and a half-parsed program must never reach the interpreter.
-  assert.throws(() => parse('let = 1\nlet b = 2', 't.pedag'), /SyntaxError|expected/);
+  assert.throws(() => parse('let = 1\nlet b = 2', 't.smarsh'), /SyntaxError|expected/);
 });
 
 // ---------------------------------------------------------------------------
 // taint reachability over every path
 // ---------------------------------------------------------------------------
 
-const taint = (src) => analyseTaint(parse(src, 't.pedag'));
+const taint = (src) => analyseTaint(parse(src, 't.smarsh'));
 
 test('a label reaching a grounded block is found even on an untaken path', () => {
   const findings = taint(`

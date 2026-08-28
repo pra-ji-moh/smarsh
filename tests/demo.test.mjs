@@ -9,12 +9,12 @@ import { Interpreter } from '../src/interpreter.js';
 import { buildManifest, verifyManifest } from '../src/audit.js';
 import { generateKeypair, verifyMessage } from '../src/crypto.js';
 
-// `pedag demo` is the front door: one command, no arguments, no file to write.
+// `smarsh demo` is the front door: one command, no arguments, no file to write.
 // It makes a falsifiable claim -- "edit any line of this record and the chain
 // breaks" -- so the claim is tested rather than asserted.
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const CLI = path.join(ROOT, 'bin', 'pedag.mjs');
+const CLI = path.join(ROOT, 'bin', 'smarsh.mjs');
 
 const runDemo = () => execFileSync(process.execPath, [CLI, 'demo'], { encoding: 'utf8' });
 
@@ -41,21 +41,21 @@ test('the demo ends with a signed, intact record', () => {
 // --- the claim the demo makes about tampering -------------------------------
 
 function freshManifest() {
-  const source = fs.readFileSync(path.join(ROOT, 'examples', 'demo.pedag'), 'utf8');
+  const source = fs.readFileSync(path.join(ROOT, 'examples', 'demo.smarsh'), 'utf8');
   const interp = new Interpreter({
     out: () => {}, caps: ['fs'], principals: ['compliance'], seed: 0,
     cwd: path.join(ROOT, 'examples'),
   });
-  interp.entryPath = path.join(ROOT, 'examples', 'demo.pedag');
+  interp.entryPath = path.join(ROOT, 'examples', 'demo.smarsh');
   try {
-    interp.run(source, 'demo.pedag');
+    interp.run(source, 'demo.smarsh');
   } finally {
     interp.devices.shutdown();
   }
   const key = generateKeypair();
   return {
     manifest: buildManifest(interp, {
-      file: 'demo.pedag', source, runtimeVersion: '0.3.0', signWith: key, outcome: 'completed',
+      file: 'demo.smarsh', source, runtimeVersion: '0.3.0', signWith: key, outcome: 'completed',
     }),
     key,
   };
@@ -112,14 +112,14 @@ test('the header is inside the chain, not beside it', () => {
   // The hole this closed: the program hash, seed, granted capabilities and
   // outcome used to sit outside the chain and outside the signature, so a
   // record could be lifted from a benign run and attached to a different
-  // program while `pedag audit` still reported INTACT.
+  // program while `smarsh audit` still reported INTACT.
   for (const [what, edit] of [
     ['the program hash', (m) => { m.program.sha256 = '0'.repeat(64); }],
-    ['the file it claims to be', (m) => { m.program.file = 'something-else.pedag'; }],
+    ['the file it claims to be', (m) => { m.program.file = 'something-else.smarsh'; }],
     ['the seed it claims to replay from', (m) => { m.replay.seed = 999; }],
     ['the capabilities it says were granted', (m) => { m.replay.capabilities = []; }],
     ['the outcome', (m) => { m.outcome = 'failed: CapabilityError'; }],
-    ['the runtime version', (m) => { m.runtime = 'pedag 99.0.0'; }],
+    ['the runtime version', (m) => { m.runtime = 'smarsh 99.0.0'; }],
   ]) {
     const { manifest } = freshManifest();
     edit(manifest);

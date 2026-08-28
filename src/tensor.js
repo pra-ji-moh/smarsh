@@ -1,6 +1,6 @@
-import { pedagError } from './errors.js';
+import { smarshError } from './errors.js';
 
-const shapeErr = (msg, line) => pedagError('ShapeError', msg, line);
+const shapeErr = (msg, line) => smarshError('ShapeError', msg, line);
 
 function stridesOf(shape) {
   const s = new Array(shape.length);
@@ -14,7 +14,7 @@ function stridesOf(shape) {
 
 const sizeOf = (shape) => shape.reduce((a, b) => a * b, 1);
 
-// A dense n-dimensional array of f64. This is a first-class value in Pēdāg, not
+// A dense n-dimensional array of f64. This is a first-class value in Smarsh, not
 // a library object: `+ - * / @` on the operator level dispatch to it, and shape
 // mismatches are a language-level error with a line number, not a stack trace
 // from inside a numeric package.

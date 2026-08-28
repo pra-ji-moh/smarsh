@@ -1,11 +1,11 @@
 import { NativeFunction, stringify } from './values.js';
-import { pedagError } from './errors.js';
+import { smarshError } from './errors.js';
 
 const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 
 // The decentralized label model, after Myers and Liskov.
 //
-// The flat labels elsewhere in Pēdāg (`untrusted`, `ungrounded`, `region:eu`)
+// The flat labels elsewhere in Smarsh (`untrusted`, `ungrounded`, `region:eu`)
 // answer "is this value suspect". They cannot answer the question a system with
 // several mutually distrusting parties actually has: *whose* data is this, and
 // *who* said who may read it.
@@ -256,10 +256,10 @@ export class Labelled {
       this.label = label;
     }
   }
-  get pedagType() { return 'labelled'; }
+  get smarshType() { return 'labelled'; }
   toString() { return `${stringify(this.value, 1)}${this.label}`; }
 
-  pedagMembers() {
+  smarshMembers() {
     return {
       owners: this.label.owners,
       readers: [...(this.label.effectiveReaders() ?? [])].sort(),
@@ -290,15 +290,15 @@ export function relabel(result, ...sources) {
 // A named party. Held authority is what lets a program act for one.
 export class Principal {
   constructor(name) { this.name = name; }
-  get pedagType() { return 'principal'; }
+  get smarshType() { return 'principal'; }
   toString() { return `<principal ${this.name}>`; }
-  pedagMembers() { return { name: this.name }; }
+  smarshMembers() { return { name: this.name }; }
 }
 
 export function requireAuthority(interp, owner, action, line) {
   if (interp.authority.has(owner)) return;
   const held = interp.authority.size ? [...interp.authority].sort().join(', ') : 'no authority';
-  throw pedagError('AuthorityError',
+  throw smarshError('AuthorityError',
     `${action} needs \`${owner}\`'s authority; this frame acts for ${held}`, line)
     .help(`wrap it in \`authority "${owner}" { ... }\`, which the run must have been started with --principal ${owner}`)
     .note('a policy can only be removed by the principal who set it');

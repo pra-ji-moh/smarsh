@@ -1,6 +1,6 @@
 // std/list — working with sequences.
 //
-// Written in Pēdāg. If the language cannot express its own standard library
+// Written in Smarsh. If the language cannot express its own standard library
 // comfortably, that is a fact worth discovering early rather than hiding behind
 // builtins.
 fn is_empty(xs: list<dyn>) -> bool {

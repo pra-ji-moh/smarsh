@@ -1,6 +1,6 @@
 # Capabilities, and where their names flatter them
 
-Pēdāg covers a wide surface: agent runtime, information flow, contracts,
+Smarsh covers a wide surface: agent runtime, information flow, contracts,
 cryptography, exact decimals, quantum simulation, device backends. Breadth
 invites the reasonable suspicion that some of it is thin.
 
@@ -32,7 +32,7 @@ capabilities rather than overstated ones.
 | 35 | Data-sovereignty tainting | same label engine as #14, per-variable, propagating |
 | 37 | Adversarial input isolation | `untrusted()` + taint reaching a sink |
 | 40 | Capability-based access control | `needs`, deny-by-default, real attenuation |
-| 43 | Compiler-driven synthetic test generation | `pedag prove` |
+| 43 | Compiler-driven synthetic test generation | `smarsh prove` |
 | 34 | Homomorphic encryption runtime | Paillier; `+`, `-`, `*`-by-plaintext on ciphertexts as ordinary operators |
 | 21 | Zero-knowledge math integration | Schnorr proofs and Pedersen commitments over a verified 2048-bit group |
 | 38 | Cryptographic provenance | Ed25519 `sign` / `verify_signature`, no third-party package |
@@ -45,7 +45,7 @@ capabilities rather than overstated ones.
 | 5 | Agent-to-agent primitives | `agent` / `spawn` / `send`, private state, enforced isolation |
 | 33 | Autonomous kill-switch | `budget steps N { }` — not raisable or catchable from inside |
 | 44 | Deep observability | `--profile`: calls, steps and inclusive time per function, no instrumentation |
-| 19 | Predictive race blocking | `pedag check` finds shared writes across forked paths before running |
+| 19 | Predictive race blocking | `smarsh check` finds shared writes across forked paths before running |
 | 25 | Dynamic kernel slicing | matmul split across OS threads over SharedArrayBuffers |
 | 26 | Race safety at the slicing level | each thread owns a disjoint band of output rows, so collisions are impossible by construction |
 | 27 | Memory eviction instead of crashing | `arena(bytes, dir)` spills least-recently-used tensors to disk and reads them back |
@@ -70,7 +70,7 @@ Caveats that matter, and none of them are hidden in the code:
 - **#12** uses a deterministic token estimate (within roughly 10–15% of BPE
   counts on prose), not a real vocabulary.
 - **#7** checks stated intent. It does not read minds.
-- **#37** is now checked statically as well as at runtime — `pedag check` reports
+- **#37** is now checked statically as well as at runtime — `smarsh check` reports
   a labelled value reaching a sink on any path.
 - **Lineage** is the achievable half. The chain proves *who
   asserted each step* and that the sequence has not been edited, reordered or
@@ -111,7 +111,7 @@ here rather than blurred.
 | 24 | NVIDIA / AMD / ASIC from one source | a backend registry a new backend plugs into | Nothing implements a GPU backend. A registry with no GPU in it is a seam, not silicon agnosticism. |
 | 28 | Silicon topology awareness | real core count, model, clock, memory, load | No NUMA distances, no cache hierarchy, no interconnect map. Node cannot see them. |
 | 29 | Asymmetric compute pipelining | small jobs stay on the calling thread, large ones go wide | Routing by size, not by matrix-core vs general-core. There is no second core type to route to. |
-| 50 | one universal native binary | `pedag build` → one `.mjs`, no dependencies, no install | It needs Node. Universal binaries are per-target builds in a wrapper; this is the honest version of the idea. |
+| 50 | one universal native binary | `smarsh build` → one `.mjs`, no dependencies, no install | It needs Node. Universal binaries are per-target builds in a wrapper; this is the honest version of the idea. |
 | 13 | deterministic nanosecond GC | `arena.reclaim()` — you choose the moment, and it reports the pause it caused in nanoseconds | Not a collector, and not pause-free. It measures the pause instead of promising there isn't one. |
 
 ## Not achievable on this runtime

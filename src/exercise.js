@@ -1,9 +1,9 @@
 import { stringify } from './values.js';
-import { PedagError } from './errors.js';
+import { SmarshError } from './errors.js';
 
 // Throwing generated inputs at a contracted function and seeing what survives.
 //
-// Lives in its own module because two callers need it: `pedag prove`, and the
+// Lives in its own module because two callers need it: `smarsh prove`, and the
 // runtime's own check that a redefinition has not broken a promise the original
 // made. Keeping it here means neither has to import the other.
 
@@ -18,7 +18,7 @@ export function genArg(rng, trial, index) {
     if (k < 0.85) return Number(((rng.next() * 2000) - 1000).toPrecision(6));
     return [0, 1, -1, 1e6, -1e6][Math.floor(rng.next() * 5)];
   }
-  if (r < 0.85) return ['', 'a', 'hello', 'Pēdāg', 'x y z'][Math.floor(rng.next() * 5)];
+  if (r < 0.85) return ['', 'a', 'hello', 'Smarsh', 'x y z'][Math.floor(rng.next() * 5)];
   if (r < 0.92) return rng.next() < 0.5;
   if (r < 0.98) {
     const n = Math.floor(rng.next() * 4);
@@ -29,7 +29,7 @@ export function genArg(rng, trial, index) {
 
 const STEP_LIMIT = 200000;
 
-// Pēdāg is dynamically typed and contracts cannot state types, so a generated
+// Smarsh is dynamically typed and contracts cannot state types, so a generated
 // bool landing in a function written for nums is the generator wandering out of
 // the domain -- not a defect. Counted, reported, but not a finding.
 const DOMAIN_MISMATCH = new Set(['TypeError', 'ShapeError', 'AttributeError', 'ArityError']);
@@ -59,7 +59,7 @@ export function exercise(interp, name, fn, rng, trials) {
       interp.callValue(fn, args, fn.decl.line, name);
       report.accepted += 1;
     } catch (e) {
-      if (!(e instanceof PedagError)) throw e;
+      if (!(e instanceof SmarshError)) throw e;
 
       // Anything raised while checking *this* function's preconditions means
       // the input is not in its stated domain. A tag from a deeper frame is a

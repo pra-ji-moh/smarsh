@@ -1,6 +1,6 @@
 // Modules, schema evolution, simulation, and rewriting logic while it runs.
-//     node bin/pedag.mjs run examples/evolve.pedag
-import "./lib/pricing.pedag" as pricing
+//     node bin/smarsh.mjs run examples/evolve.smarsh
+import "./lib/pricing.smarsh" as pricing
 
 print("== modules ================================================")
 print("   with_fee(1000, 25) =", pricing["with_fee"](1000, 25))

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError } from '../src/errors.js';
+import { SmarshError } from '../src/errors.js';
 import { QubitRegister, GATES, rx, ry, rz } from '../src/quantum.js';
 import { LogicalClock, Stamp, Liquid } from '../src/temporal.js';
 import { Rng } from '../src/rng.js';
@@ -18,7 +18,7 @@ function fails(src, opts = {}) {
   try {
     run(src, opts);
   } catch (e) {
-    if (e instanceof PedagError) return e;
+    if (e instanceof SmarshError) return e;
     throw e;
   }
   throw new Error('expected the program to fail, but it ran cleanly');

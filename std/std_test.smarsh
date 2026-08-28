@@ -1,5 +1,5 @@
 // The standard library's own tests.
-//     node bin/pedag.mjs test std/
+//     node bin/smarsh.mjs test std/
 import "std/list" as list
 import "std/str" as text
 import "std/math" as math
@@ -68,7 +68,7 @@ fn test_words_and_title() {
 fn test_reverse_and_palindrome() {
   assert(text.reverse("abc") == "cba", "reversed")
   assert(text.is_palindrome("Never odd or even"), "should be a palindrome")
-  assert(not text.is_palindrome("Pēdāg"), "should not be a palindrome")
+  assert(not text.is_palindrome("Smarsh"), "should not be a palindrome")
 }
 
 fn test_statistics() {

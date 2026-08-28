@@ -1,4 +1,4 @@
-import { pedagError } from './errors.js';
+import { smarshError } from './errors.js';
 
 // A lexical scope. Its own module so that the interpreter and the snapshot
 // layer can both build one without importing each other.
@@ -146,7 +146,7 @@ export class Env {
   }
 
   // The Map view, for the code that walks a scope -- the module loader, the
-  // snapshotter, `pedag test` looking for `test_*`, the "did you mean" search.
+  // snapshotter, `smarsh test` looking for `test_*`, the "did you mean" search.
   // Asking for it converts the scope permanently, which is fine: nothing that
   // iterates a scope is in a hot path, and maintaining both representations at
   // once would be a bug waiting to happen.
@@ -278,7 +278,7 @@ export class Env {
 
   declare(name, value, mutable, line) {
     if (this.has(name)) {
-      throw pedagError('NameError', `'${name}' is already declared in this scope`, line);
+      throw smarshError('NameError', `'${name}' is already declared in this scope`, line);
     }
     this.putSlot(name, { value, mutable });
   }
@@ -421,15 +421,15 @@ export class Env {
 
   get(name, line) {
     const s = this.slot(name);
-    if (!s) throw pedagError('NameError', `'${name}' is not defined`, line);
+    if (!s) throw smarshError('NameError', `'${name}' is not defined`, line);
     return s.value;
   }
 
   assign(name, value, line) {
     const s = this.slot(name);
-    if (!s) throw pedagError('NameError', `'${name}' is not defined`, line);
+    if (!s) throw smarshError('NameError', `'${name}' is not defined`, line);
     if (!s.mutable) {
-      throw pedagError('ImmutableError',
+      throw smarshError('ImmutableError',
         `'${name}' was declared with let and cannot be reassigned (use var if it must change)`, line);
     }
     s.value = value;
@@ -438,7 +438,7 @@ export class Env {
 
 // Debug mode.
 //
-// Setting PEDAG_DEBUG_ENV checks the invariants above after every operation
+// Setting SMARSH_DEBUG_ENV checks the invariants above after every operation
 // that could break one, for every scope in the program. It is how you find the
 // operation that corrupted a scope rather than the read that later noticed.
 //
@@ -449,7 +449,7 @@ export class Env {
 //
 // It is slow -- the duplicate-name scan alone is quadratic -- so it is for
 // debugging one program, not for running a suite.
-if (typeof process !== 'undefined' && process.env?.PEDAG_DEBUG_ENV) {
+if (typeof process !== 'undefined' && process.env?.SMARSH_DEBUG_ENV) {
   const MUTATORS = [
     'adoptFrame', 'reuseFrame', 'reuseFrameArgs', 'setOnlyValue',
     'declare', 'clearVars', 'putSlot', 'deleteVar', 'assign',

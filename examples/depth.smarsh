@@ -1,5 +1,5 @@
 // Three things the shallow versions cannot express.
-//     node bin/pedag.mjs run examples/depth.pedag --grant fs --principal hr
+//     node bin/smarsh.mjs run examples/depth.smarsh --grant fs --principal hr
 
 print("== a contract that talks about before and after ===========")
 

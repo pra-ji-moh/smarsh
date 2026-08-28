@@ -18,13 +18,13 @@ import { analyze } from '../src/analysis.js';
 // correct code: a context window is a live handle and `freezeDeep` does not
 // touch it. Real examples caught that, which is why they are tested here.
 
-const findings = (source) => analyze(parse(source, 't.pedag'))
+const findings = (source) => analyze(parse(source, 't.smarsh'))
   .filter((f) => f.kind === 'frozen value');
 
 const runs = (source) => {
   const interp = new Interpreter({ out: () => {}, seed: 1 });
   try {
-    interp.run(source, 't.pedag');
+    interp.run(source, 't.smarsh');
     return null;
   } catch (e) {
     return e.kind ?? 'error';

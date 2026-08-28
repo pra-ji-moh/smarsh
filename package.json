@@ -1,12 +1,12 @@
 {
-  "name": "pedag",
+  "name": "smarsh",
   "version": "0.3.0",
   "description": "A general-purpose language whose runtime proves what a program was allowed to do, and what it actually did. Capability security, provenance that follows the data, contracts that generate their own tests, and a signed manifest of every power exercised and every one refused.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "pedag": "bin/pedag.mjs",
-    "pedag-verify": "tools/verify-manifest.mjs"
+    "smarsh": "bin/smarsh.mjs",
+    "smarsh-verify": "tools/verify-manifest.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -40,10 +40,10 @@
   ],
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "tour": "node bin/pedag.mjs run examples/tour.pedag",
-    "prove": "node bin/pedag.mjs prove examples/contracts.pedag",
-    "check": "node bin/pedag.mjs check examples/agents.pedag",
-    "examples": "node bin/pedag.mjs run examples/quantum.pedag && node bin/pedag.mjs run examples/agents.pedag && node bin/pedag.mjs run examples/devices.pedag && node bin/pedag.mjs run examples/crypto.pedag --grant crypto,unaudited_crypto",
+    "tour": "node bin/smarsh.mjs run examples/tour.smarsh",
+    "prove": "node bin/smarsh.mjs prove examples/contracts.smarsh",
+    "check": "node bin/smarsh.mjs check examples/agents.smarsh",
+    "examples": "node bin/smarsh.mjs run examples/quantum.smarsh && node bin/smarsh.mjs run examples/agents.smarsh && node bin/smarsh.mjs run examples/devices.smarsh && node bin/smarsh.mjs run examples/crypto.smarsh --grant crypto,unaudited_crypto",
     "fuzz": "node tools/fuzz.mjs 20000",
     "diff": "node tools/differential.mjs",
     "bench": "node tools/ab.mjs 7 1",

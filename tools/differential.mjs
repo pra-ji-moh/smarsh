@@ -3,7 +3,7 @@
 //
 // The tree-walker is the specification. Closure compilation is only allowed to
 // change how fast a program runs, never what it prints, what it fails with, or
-// what its audit trail says. That is not a nice-to-have: `pedag audit` signs a
+// what its audit trail says. That is not a nice-to-have: `smarsh audit` signs a
 // manifest that claims a run is reproducible from its seed, and an engine that
 // quietly diverges would make that claim false.
 //
@@ -18,7 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError, BudgetExceeded } from '../src/errors.js';
+import { SmarshError, BudgetExceeded } from '../src/errors.js';
 import { Rng } from '../src/rng.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -43,7 +43,7 @@ function observe(source, file, { caps = [], principals = [], seed = 7 }, compile
   try {
     result = interp.run(source, path.basename(file));
   } catch (e) {
-    failure = e instanceof PedagError
+    failure = e instanceof SmarshError
       ? `${e.kind}: ${e.message} @${e.line}`
       : e instanceof BudgetExceeded
         ? `BudgetExceeded: ${e.budget.kind}`
@@ -127,8 +127,8 @@ const cases = [];
 
 // Every example, with the capabilities its own header documents.
 const exDir = path.join(root, 'examples');
-const INVOCATION = /^\/\/\s*(?:node\s+bin\/pedag\.mjs|pedag)\s+run\s+\S+(.*)$/;
-for (const name of fs.readdirSync(exDir).filter((f) => f.endsWith('.pedag')).sort()) {
+const INVOCATION = /^\/\/\s*(?:node\s+bin\/smarsh\.mjs|smarsh)\s+run\s+\S+(.*)$/;
+for (const name of fs.readdirSync(exDir).filter((f) => f.endsWith('.smarsh')).sort()) {
   const file = path.join(exDir, name);
   const source = fs.readFileSync(file, 'utf8');
   const caps = [];
@@ -149,7 +149,7 @@ for (const name of fs.readdirSync(exDir).filter((f) => f.endsWith('.pedag')).sor
 
 // The standard library's own tests, which exercise paths the examples do not.
 const stdDir = path.join(root, 'std');
-for (const name of fs.readdirSync(stdDir).filter((f) => f.endsWith('.pedag')).sort()) {
+for (const name of fs.readdirSync(stdDir).filter((f) => f.endsWith('.smarsh')).sort()) {
   const file = path.join(stdDir, name);
   cases.push({
     name: `std/${name}`,
@@ -212,7 +212,7 @@ for (const [name, source] of TARGETED) {
   cases.push({
     name: `case: ${name}`,
     source,
-    file: path.join(root, 'diff.pedag'),
+    file: path.join(root, 'diff.smarsh'),
     opts: { caps: [], principals: [], seed: 7 },
   });
 }
@@ -240,7 +240,7 @@ for (let seed = 0; seed < 3000; seed++) {
   cases.push({
     name: `generated seed ${seed}`,
     source: lines.join('\n'),
-    file: path.join(root, 'diff.pedag'),
+    file: path.join(root, 'diff.smarsh'),
     opts: { caps: [], principals: [], seed: 7 },
   });
 }

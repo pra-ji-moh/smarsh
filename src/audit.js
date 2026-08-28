@@ -4,7 +4,7 @@ import { signMessage } from './crypto.js';
 
 // What a run actually did, as a document.
 //
-// Pēdāg already observes things a runtime normally cannot: which capabilities
+// Smarsh already observes things a runtime normally cannot: which capabilities
 // were exercised and which were refused, where labelled data went, who
 // declassified what and on what stated grounds, which contracts were checked,
 // what authority was lent and later revoked. Until now all of that was thrown
@@ -36,7 +36,7 @@ const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 //
 // It used to start from ZERO, which meant the header sat outside the chain and
 // outside the signature: the program's sha256, the seed, the capabilities
-// granted and the outcome could all be rewritten while `pedag audit` still
+// granted and the outcome could all be rewritten while `smarsh audit` still
 // reported INTACT. That is the one edit an interested party most wants to make
 // -- attach a benign run's evidence to a different program, or change which
 // capabilities the record says were granted.
@@ -142,7 +142,7 @@ export function buildManifest(interp, {
   // These are the fields the chain is anchored on.
   const identity = {
     manifest: VERSION,
-    runtime: `pedag ${runtimeVersion}`,
+    runtime: `smarsh ${runtimeVersion}`,
     program: {
       file,
       sha256: sha256(source),

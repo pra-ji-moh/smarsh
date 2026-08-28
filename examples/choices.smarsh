@@ -1,6 +1,6 @@
 // Closed sets of cases, and a checker that knows when you missed one.
-//     node bin/pedag.mjs run examples/choices.pedag
-//     node bin/pedag.mjs check examples/choices.pedag
+//     node bin/smarsh.mjs run examples/choices.smarsh
+//     node bin/smarsh.mjs check examples/choices.smarsh
 print("== a value is exactly one of these ========================")
 
 choice Payment {
@@ -54,8 +54,8 @@ print("  ", describe(Failed(402)))
 
 print("")
 print("== the part a comment cannot enforce ======================")
-print("   examples/choices.pedag handles every case, so `check` is quiet.")
-print("   delete the `Refused` arm above and run `pedag check` again:")
+print("   examples/choices.smarsh handles every case, so `check` is quiet.")
+print("   delete the `Refused` arm above and run `smarsh check` again:")
 print("")
 print("     error[E0605]: this match on `Payment` does not handle `Refused`")
 print("")
@@ -89,4 +89,4 @@ attempt {
 }
 
 print("")
-print("done. `pedag check` proves every match above is total.")
+print("done. `smarsh check` proves every match above is total.")

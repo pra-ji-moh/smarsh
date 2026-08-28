@@ -1,5 +1,5 @@
 import { Interpreter } from '../src/interpreter.js';
-import { PedagError, BudgetExceeded } from '../src/errors.js';
+import { SmarshError, BudgetExceeded } from '../src/errors.js';
 import { parseAll } from '../src/parser.js';
 import { formatSource } from '../src/format.js';
 import { Rng } from '../src/rng.js';
@@ -78,7 +78,7 @@ const USES = [
 const FRAGMENTS = [...DECLS, ...USES];
 
 const acceptable = (e) => e === null
-  || e instanceof PedagError
+  || e instanceof SmarshError
   || e instanceof BudgetExceeded
   || (e instanceof RangeError && /call stack/i.test(e.message));
 
@@ -132,11 +132,11 @@ for (let seed = 0; seed < CASES; seed++) {
   });
   interp.stepLimit = 5000;
   try {
-    interp.run(source, 'fuzz.pedag');
+    interp.run(source, 'fuzz.smarsh');
     clean += 1;
     tally('(ran)');
   } catch (e) {
-    tally(e instanceof PedagError ? e.kind
+    tally(e instanceof SmarshError ? e.kind
       : e instanceof BudgetExceeded ? 'BudgetExceeded'
       : `LEAK:${e?.constructor?.name}`);
     if (!acceptable(e)) {
@@ -148,15 +148,15 @@ for (let seed = 0; seed < CASES; seed++) {
 
   // The tools, on the same input.
   try {
-    parseAll(source, 'fuzz.pedag');
+    parseAll(source, 'fuzz.smarsh');
   } catch (e) {
     if (!acceptable(e)) leaks.push({ stage: 'recover', seed, source, error: `${e?.constructor?.name}: ${e?.message}` });
   }
   try {
-    const out = formatSource(source, 'fuzz.pedag');
-    parseAll(out, 'fuzz.pedag');
+    const out = formatSource(source, 'fuzz.smarsh');
+    parseAll(out, 'fuzz.smarsh');
   } catch (e) {
-    if (!(e instanceof PedagError) && !/does not know/.test(e?.message ?? '')) {
+    if (!(e instanceof SmarshError) && !/does not know/.test(e?.message ?? '')) {
       leaks.push({ stage: 'format', seed, source, error: `${e?.constructor?.name}: ${e?.message}` });
     }
   }

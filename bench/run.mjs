@@ -65,7 +65,7 @@ function time(source) {
 }
 
 const label = process.argv[2] ?? 'current';
-console.log(`Pēdāg benchmarks (${label}) — node ${process.version}\n`);
+console.log(`Smarsh benchmarks (${label}) — node ${process.version}\n`);
 
 const results = {};
 for (const [name, source] of Object.entries(BENCHMARKS)) {
@@ -79,6 +79,6 @@ for (const [name, source] of Object.entries(BENCHMARKS)) {
 const total = Object.values(results).reduce((a, b) => a + b, 0);
 console.log(`  ${'total'.padEnd(38)} ${total.toFixed(1).padStart(9)} ms`);
 
-if (process.env.pedag_BENCH_JSON) {
+if (process.env.smarsh_BENCH_JSON) {
   console.log(`\n${JSON.stringify(results)}`);
 }
