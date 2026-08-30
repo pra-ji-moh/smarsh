@@ -1,0 +1,20 @@
+# Line endings are LF in the repository and LF in the working tree, on every
+# platform.
+#
+# Without this, Git checks files out with CRLF on Windows, and the first CI run
+# this project ever had failed because of it: a test scans docs/for-llms.md for
+# ```smarsh fences with /```smarsh\n/, which matches nothing against `\r\n`, so
+# the test concluded the page had lost its examples. The page was fine. The
+# checkout was different.
+#
+# Normalising here fixes the class rather than the instance. The regexes that
+# tripped over it also accept `\r?\n` now, because a file can still arrive with
+# CRLF from an editor or a zip, and a test that only passes on a correctly
+# configured checkout is a test that will surprise someone.
+* text=auto eol=lf
+
+# Nothing here is binary, but say so for the ones where a mangled byte would be
+# silent rather than obvious.
+*.pem -text
+*.png binary
+*.jpg binary

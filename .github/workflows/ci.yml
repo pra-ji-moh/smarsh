@@ -46,7 +46,12 @@ jobs:
           fi
           grep -q "\[$pkg\]" CHANGELOG.md || { echo "no changelog entry for $pkg"; exit 1; }
 
+      # `shell: bash` is not decoration. Without it Windows runs this under
+      # PowerShell, which does not expand `tests/*.test.mjs`, so node receives
+      # the pattern as a literal filename and finds nothing. Three of the nine
+      # jobs failed on the first run for exactly this.
       - name: Test
+        shell: bash
         run: node --test tests/*.test.mjs
 
       # `std/` was once missing from the package's file list, so an installed
@@ -104,7 +109,13 @@ jobs:
       # count, call count and the whole audit trace. `smarsh audit` signs a claim
       # that a run replays from its seed; an engine that quietly diverged would
       # make that claim false.
+      # Only on the newest Node, and only once. The tool measures coverage with
+      # `--test-coverage-exclude`, which arrived in Node 22.5 -- on 18 and 20 it
+      # is an unknown flag and the process dies. It is a documentation check, so
+      # running it on one of the nine jobs is the whole value of running it.
       - name: The README's numbers must be the repository's numbers
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 22
+        shell: bash
         run: |
           # "151 tests across 4 files" survived in the README long after there
           # were 700 across 30. A prose number nobody checks is a number that

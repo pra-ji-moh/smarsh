@@ -177,8 +177,32 @@ test('the capability table on the page is the one the runtime enforces', () => {
 // what it shows must behave as shown
 // ---------------------------------------------------------------------------
 
+// `\r?\n`, not `\n`. Git checks files out with CRLF on Windows unless told
+// otherwise, and the first CI run this project ever had failed right here: the
+// fences matched nothing against `\r\n`, so the test reported that the page had
+// lost its examples. The page was fine; the checkout was different.
+//
+// `.gitattributes` now normalises to LF, and this does not rely on that having
+// worked -- a file can still arrive with CRLF from an editor or an archive.
+const FENCE = /```smarsh\r?\n([\s\S]*?)```/g;
+
+test('the page is read the same however the checkout arrived', () => {
+  const lf = DOC.replace(/\r\n/g, '\n');
+  const crlf = lf.replace(/\n/g, '\r\n');
+  const count = (text) => [...text.matchAll(new RegExp(FENCE.source, 'g'))].length;
+
+  assert.ok(count(lf) >= 8, `only ${count(lf)} examples found with LF endings`);
+  assert.equal(count(crlf), count(lf),
+    'CRLF and LF disagree about how many examples the page has');
+
+  // And the regression itself: the pattern this used to use finds nothing.
+  const brittle = /```smarsh\n([\s\S]*?)```/g;
+  assert.equal([...crlf.matchAll(brittle)].length, 0,
+    'the old pattern now works on CRLF, so this test no longer proves anything');
+});
+
 test('the complete program at the end runs and prints what it should', () => {
-  const blocks = [...DOC.matchAll(/```smarsh\n([\s\S]*?)```/g)].map((m) => m[1]);
+  const blocks = [...DOC.matchAll(new RegExp(FENCE.source, 'g'))].map((m) => m[1]);
   assert.ok(blocks.length >= 8, 'the page lost its examples');
   const whole = blocks[blocks.length - 1];
 

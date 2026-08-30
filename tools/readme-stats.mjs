@@ -80,7 +80,7 @@ function layoutLine(source, m) {
 // needs a line of prose saying what it is for, and only the person who added it
 // knows that.
 function layoutGaps(source) {
-  const table = /## Layout\n+```\n([\s\S]*?)```/.exec(source);
+  const table = /## Layout\r?\n+```\r?\n([\s\S]*?)```/.exec(source);
   if (!table) return ['the README no longer has a layout table'];
 
   const listed = new Set();
