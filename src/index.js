@@ -48,7 +48,10 @@ const VERSION = (() => {
 
 // What a run cost and what it touched, in the shape a caller wants to log or
 // show a user.
-function describeRefusals(interp) {
+// Exported because the CLI's `--json` needs exactly this shape. Two
+// implementations of "what was refused" would drift, and the one people trust
+// would be whichever disagreed with them last.
+export function describeRefusals(interp) {
   const out = [];
 
   for (const e of interp.trace.effects ?? []) {

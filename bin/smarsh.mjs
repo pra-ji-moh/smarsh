@@ -21,6 +21,7 @@ import { verifyProgram, formatVerification } from '../src/verify.js';
 import { discover, runFile, format } from '../src/testrunner.js';
 import { formatSource } from '../src/format.js';
 import { serve } from '../src/lsp.js';
+import { describeRefusals } from '../src/index.js';
 import { Debugger, Session, makeSyncReader, DebuggerQuit, STEP } from '../src/debug.js';
 import { buildManifest, verifyManifest, summarise } from '../src/audit.js';
 import { generateKeypair, verifyMessage, exportKeypair, loadKeypair } from '../src/crypto.js';
@@ -229,6 +230,22 @@ function cmdRun(opts) {
         calls: interp.trace.calls,
         contracts_checked: interp.trace.contracts,
       },
+      // What the program attempted and was stopped from doing.
+      //
+      // This is the field that makes the JSON worth parsing, and it was
+      // missing: a program that reads a file it was not granted, catches its
+      // own CapabilityError and carries on reports `"ok": true` with nothing to
+      // show otherwise. The embedding API had it and the command line did not,
+      // which meant anyone driving this from Python or Go got strictly less
+      // than a Node caller and would eventually want bindings. There is no
+      // reason to bind to a language when the contract is complete.
+      refused: describeRefusals(interp),
+      // The record itself, so a caller has the evidence and not only a summary.
+      // `--audit` writes it to a file; this hands it back on stdout for a
+      // caller that is not going to read a file.
+      manifest: opts.audit ? null : buildManifest(interp, {
+        file, source, runtimeVersion: VERSION, outcome,
+      }),
     }, null, 2));
     process.exitCode = failure ? 1 : 0;
     return;
@@ -405,19 +422,81 @@ function cmdCheck(opts) {
   return;
 }
 
+// `eval` is `run` for source that is already in hand rather than in a file, and
+// that makes it the entry point for anything driving this from another language:
+// no temporary file to write, clean up, or leak.
+//
+// It used to honour only `--seed` and `--grant`, silently ignoring
+// `--principal`, `--foreign`, `--allow-host` and `--engine`, and it ignored
+// `--json` entirely -- so a caller asking for a document got the program's raw
+// output instead. That is exactly the unpredictability that makes people write
+// language bindings rather than shelling out.
 function cmdEval(opts) {
   const source = opts.positional[0];
   if (!source) { console.error('Smarsh: eval needs source text'); process.exit(2); }
-  const interp = new Interpreter({ seed: opts.seed, caps: opts.grant });
+
+  const collected = [];
+  const interp = new Interpreter({
+    seed: opts.seed,
+    caps: opts.grant,
+    principals: opts.principals,
+    foreign: opts.foreign,
+    hosts: opts.hosts,
+    ...(opts.json ? { out: (line) => collected.push(line) } : {}),
+  });
+  if (opts.engine === 'tree') interp.compiled = false;
+
+  let value = null;
+  let failure = null;
+  let outcome = 'completed';
   try {
-    const v = interp.run(source, '<eval>');
-    if (v !== null && v !== undefined) console.log(stringify(v, 0));
+    value = interp.run(source, '<eval>');
   } catch (e) {
-    reportError(e, source, '<eval>');
+    failure = e;
+    outcome = e instanceof SmarshError ? `failed: ${e.kind}` : 'failed';
+  }
+
+  if (opts.json) {
+    console.log(JSON.stringify({
+      ok: !failure,
+      command: 'eval',
+      file: '<eval>',
+      outcome,
+      stdout: collected,
+      value: value === null || value === undefined ? null : stringify(value, 0),
+      failure: failure ? failureJSON(failure, source, '<eval>') : null,
+      replay: {
+        seed: opts.seed,
+        capabilities: [...interp.grantedCaps].sort(),
+        principals: [...interp.grantedAuthority].sort(),
+      },
+      work: {
+        steps: interp.steps,
+        calls: interp.trace.calls,
+        contracts_checked: interp.trace.contracts,
+      },
+      refused: describeRefusals(interp),
+      manifest: buildManifest(interp, {
+        file: '<eval>', source, runtimeVersion: VERSION, outcome,
+      }),
+    }, null, 2));
+    interp.net?.shutdown();
+    interp.devices.shutdown();
+    process.exitCode = failure ? 1 : 0;
+    return;
+  }
+
+  if (failure) {
+    reportError(failure, source, '<eval>');
+    interp.net?.shutdown();
+    interp.devices.shutdown();
     process.exitCode = 1;
     return;
   }
+  if (value !== null && value !== undefined) console.log(stringify(value, 0));
   if (opts.trace) printTrace(interp);
+  interp.net?.shutdown();
+  interp.devices.shutdown();
 }
 
 function cmdProve(opts) {

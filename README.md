@@ -122,6 +122,39 @@ around a system that stays where it is, in the language it is already written
 in. The manifest covers the part a reviewer cares about: what was authorised,
 what was refused, and where data went.
 
+## Using it from anything that is not JavaScript
+
+There are no language bindings, and there should not be. An SDK binds this to an
+ecosystem; a format binds it to none. Everything the Node API returns is on
+stdout as JSON, so a wrapper in any language is a process call and a parse:
+
+```python
+import json, subprocess
+
+def run(code, grant=(), allow_host=()):
+    argv = ['smarsh', 'eval', code, '--json']
+    if grant:      argv += ['--grant', ','.join(grant)]
+    if allow_host: argv += ['--allow-host', ','.join(allow_host)]
+    return json.loads(subprocess.run(argv, capture_output=True, text=True).stdout)
+```
+
+That is the whole binding. The document carries what it printed, what it
+returned, what it cost, the seed and grants needed to replay it, the signed
+record, and `refused` - everything it attempted and was stopped from doing:
+
+```
+ok       True
+stdout   ['summarising the record', 'done', 'done']
+value    looks fine
+
+what it actually reached for:
+  line  3  refused fs (read)
+  line  4  refused net (http_get)
+```
+
+The program caught both refusals and reported success. The record does not agree
+with it.
+
 ## Running code a model wrote
 
 This is what the language is actually for, and it does not require anyone to
@@ -187,7 +220,7 @@ is [tested](tests/demo.test.mjs), not asserted: seven edits an interested party
 would actually want to make, including deleting the inconvenient event and
 attaching the record to a different program.
 
-Zero dependencies, Node 18 or later. 910 passing tests over 94% of the lines in
+Zero dependencies, Node 18 or later. 924 passing tests over 94% of the lines in
 `src/`.
 
 > **Status: 0.3.0, pre-1.0, no production users, no third-party audit.** Read
@@ -1241,7 +1274,7 @@ editors/vscode/         the VS Code extension -- grammar, and a client that
 
 std/                    the standard library, written in Smarsh
 examples/               15 programs, every one of them run by CI
-tests/                  910 tests across 37 files
+tests/                  924 tests across 38 files
 tools/                  the differential oracle, the fuzzer, the A/B harness
 ```
 
