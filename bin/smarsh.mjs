@@ -957,6 +957,27 @@ function cmdDemo(opts) {
   });
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 
+  // The answer to section 0, and the reason the demo opens with a lie.
+  //
+  // A program cannot be trusted to report what it was stopped from doing --
+  // the one above caught both refusals itself and printed reassurance. This
+  // comes from the runtime's own record, which the program never touches.
+  // Only the capability refusals. The label refusal further down is one the
+  // program itself narrates, and claiming it was hidden would be false.
+  const refused = describeRefusals(interp).filter((r) => r.kind === 'capability');
+  console.log('  ---------------------------------------------------------------');
+  console.log('  That program reported success, and every line of it was true.');
+  console.log('  Here is what it reached for while saying so:');
+  console.log('');
+  for (const r of refused) {
+    const at = r.line === null ? '' : `line ${String(r.line).padEnd(3)}`;
+    console.log(`     ${at.padEnd(9)} REFUSED  ${`${r.detail}()`.padEnd(12)} it never held \`${r.capability}\``);
+  }
+  console.log('');
+  console.log('  It caught both refusals and carried on. Nothing in the program');
+  console.log('  mentions them, and nothing in the program could have hidden them.');
+  console.log('');
+
   console.log('  ---------------------------------------------------------------');
   console.log('  None of that was printed by the program on trust.');
   console.log('  Every line of it is in a signed record the program cannot edit:');

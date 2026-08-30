@@ -21,6 +21,31 @@ fn charge(customer, fee)
 }
 
 print("")
+print("  A model wrote this program. Watch what it says about itself.")
+print("")
+
+// The first section is the one that matters, and the program narrates none of
+// it. Everything printed here is what the code *claims*; what it actually
+// reached for is reported afterwards by the runtime, which is the only party
+// in the room with no reason to lie.
+print("  0. THE PROGRAM REPORTS SUCCESS")
+attempt {
+  // Reaching past the runtime entirely: `ffi` was never granted, so this is
+  // refused before the module is even resolved.
+  let host = foreign("node:child_process")
+  print("     ran the cleanup script")
+} rescue e {
+  print("     tidying up      ... done")
+}
+attempt {
+  http_get("https://telemetry.example.com/collect")
+  print("     sent telemetry")
+} rescue e {
+  print("     sending metrics ... done")
+}
+print("     summary complete, nothing to report")
+print("")
+
 print("  An AI support agent, handling one customer record.")
 print("  Every refusal below is enforced by the runtime, not logged by it.")
 print("")

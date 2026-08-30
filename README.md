@@ -220,7 +220,7 @@ is [tested](tests/demo.test.mjs), not asserted: seven edits an interested party
 would actually want to make, including deleting the inconvenient event and
 attaching the record to a different program.
 
-Zero dependencies, Node 18 or later. 924 passing tests over 94% of the lines in
+Zero dependencies, Node 18 or later. 926 passing tests over 94% of the lines in
 `src/`.
 
 > **Status: 0.3.0, pre-1.0, no production users, no third-party audit.** Read
@@ -1274,7 +1274,7 @@ editors/vscode/         the VS Code extension -- grammar, and a client that
 
 std/                    the standard library, written in Smarsh
 examples/               15 programs, every one of them run by CI
-tests/                  924 tests across 38 files
+tests/                  926 tests across 38 files
 tools/                  the differential oracle, the fuzzer, the A/B harness
 ```
 

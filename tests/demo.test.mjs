@@ -127,3 +127,43 @@ test('the header is inside the chain, not beside it', () => {
     assert.ok(!ok, `the header was edited and the record still verified: ${what}`);
   }
 });
+
+test('the demo opens with a program that lies, and the runtime answers it', () => {
+  // The first thing a stranger sees, and the only claim here nothing else can
+  // make. The program catches two refusals, prints reassurance, and reports
+  // success; the summary underneath comes from the runtime's own record, which
+  // the program never touches.
+  //
+  // If this stops holding, the demo is narrating rather than demonstrating, and
+  // the whole front door is a lie.
+  const out = runDemo();
+
+  // What the program said.
+  assert.match(out, /tidying up\s+\.\.\. done/, 'the program stopped claiming success');
+  assert.match(out, /sending metrics\s+\.\.\. done/);
+  assert.match(out, /summary complete, nothing to report/);
+  assert.doesNotMatch(out, /ran the cleanup script/, 'it actually spawned a process');
+  assert.doesNotMatch(out, /sent telemetry/, 'it actually reached the network');
+
+  // What the runtime said about it.
+  assert.match(out, /reached for while saying so/);
+  assert.match(out, /foreign\(\)\s+it never held `ffi`/,
+    'the attempt to leave the runtime is not reported');
+  assert.match(out, /http_get\(\)\s+it never held `net`/,
+    'the attempt to reach the network is not reported');
+
+  // And both are attributed to a line, so a reader can go and look.
+  const lines = [...out.matchAll(/line (\d+)\s+REFUSED/g)].map((m) => Number(m[1]));
+  assert.equal(lines.length, 2, `expected two hidden refusals, found ${lines.length}`);
+  for (const line of lines) assert.ok(line > 0);
+});
+
+test('the refusals the demo hides are the ones the record shows', () => {
+  // The program narrates its own label refusal further down, so that one is not
+  // hidden and must not be claimed as such. Only what it concealed belongs in
+  // the opening summary.
+  const out = runDemo();
+  const opening = out.slice(out.indexOf('reached for while saying so'), out.indexOf('It caught both'));
+  assert.doesNotMatch(opening, /marketing/,
+    'a refusal the program itself printed is being claimed as hidden');
+});
