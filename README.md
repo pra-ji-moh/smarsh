@@ -65,7 +65,7 @@ Four properties make that worth something to a reviewer:
   evidence.
 
 ```bash
-npm install -g smarsh
+npm install -g @ramvami/smarsh
 
 smarsh keygen -o compliance.pem                 # an identity, kept
 smarsh run app.smarsh --audit run.json --key compliance.pem
@@ -162,7 +162,7 @@ learn it. A model emits Smarsh, your program decides the bounds, and you get
 back what the code did and what it tried.
 
 ```bash
-npm install smarsh
+npm install @ramvami/smarsh
 ```
 
 ```js

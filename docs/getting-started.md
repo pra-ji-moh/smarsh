@@ -19,8 +19,12 @@ Smarsh itself has **no dependencies**. There is nothing to install beyond it.
 ## Install
 
 ```bash
-npm install -g smarsh
+npm install -g @ramvami/smarsh
 ```
+
+The package is scoped because npm's typosquatting filter refused the bare name.
+The command is still `smarsh`: what a package is called and what it installs as
+are separate, so nothing below changes.
 
 Check it worked:
 
@@ -28,8 +32,8 @@ Check it worked:
 Smarsh --version
 ```
 
-If you would rather not install globally, `npx smarsh run file.smarsh` works
-the same way, and every command below can be prefixed with `npx smarsh`
+If you would rather not install globally, `npx @ramvami/smarsh run file.smarsh` works
+the same way, and every command below can be prefixed with `npx @ramvami/smarsh`
 instead of `Smarsh`.
 
 ## When it does the wrong thing
