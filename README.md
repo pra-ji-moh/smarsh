@@ -122,6 +122,57 @@ around a system that stays where it is, in the language it is already written
 in. The manifest covers the part a reviewer cares about: what was authorised,
 what was refused, and where data went.
 
+## Running code a model wrote
+
+This is what the language is actually for, and it does not require anyone to
+learn it. A model emits Smarsh, your program decides the bounds, and you get
+back what the code did and what it tried.
+
+```bash
+npm install smarsh
+```
+
+```js
+import { Sandbox, PROMPT } from 'smarsh';
+
+// The bounds are yours. They are not in the generated code, so nothing the
+// model writes can widen them.
+const box = new Sandbox({
+  grant: ['net'],
+  allowHost: ['api.yourservice.com'],
+  steps: 500_000,
+});
+
+const result = box.checkThenRun(codeTheModelWrote);
+```
+
+`PROMPT` is the whole language on one page, ready to put in a system message,
+read from the same file the test suite checks - so it cannot drift from the
+language it describes.
+
+The part worth looking at is not `result.ok`. It is `result.refused`:
+
+```js
+const r = box.run(`
+  attempt { read("/etc/passwd") } rescue e { print("all fine here") }
+`);
+
+r.ok        // true   - the program handled it and completed
+r.output    // ['all fine here']
+r.refused   // [{ kind: 'capability', capability: 'fs', detail: 'read', line: 2 }]
+```
+
+The generated code caught its own refusal and reported success. The record does
+not agree with it. That is the difference between a sandbox, which tells you a
+program failed, and this, which tells you what it reached for.
+
+Every run also returns `manifest` - the hash-chained record - and `receipt`, the
+same thing rendered for a person. Pass `sign` and it is signed.
+
+Nothing throws when the generated code is wrong. A model producing broken code
+is the ordinary case, so `check()` returns diagnostics with line, column and a
+suggested fix, and `checkThenRun()` will not execute anything that fails them.
+
 ## Try the thing above
 
 ```bash
@@ -136,7 +187,7 @@ is [tested](tests/demo.test.mjs), not asserted: seven edits an interested party
 would actually want to make, including deleting the inconvenient event and
 attaching the record to a different program.
 
-Zero dependencies, Node 18 or later. 881 passing tests over 94% of the lines in
+Zero dependencies, Node 18 or later. 909 passing tests over 94% of the lines in
 `src/`.
 
 > **Status: 0.3.0, pre-1.0, no production users, no third-party audit.** Read
@@ -1180,6 +1231,8 @@ the rest
   src/format.js         smarsh fmt
   src/bundle.js         smarsh build -- one standalone .mjs
   src/testrunner.js     smarsh test
+  src/index.js          the embedding API: run it, bound it, read the receipt
+  src/prompt.js         the language on one page, importable for a model's context
   src/lsp.js            the language server: diagnostics, completion, hover
   src/debug.js          breakpoints, stepping, and the prompt that reads them
 
@@ -1188,7 +1241,7 @@ editors/vscode/         the VS Code extension -- grammar, and a client that
 
 std/                    the standard library, written in Smarsh
 examples/               15 programs, every one of them run by CI
-tests/                  881 tests across 36 files
+tests/                  909 tests across 37 files
 tools/                  the differential oracle, the fuzzer, the A/B harness
 ```
 
