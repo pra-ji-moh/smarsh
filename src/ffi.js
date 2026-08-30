@@ -12,7 +12,7 @@ import { smarshError } from './errors.js';
 // the bridge.
 //
 // It is a capability (`ffi`), not an ambient ability, and that is the whole
-// design. Everything else in Smarsh is bounded — capabilities, taint, budgets —
+// design. Everything else in Smarsh is bounded -- capabilities, taint, budgets -
 // and a foreign call escapes all of it, because once control is inside
 // JavaScript the runtime cannot see what it does. So the boundary is explicit,
 // declared, and reported, rather than a quiet hole in the middle of the model.

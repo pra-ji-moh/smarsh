@@ -1210,8 +1210,8 @@ function installTemporal(interp, def, num) {
 //
 // `unaudited_crypto` covers Paillier, Schnorr and Pedersen, which are
 // implemented here in BigInt. They are correct as far as the test suite can
-// establish — the group parameters are re-derived rather than trusted, and the
-// round-trips and soundness properties are checked — but BigInt arithmetic in
+// establish -- the group parameters are re-derived rather than trusted, and the
+// round-trips and soundness properties are checked -- but BigInt arithmetic in
 // JavaScript is not constant time, so these operations leak timing information
 // and are exposed to side-channel attack. They have had no third-party audit.
 //

@@ -258,7 +258,7 @@ for (const c of cases) {
 console.log(`${cases.length} programs run on both engines`);
 
 if (environmental.length) {
-  console.log(`\n${environmental.length} field(s) not reproducible against the same engine — environmental, not the compiler:`);
+  console.log(`\n${environmental.length} field(s) not reproducible against the same engine -- environmental, not the compiler:`);
   for (const e of [...new Set(environmental)]) console.log(`  ${e}`);
 }
 

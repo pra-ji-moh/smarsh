@@ -300,7 +300,7 @@ test('verify and prove agree on the shipped contracts example', () => {
   );
   for (const name of brokenByProve) {
     assert.ok(!provedNames.has(name) || refutedByVerify.has(name),
-      `verify claimed ${name} was proved but prove found a counterexample — the verifier is unsound`);
+      `verify claimed ${name} was proved but prove found a counterexample -- the verifier is unsound`);
   }
 });
 

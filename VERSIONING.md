@@ -23,19 +23,19 @@ cryptography is either audited or removed. Until then, pin an exact version.
 These are covered by the promise above. A break here is a breaking change and
 gets a changelog entry.
 
-- **Language syntax and semantics** — keywords, operators, precedence, scoping,
+- **Language syntax and semantics** - keywords, operators, precedence, scoping,
   the meaning of `let`, capability rules, taint rules, contract behaviour.
-- **The capability names** — `fs`, `clock`, `crypto`, `unaudited_crypto`, `ffi`.
+- **The capability names** - `fs`, `clock`, `crypto`, `unaudited_crypto`, `ffi`.
   Adding one is not a break; renaming one is.
-- **CLI commands and flags** — `run`, `check`, `test`, `fmt`, `prove`, `build`,
+- **CLI commands and flags** - `run`, `check`, `test`, `fmt`, `prove`, `build`,
   `repl`, `eval`, `explain`, and their flags. Output *text* is not covered;
   **exit codes are** (0 clean, 1 findings or failure, 2 misuse).
-- **The standard library** — every function in `std/`, its name, arity and
+- **The standard library** - every function in `std/`, its name, arity and
   meaning.
-- **Builtin functions** — names, arity, and what they do.
-- **Error kinds** — `CapabilityError`, `TaintError` and the rest, as strings a
+- **Builtin functions** - names, arity, and what they do.
+- **Error kinds** - `CapabilityError`, `TaintError` and the rest, as strings a
   program can match on via `rescue`.
-- **`smarsh build` output** — a bundle produced by version *N* keeps working on
+- **`smarsh build` output** - a bundle produced by version *N* keeps working on
   the Node versions that version *N* supported.
 
 ## Not covered
@@ -53,7 +53,7 @@ Depend on these and a patch release may move under you:
 - **The exact numbers from `energy()`.** It is a disclosed cost model, and the
   model can be recalibrated.
 - **Seeded output across versions.** A given seed replays identically within a
-  version. It is not guaranteed to produce the same draws in the next one —
+  version. It is not guaranteed to produce the same draws in the next one -
   changing the PRNG or the order of draws is not a breaking change. If you need
   a run to be reproducible for audit, record the version alongside the seed.
 

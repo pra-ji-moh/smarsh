@@ -46,7 +46,7 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
 
 ### Added
 
-- **`choice` — sum types with static exhaustiveness checking.**
+- **`choice` - sum types with static exhaustiveness checking.**
 
   ```
   choice Payment {
@@ -67,7 +67,7 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
   error[E0605]: this match on `Payment` does not handle `Refused`
   ```
 
-  Without it the four records above run identically — right up until a payment
+  Without it the four records above run identically - right up until a payment
   is refused in production and nothing has a case for it. `smarsh explain E0605`.
 
   The checker is deliberately quiet where it cannot be certain: a wildcard or
@@ -77,7 +77,7 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
   `check` still raises `MatchError` rather than returning nil.
 
   A variant carrying nothing is a value, not a constructor: `Pending`, not
-  `Pending()`. That required an exception in the matcher — a bare name in a
+  `Pending()`. That required an exception in the matcher - a bare name in a
   pattern normally binds anything, so an arm reading `Pending =>` was silently
   swallowing every other case that reached it. `match s { Empty => 0, Circle(r)
   => r * r }` returned 0 for a `Circle`. A name already bound to a nullary
@@ -93,14 +93,14 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
 ### Fixed
 
 - **The type checker no longer invents a type for `+`.** It is the one
-  overloaded operator — numbers, text, lists — and with both operands `dyn` the
+  overloaded operator - numbers, text, lists - and with both operands `dyn` the
   checker returned `num` anyway. That produced a false error on correct code in
   the shipped standard library (`std/str.smarsh`), which nobody had seen because
   CI only ran `check` over `examples/`. `std/` is now checked too.
 
 ### Security
 
-- **`budget memory N { }`** — a third budget kind. Allocation is charged at list
+- **`budget memory N { }`** - a third budget kind. Allocation is charged at list
   literals, `.push` and `map.set`, and the block is stopped once the total passes
   the ceiling. Previously a program could allocate until the host process died
   and no budget could stop it. The figure is a deterministic estimate, not a
@@ -113,7 +113,7 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
 
 - **Control-flow signals no longer escape as raw JavaScript objects.** `return`
   outside a function, and `break` or `continue` outside a loop, threw the
-  interpreter's internal signal all the way out to the user — an object with no
+  interpreter's internal signal all the way out to the user - an object with no
   kind, no line and no message. They are now `ControlFlowError` (`E0604`), and
   `smarsh check` reports them statically, before the program runs.
 
@@ -122,12 +122,12 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
   ending an iteration the callee had no business ending. That is now an error.
 
   Found by fuzzing, on 5% of 20,000 generated programs.
-- **Error messages pick the right article** — `an agent has no 'ping'`, not
+- **Error messages pick the right article** - `an agent has no 'ping'`, not
   `a agent has no 'ping'`.
 - **Repeated `--grant` and `--principal` flags accumulate.** `--grant fs --grant
   net` previously kept only `net` and discarded the earlier flag without a word.
 - **CI had never run.** Every step invoked `bin/Smarsh.mjs`, a path that does not
-  exist — the file is `bin/smarsh.mjs`, and a rename script had rewritten the
+  exist - the file is `bin/smarsh.mjs`, and a rename script had rewritten the
   workflow's command lines along with the prose. Nothing in the workflow could
   have passed. Fixing it exposed three assertions that had quietly gone stale
   behind it:
@@ -152,21 +152,21 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
 
 ### Added
 
-- **`npm run fuzz`** (`tools/fuzz.mjs`) — generates programs from a grammar of
+- **`npm run fuzz`** (`tools/fuzz.mjs`) - generates programs from a grammar of
   fragments and asserts the runtime never surfaces a raw JavaScript error, across
   the interpreter, the error-recovery parser and the formatter alike. It reports
   an outcome histogram, so a campaign quietly testing nothing but `NameError` is
-  visible rather than being reported as a clean run — which is how the generator
+  visible rather than being reported as a clean run - which is how the generator
   was found to be sending 45% of its cases into the same missing-name path. Last
   campaign: 150,000 cases, 33,224 running to completion, zero leaks.
 - **20 fuzz regression tests** (`tests/fuzz.test.mjs`), pinning the control-flow
   fix and the memory budget alongside the existing token-soup, deep-nesting,
   wrong-type, recursion and cyclic-value cases.
-- **`tools/run-examples.mjs`** — runs every example the way its own header says
+- **`tools/run-examples.mjs`** - runs every example the way its own header says
   to run it, and reports how many examples document no invocation at all.
 - **`E0604`** joins the explainable error codes: `smarsh explain E0604`.
 
-## [0.3.0] — unreleased, first public release
+## [0.3.0] - unreleased, first public release
 
 The release that came out of a security and correctness review. Four defects
 were found, three of which contradicted claims the documentation was making.
@@ -177,12 +177,12 @@ were found, three of which contradicted claims the documentation was making.
   top-level code previously ran with whatever the importing frame held, so
   `import` was a way to perform effects with someone else's authority before the
   importing program's first statement executed. A module now loads holding
-  nothing. Functions it exports are unaffected — they are still checked against
+  nothing. Functions it exports are unaffected - they are still checked against
   the caller at the point they are called.
 - **Unaudited cryptography moved behind its own capability.** `crypto` now
   covers only platform-backed primitives (Ed25519, SHA-256, OS entropy).
-  Paillier, Schnorr and Pedersen — implemented here, in BigInt, not constant
-  time, never audited — require `unaudited_crypto`. A deployment can take the
+  Paillier, Schnorr and Pedersen - implemented here, in BigInt, not constant
+  time, never audited - require `unaudited_crypto`. A deployment can take the
   first and refuse the second. A Paillier modulus under 2048 bits is recorded in
   the run trace.
 - **Taint is now checked statically**, over every path, not only the one a run
@@ -217,7 +217,7 @@ were found, three of which contradicted claims the documentation was making.
 - `std/` was missing from the published package's file list, so an installed
   copy would have had no standard library at all.
 
-## [0.2.0] — unreleased development milestone
+## [0.2.0] - unreleased development milestone
 
 ### Added
 
@@ -226,7 +226,7 @@ were found, three of which contradicted claims the documentation was making.
 - Rendered diagnostics: source spans with carets, error codes, `smarsh explain`,
   Damerau-Levenshtein suggestions, and runtime stack traces.
 - Records, pattern matching with guards and destructuring, string interpolation.
-- Standard library — `std/list`, `std/str`, `std/math`, `std/result` — written
+- Standard library - `std/list`, `std/str`, `std/math`, `std/result` - written
   in Smarsh.
 - `smarsh test` (unit tests, contracts, types and races in one command),
   `smarsh fmt` (one canonical layout, no options), `smarsh build` (one
@@ -248,7 +248,7 @@ were found, three of which contradicted claims the documentation was making.
 - `record` is a contextual keyword, so it remains usable as an ordinary name.
 - Interpreter optimisation pass: 1037 ms to about 700 ms on the benchmark suite.
 
-## [0.1.0] — unreleased development milestone
+## [0.1.0] - unreleased development milestone
 
 ### Added
 

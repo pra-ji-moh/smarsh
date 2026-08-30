@@ -7,18 +7,18 @@ import { Interpreter } from '../src/interpreter.js';
 // says something flattering is worth less than no benchmark at all.
 
 const BENCHMARKS = {
-  'fib(24) — call overhead': `
+  'fib(24) -- call overhead': `
     fn fib(n) { if n < 2 { return n } return fib(n - 1) + fib(n - 2) }
     fib(24)
   `,
 
-  'loop 300k — variable lookup': `
+  'loop 300k -- variable lookup': `
     var total = 0
     for i in range(300000) { total = total + i }
     total
   `,
 
-  'nested scopes — chain walking': `
+  'nested scopes -- chain walking': `
     fn outer(n) {
       var acc = 0
       var i = 0
@@ -33,19 +33,19 @@ const BENCHMARKS = {
     outer(60000)
   `,
 
-  'list methods — member access': `
+  'list methods -- member access': `
     var xs = []
     for i in range(60000) { xs.push(i) }
     xs.len()
   `,
 
-  'string building — member access': `
+  'string building -- member access': `
     var n = 0
     for i in range(40000) { n = n + "abcdef".upper().len() }
     n
   `,
 
-  'field access — map reads': `
+  'field access -- map reads': `
     let m = { "a": 1, "b": 2, "c": 3 }
     var total = 0
     for i in range(100000) { total = total + m["a"] + m["b"] + m["c"] }
@@ -65,7 +65,7 @@ function time(source) {
 }
 
 const label = process.argv[2] ?? 'current';
-console.log(`Smarsh benchmarks (${label}) — node ${process.version}\n`);
+console.log(`Smarsh benchmarks (${label}) -- node ${process.version}\n`);
 
 const results = {};
 for (const [name, source] of Object.entries(BENCHMARKS)) {

@@ -306,11 +306,11 @@ function cmdAudit(opts) {
   // was signed and *then* edited, which is worse than an invalid one, and a
   // reviewer skimming two separate lines could easily read it the other way.
   if (ok && signed !== false) {
-    console.log('INTACT — every event hashes onto the one before it');
+    console.log('INTACT -- every event hashes onto the one before it');
     if (signed) console.log(`         and the head is signed by ${manifest.signature.public_key.slice(-16)}`);
     else console.log('         unsigned: this proves nothing about who produced it');
   } else {
-    console.log('ALTERED — this record does not describe the run it claims to');
+    console.log('ALTERED -- this record does not describe the run it claims to');
     for (const p of problems) console.log(`  ${p}`);
     if (signed === true) {
       console.log('  the signature covers the recorded head, but the events no longer');
@@ -349,7 +349,7 @@ function writeManifest(interp, { file, source, opts, outcome }) {
     file, source, runtimeVersion: VERSION, signWith: key, outcome,
   });
   fs.writeFileSync(path.resolve(process.cwd(), opts.audit), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
-  console.error(`\nwrote ${opts.audit} — ${manifest.events.length} events, head ${manifest.head.slice(0, 16)}`);
+  console.error(`\nwrote ${opts.audit} -- ${manifest.events.length} events, head ${manifest.head.slice(0, 16)}`);
   if (key && signer.persistent) {
     console.error(`signed by ${key.publicHex.slice(-16)} (from ${opts.key})`);
   } else if (key) {

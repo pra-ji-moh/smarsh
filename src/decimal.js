@@ -8,7 +8,7 @@ const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 // `num` is a 64-bit float. It cannot hold 0.1, so ten additions of 0.1 do not
 // make 1, and no amount of care at the call site fixes that. For money, for
 // settlement, for anything that has to reconcile, the representation has to be
-// exact — so this is a separate type, not a flag on the old one.
+// exact -- so this is a separate type, not a flag on the old one.
 //
 // A Decimal is an integer coefficient and a scale: 12.50 is 1250 at scale 2.
 // The coefficient is a BigInt, so there is no upper bound and no rounding you

@@ -21,7 +21,7 @@ xs.push(1)          // correct
 ```
 
 It freezes the *value*, not the binding, so it reaches through aliases:
-`var ys = [1]` then `let a = ys` makes `ys.push(2)` fail too. Copy instead —
+`var ys = [1]` then `let a = ys` makes `ys.push(2)` fail too. Copy instead -
 `let a = ys.slice(0, ys.len())`.
 
 **2. A function must declare the authority it uses.**
@@ -32,7 +32,7 @@ fn save(t) needs fs { write("out.txt", t) }  // correct
 ```
 
 This travels to callers: calling something that `needs fs` means you need `fs`
-too. Only these builtins need anything — `read` `write` `weights` (fs),
+too. Only these builtins need anything - `read` `write` `weights` (fs),
 `now` (clock), `foreign` (ffi), `keypair` `random_secret` (crypto), and the
 `unaudited_crypto` set.
 
@@ -47,7 +47,7 @@ price.div(3d, 2)             // division states its scale
 ```
 
 The digits in `19.99d` never pass through a float, which is why `dec` takes a
-string rather than a number — `dec(0.1)` would already have lost the value.
+string rather than a number - `dec(0.1)` would already have lost the value.
 
 `0.1 + 0.2 == 0.3` is false. `dec("0.1") + dec("0.2") == dec("0.3")` is true.
 

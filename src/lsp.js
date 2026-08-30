@@ -352,7 +352,7 @@ export class LanguageServer {
       const args = arity === undefined || arity < 0 ? '...' : Array.from({ length: arity }, (_, i) => `a${i + 1}`).join(', ');
       lines.push('```smarsh', `${word.text}(${args})`, '```');
       lines.push(needs
-        ? `Builtin. **Needs \`${needs.join('`, `')}\`** — a function calling it must declare it.`
+        ? `Builtin. **Needs \`${needs.join('`, `')}\`** -- a function calling it must declare it.`
         : 'Builtin. Costs no authority.');
     }
 
@@ -363,7 +363,7 @@ export class LanguageServer {
     // Hovering a diagnostic code in a comment or a message is worth answering
     // too: the explanations already exist for `smarsh explain`.
     if (CODES[word.text] || EXPLANATIONS[word.text]) {
-      lines.push(`**${word.text}** — ${CODES[word.text] ?? ''}`);
+      lines.push(`**${word.text}** -- ${CODES[word.text] ?? ''}`);
       if (EXPLANATIONS[word.text]) lines.push('', EXPLANATIONS[word.text]);
     }
 

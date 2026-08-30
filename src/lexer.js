@@ -12,8 +12,8 @@ export const KEYWORDS = new Set([
 ]);
 
 // These are NOT reserved. Every one of them is an ordinary noun that a program
-// will want as a field or a variable — `region`, `secret`, `budget`, `record`
-// — and a language that confiscates common nouns makes people fight it.
+// will want as a field or a variable -- `region`, `secret`, `budget`, `record`
+// -- and a language that confiscates common nouns makes people fight it.
 //
 // Each is recognised only in the one position where it cannot be anything else:
 // `region "eu" {`, `secret {`, `budget steps 5 {`, `record Name(`. Everywhere

@@ -27,11 +27,11 @@ ownership; Smarsh does not have ownership.
 
 `smarsh check` now reports both shapes before the program runs (E0203), naming
 the `let` that did the freezing. It only speaks when the value is a list or map
-written as a literal — a context window, a ledger or an agent bound with `let`
+written as a literal - a context window, a ledger or an agent bound with `let`
 is a live handle that `freezeDeep` leaves alone, and reporting those was a real
 false positive found by running the checker over the examples.
 
-**Workaround:** copy before binding — `let ys = xs.slice(0, xs.len())`.
+**Workaround:** copy before binding - `let ys = xs.slice(0, xs.len())`.
 
 ### A record is only as immutable as what you put in it
 
@@ -70,7 +70,7 @@ surprising if you expected transactional semantics.
 `smarsh verify` is real but narrow. What it cannot do matters as much as what it
 can.
 
-### No interprocedural reasoning — the biggest gap
+### No interprocedural reasoning - the biggest gap
 
 A call is an opaque value. The verifier does **not** use a callee's contract at
 the call site:
@@ -95,8 +95,8 @@ unconstrained variable.
 
 `i > 0` does not yield `i >= 1`, because `num` is a float and `0.5` is a
 counterexample. Loops that are obviously terminating over integers are not
-provable. This is *correct* — it is a consequence of the numeric tower, not a
-solver bug — but it makes many natural loops undecidable.
+provable. This is *correct* - it is a consequence of the numeric tower, not a
+solver bug - but it makes many natural loops undecidable.
 
 ### Float rounding is not modelled
 
@@ -135,7 +135,7 @@ and it is mine.
 
 `smarsh verify` does contracts and termination. `smarsh check` does information flow
 and races, in a *different engine*, with a different algorithm. They are one
-toolchain, not one pass — the taint analysis is not part of the verification
+toolchain, not one pass - the taint analysis is not part of the verification
 condition system and cannot use its solver. Unifying them is real work that has
 not been done.
 
@@ -147,9 +147,9 @@ not been done.
   JavaScript closures rather than being re-walked (`src/compile.js`), and a call
   in the common shape allocates nothing: the frame is reused, arguments travel
   positionally, bound methods are remembered, contracts compile. About
-  **3.2–3.4× CPython** and **~32× a JIT** on `fib`, from 6.7× and ~110×; the
+  **3.2-3.4× CPython** and **~32× a JIT** on `fib`, from 6.7× and ~110×; the
   eleven-shape workload suite is 44% faster than at the start of that work. Closing more needs a typed value
-  representation and escape analysis so `t = t + i` does not box — a larger
+  representation and escape analysis so `t = t + i` does not box - a larger
   change than any of this was. `--engine tree` still runs the original
   tree-walker, and CI proves the two agree on every example, every std module
   and 3,000 generated programs.
@@ -160,7 +160,7 @@ not been done.
   against the other on every program it has.
 - **The recursion limit is 300 frames**, and low on purpose. It used to be 2000,
   which no run ever reached: both engines exhausted the host JavaScript stack
-  first, so the real limit was however many host frames happened to be free —
+  first, so the real limit was however many host frames happened to be free -
   measured at 422 on one run and 652 on another, on the same machine. A language
   that signs a manifest claiming a run replays from its seed cannot have a
   recursion limit that is a property of the machine. Raising it means using
@@ -175,7 +175,7 @@ not been done.
   `xs.push` builds a function bound to `xs`; it is remembered against `xs`
   afterwards, so a loop pays once rather than once per iteration. Records skip
   the cache entirely, since their members are fields rather than methods.
-- **No incremental anything** — every tool reparses the whole file.
+- **No incremental anything** - every tool reparses the whole file.
 
 ---
 
@@ -191,14 +191,14 @@ not been done.
   the arms rather than off an inferred type for the subject. So it says nothing
   when the arms span two choices, when a variant name belongs to more than one
   choice, or when there is a wildcard. It also cannot report an *unreachable*
-  arm — matching the same variant twice is silently accepted. A type-directed
+  arm - matching the same variant twice is silently accepted. A type-directed
   version would catch all of those; this one catches the case that actually
   bites, which is a forgotten variant.
 - **No subtyping, no interfaces, no traits.**
 - **Local inference only.** No Hindley-Milner, no inference across statements.
 - **Capabilities are not in the type system.** `smarsh check` now reports a
   function that uses authority it did not declare (E0406), so the common case
-  is caught before the program runs — but it works off direct calls to a
+  is caught before the program runs - but it works off direct calls to a
   name, not off types. A call through a value, a method on an object, or a
   capability held inside a `using` block is invisible to it, and a function's
   type still does not mention its effects.
@@ -252,17 +252,17 @@ not been done.
 - **No host sandbox.** Capabilities bound what Smarsh code reaches, not what the
   process can do. `fs` is scoped to the program directory and that is all.
 - **`budget memory N` is an estimate, not a measurement.** It charges a fixed
-  number of bytes per allocating operation — list literals, `.push`, `map.set` —
+  number of bytes per allocating operation - list literals, `.push`, `map.set` -
   and stops the block once the total passes the ceiling. It does not read the
   host heap: a run whose outcome depended on the machine's actual memory would
   not replay, and replay is what the audit manifest rests on. So it bounds
   runaway growth in the operations it knows about, and a program that grows
-  memory some other way — deep recursion building closures, one very long
-  string, a tensor allocated in a single step — is not covered. Outside a
+  memory some other way - deep recursion building closures, one very long
+  string, a tensor allocated in a single step - is not covered. Outside a
   `budget` block there is no ceiling at all.
 - **The integrity half only sees labelled values.** `vouched_by` refuses a value
   that lost its backing, which is the case a boolean flag cannot catch. It does
-  not refuse a value that never carried a label at all — a plain literal has no
+  not refuse a value that never carried a label at all - a plain literal has no
   vouch and is not meant to. For "this came from outside and has not been
   checked", the block is `grounded`, and the two are deliberately separate.
 - **A vouch is lost by any arithmetic with an unlabelled operand**, `x * 2`
@@ -287,7 +287,7 @@ protocols. No operator overloading for user types. No
 destructuring in `let`. No spread or rest. No default or named arguments. No
 varargs for user functions. No tail calls, and recursion is depth-limited. No
 regex. No date or time type. No JSON in the standard library. No streaming or
-partial file IO — `read` and `write` handle whole files only. No networking.
+partial file IO - `read` and `write` handle whole files only. No networking.
 
 ---
 
@@ -300,13 +300,13 @@ partial file IO — `read` and `write` handle whole files only. No networking.
 - **The formatter does not wrap long lines.** A 200-character expression stays
   200 characters.
 - **No editor syntax highlighting** definitions of any kind.
-- **The REPL is line-based** — no multiline editing, no persistent history.
+- **The REPL is line-based** - no multiline editing, no persistent history.
 - **The test runner** has no filtering, no parallelism, no watch mode, and does
   not exercise contracts in imported modules, only in the entry file.
 - **`--profile` prints a table**, with inclusive time only. No flamegraph, no
   allocation profile.
 - **The bundler is bespoke** and handles this codebase, not JavaScript generally.
-- **No coverage tooling for `.smarsh` code** — the coverage figures below are of
+- **No coverage tooling for `.smarsh` code** - the coverage figures below are of
   the interpreter, not of programs written in Smarsh.
 - **The fuzzer is grammar-based, not coverage-guided.** See §10.
 
@@ -328,7 +328,7 @@ partial file IO — `read` and `write` handle whole files only. No networking.
   are `prove.js` (57.8% of lines), `tensor.js` (82.1%) and `verify.js` (74.4% of
   branches). Note that the headline figure `node --test` prints is around 63%,
   because the run writes generated bundles and FFI fixtures into temp
-  directories and counts them as source — the number to read is `src/`.
+  directories and counts them as source - the number to read is `src/`.
 - **The CLI itself is barely covered.** `bin/smarsh.mjs` is exercised end to end
   by CI, not by unit tests, so its argument handling had a real defect
   (repeated `--grant` discarding all but the last) that no test would have
@@ -345,8 +345,8 @@ partial file IO — `read` and `write` handle whole files only. No networking.
 - **Lineage** is cryptographic, not hardware-enforced. It proves who asserted
   each step, not anything about a machine you do not control.
 - **`distill()`** is a structural digest. It never calls a model, so it never
-  invents anything — and it is not semantic.
-- **Token counts** are a deterministic estimate, within roughly 10–15% of BPE on
+  invents anything - and it is not semantic.
+- **Token counts** are a deterministic estimate, within roughly 10-15% of BPE on
   prose, not a real vocabulary.
 - **Logical clocks** give a total order with no drift because they never read a
   wall clock. They cannot correlate with human time.
@@ -356,7 +356,7 @@ partial file IO — `read` and `write` handle whole files only. No networking.
 ## 10. Process
 
 Zero users. No third-party audit. One maintainer. Not published. No formal
-language specification — `docs/reference.md` is a description, not a spec, and
+language specification - `docs/reference.md` is a description, not a spec, and
 there is no conformance suite.
 
 **On the fuzzing.** `npm run fuzz` generates programs and asserts the runtime
@@ -366,8 +366,8 @@ fragments, not a coverage-guided fuzzer: it has no feedback loop, does not
 mutate toward new paths, and cannot discover syntax nobody thought to list. Of
 150,000 generated programs, about 22% run to completion and 43% stop at a syntax
 error, so the parser is fuzzed considerably harder than the evaluator. It found
-one real defect on its first serious run — control-flow signals escaping as bare
-JavaScript objects — and has found nothing since, which is weak evidence of
+one real defect on its first serious run - control-flow signals escaping as bare
+JavaScript objects - and has found nothing since, which is weak evidence of
 robustness and strong evidence that the generator has stopped saying anything
 new. A coverage-guided fuzzer over the real grammar would be worth more than
 another decimal place on the case count.
@@ -380,4 +380,4 @@ Every item here is either a known defect, an unbuilt capability, or a name that
 needs qualifying. None of it is hidden in the code.
 
 If you find something that belongs on this list and is not on it, that is a bug
-report worth filing — the list being incomplete is itself a defect.
+report worth filing - the list being incomplete is itself a defect.

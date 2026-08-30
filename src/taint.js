@@ -7,15 +7,15 @@
 //
 // This is that answer. It propagates labels through assignments, function
 // returns, collections and interpolation, over all branches at once, and
-// reports any sink a labelled value can reach — whether or not a run has ever
+// reports any sink a labelled value can reach -- whether or not a run has ever
 // done it.
 //
 // It is a may-analysis and it is deliberately conservative: it merges branches
 // rather than choosing between them, so it reports possibilities, not
 // certainties. The one thing it must never do is stay quiet about a real path,
 // because a checker that misses the case you needed is worse than none. Where
-// it cannot follow something — a value crossing the FFI, a function reached
-// indirectly — it assumes the worst rather than assuming safety.
+// it cannot follow something -- a value crossing the FFI, a function reached
+// indirectly -- it assumes the worst rather than assuming safety.
 
 const SOURCES = new Map([
   ['untrusted', 'untrusted'],

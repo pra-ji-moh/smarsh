@@ -149,7 +149,7 @@ smarsh run hello.smarsh --grant fs
 ```
 
 This is not a setting to switch off and forget. Inside a program, a function
-holds exactly what it declared — never what its caller held:
+holds exactly what it declared - never what its caller held:
 
 ```smarsh
 fn save(text) needs fs {
@@ -166,7 +166,7 @@ Reading a function's signature tells you the worst it can do.
 ### 2. Money is exact, and floats are kept away from it
 
 ```smarsh
-print(0.1 + 0.2 == 0.3)                        // false — `num` is a float
+print(0.1 + 0.2 == 0.3)                        // false - `num` is a float
 print(dec("0.1") + dec("0.2") == dec("0.3"))   // true
 ```
 
@@ -182,7 +182,7 @@ error[E0301]: cannot mix `dec` with the float `0.1`; that would put a
 help: write it exactly: `dec("0.1")`
 ```
 
-### 3. `let` means immutable — including the contents
+### 3. `let` means immutable - including the contents
 
 ```smarsh
 let xs = [1, 2]
@@ -204,7 +204,7 @@ grounded {
 }
 ```
 
-The label survives being handled — concatenation, interpolation, method calls,
+The label survives being handled - concatenation, interpolation, method calls,
 passing through functions. The only way to remove it is to say why:
 
 ```smarsh
@@ -228,14 +228,14 @@ smarsh prove hello.smarsh
 ```
 
 It throws generated values at every contracted function, discards the ones the
-preconditions reject, and reports where a promise did not hold — with the input
+preconditions reject, and reports where a promise did not hold - with the input
 that broke it. You wrote no tests to get that.
 
 ## The commands you will actually use
 
 ```bash
 smarsh run file.smarsh        # run it
-smarsh check file.smarsh      # types, undefined names, races, taint — without running
+smarsh check file.smarsh      # types, undefined names, races, taint - without running
 smarsh test .               # tests, contracts, types and races together
 smarsh fmt .                # one canonical layout, no options to argue about
 smarsh explain E0402        # what an error code actually means
@@ -260,7 +260,7 @@ help: there is a name in scope with a similar spelling: `total`
   run `smarsh explain E0201` for a longer explanation
 ```
 
-If a message is unclear, that is a bug worth reporting — the error text is
+If a message is unclear, that is a bug worth reporting - the error text is
 treated as part of the product.
 
 ## Using code you already have
@@ -270,24 +270,24 @@ let os = foreign("node:os")
 print(os.platform())
 ```
 
-Any JavaScript module — built-in, CommonJS, or installed. It needs the `ffi`
+Any JavaScript module - built-in, CommonJS, or installed. It needs the `ffi`
 capability, and results come back labelled `untrusted`, because once control is
 inside JavaScript the runtime cannot see what happened.
 
 ## Where to go next
 
-- [The tour](../examples/tour.smarsh) — every core feature in one runnable file:
+- [The tour](../examples/tour.smarsh) - every core feature in one runnable file:
   `smarsh run examples/tour.smarsh`
-- [Money](../examples/money.smarsh) — exact arithmetic, a worked settlement
-- [Typed](../examples/typed.smarsh) — how optional types behave
-- [Modern](../examples/modern.smarsh) — records, pattern matching, interpolation
-- [Reference](reference.md) — every keyword, builtin and command
-- [README](../README.md) — what Smarsh is for, and an honest list of what it
+- [Money](../examples/money.smarsh) - exact arithmetic, a worked settlement
+- [Typed](../examples/typed.smarsh) - how optional types behave
+- [Modern](../examples/modern.smarsh) - records, pattern matching, interpolation
+- [Reference](reference.md) - every keyword, builtin and command
+- [README](../README.md) - what Smarsh is for, and an honest list of what it
   cannot do
 
 ## Two things to know before you rely on it
 
-Smarsh is pre-1.0 and has no production users. Pin an exact version — see
+Smarsh is pre-1.0 and has no production users. Pin an exact version - see
 [VERSIONING.md](../VERSIONING.md) for what is stable and what is not.
 
 Its hand-rolled cryptography (`unaudited_crypto`) has never been audited and is

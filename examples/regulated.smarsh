@@ -6,7 +6,7 @@
 //
 // Every line below has a Java equivalent that compiles, runs, and produces no
 // evidence of what it did. The point is not that Java cannot be written
-// carefully — it is that nothing in Java *checks*, and nothing writes it down.
+// carefully -- it is that nothing in Java *checks*, and nothing writes it down.
 
 record Customer(id, region, balance) invariant balance >= dec("0")
 

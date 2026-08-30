@@ -1998,7 +1998,7 @@ export class Interpreter {
   // its steps slowly, and exhausts the heap long before any other limit.
   //
   // The figure is a deterministic estimate of the bytes a value occupies, not a
-  // reading from the host. That is deliberate — sampling real heap usage would
+  // reading from the host. That is deliberate -- sampling real heap usage would
   // make the same program stop in a different place on each run and destroy
   // replay, which every other guarantee here depends on. An estimate that is
   // always the same is worth more than a measurement that is not.

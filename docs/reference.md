@@ -51,15 +51,15 @@ variant must stay at or above zero and strictly decrease on every pass.
 
 ## Expressions
 
-`"text ${expr}"` — string interpolation; `\${` is a literal.
+`"text ${expr}"` - string interpolation; `\${` is a literal.
 
-`match subject { pattern [when guard] => expr, ... }` — patterns are literals,
+`match subject { pattern [when guard] => expr, ... }` - patterns are literals,
 `Record(p, ...)`, `[p, ...]`, a name (binds), or `_` (wildcard).
 
-`choose { w => e, w => e }` — pick one arm, weighted.
-`fork n { ... }` — n independent paths; `_` is the path index; yields a list.
-`spawn Name(args)` — create an agent.
-`tensor [[1,2],[3,4]]` — tensor literal.
+`choose { w => e, w => e }` - pick one arm, weighted.
+`fork n { ... }` - n independent paths; `_` is the path index; yields a list.
+`spawn Name(args)` - create an agent.
+`tensor [[1,2],[3,4]]` - tensor literal.
 
 Operators, loosest to tightest:
 `=` · `or` `||` · `and` `&&` · `==` `!=` · `<` `<=` `>` `>=` · `+` `-` ·
@@ -77,77 +77,77 @@ declared, never what its caller held.
 |---|---|
 | `fs` | `read`, `write`, `weights`, arenas that spill |
 | `clock` | `now` |
-| `crypto` | Ed25519 keypairs, signing, OS entropy — platform-backed |
-| `unaudited_crypto` | Paillier, Schnorr, Pedersen — hand-rolled, not constant time. `paillier_keygen` needs ≥2048 bits; `paillier_keygen_insecure` allows less and says so |
-| `ffi` | `foreign` — calling JavaScript. Also needs `--foreign a,b` naming which modules; `'*'` for any |
+| `crypto` | Ed25519 keypairs, signing, OS entropy - platform-backed |
+| `unaudited_crypto` | Paillier, Schnorr, Pedersen - hand-rolled, not constant time. `paillier_keygen` needs ≥2048 bits; `paillier_keygen_insecure` allows less and says so |
+| `ffi` | `foreign` - calling JavaScript. Also needs `--foreign a,b` naming which modules; `'*'` for any |
 
 ## Builtins
 
-**Core** — `print` `str` `num` `len` `type` `assert` `range`
+**Core** - `print` `str` `num` `len` `type` `assert` `range`
 
-**Math** — `abs` `floor` `ceil` `round` `signum` `sqrt` `exp` `log` `sin` `cos`
+**Math** - `abs` `floor` `ceil` `round` `signum` `sqrt` `exp` `log` `sin` `cos`
 `tan` `min` `max` `clamp`
 
-**Random (seeded)** — `random` `randint` `sample` `shuffle`
+**Random (seeded)** - `random` `randint` `sample` `shuffle`
 
-**Tensors** — `zeros` `ones` `full` `eye` `arange` `randn` `dot` `cosine`
+**Tensors** - `zeros` `ones` `full` `eye` `arange` `randn` `dot` `cosine`
 `relu` `sigmoid` `tanh` `softmax` `argmax`
 Members: `.shape` `.rank` `.size` `.T` `.sum()` `.mean()` `.max()` `.min()`
 `.norm()` `.tolist()` `.reshape(s)` `.map(f)`
 
-**Provenance** — `untrusted` `ungrounded` `restrict` `trust` `labels`
+**Provenance** - `untrusted` `ungrounded` `restrict` `trust` `labels`
 `is_tainted`
 
-**Labels (decentralized label model), confidentiality** — who may read it.
+**Labels (decentralized label model), confidentiality** - who may read it.
 `classify(v, owner[, readers])` `policy_of` `owners_of` `readers_of` `can_read`
 `declassify(v, owner, reason)` `acting_for`
 
-**Labels, integrity** — whose word is behind it. `endorse(v, owner, reason)`
+**Labels, integrity** - whose word is behind it. `endorse(v, owner, reason)`
 `retract(v, owner, reason)` `vouchers_of` `writers_of` `trusted_by`
 
 The two halves are duals. Combining values keeps *every* confidentiality owner
 but only the integrity owners on *both* sides, so a vouch does not survive
-contact with data nobody vouched for — including a literal. `declassify`
+contact with data nobody vouched for - including a literal. `declassify`
 (weakening confidentiality) and `endorse` (strengthening integrity) are the two
 directions that cost a principal's authority; `classify` and `retract` are free.
 A value that lost a vouch prints as `{~alice}`, which is not the same as one
 that never had it.
 
-**Delegable capabilities** — `grant(cap[, note])` `caretaker` `revoke`
+**Delegable capabilities** - `grant(cap[, note])` `caretaker` `revoke`
 `is_live`; a grant has `.attenuate({ "uses": n })` / `{ "for": ticks }`,
 `.describe()`, `.uses_left`, `.live`
 
-**Memory** — `context(budget[, policy])` `tokens` `distill`
+**Memory** - `context(budget[, policy])` `tokens` `distill`
 Context members: `.tokens` `.budget` `.evicted` `.push(t)` `.pin(t)` `.text()`
 `.clear()`
 
-**Ledgers** — `ledger(name)` with `.append(v)` `.verify()` `.head` `.len()`
+**Ledgers** - `ledger(name)` with `.append(v)` `.verify()` `.head` `.len()`
 `.entries()`
 
-**Cryptography** — `sha256` `paillier_keygen` `encrypt` `decrypt` `zk_public`
+**Cryptography** - `sha256` `paillier_keygen` `encrypt` `decrypt` `zk_public`
 `zk_prove` `zk_verify` `commit` `commit_open` `keypair` `sign`
 `verify_signature` `lineage` `secret_of` `random_secret` `reveal`
 
-**Quantum** — `qubits(n)` `qh` `qx` `qy` `qz` `qs` `qt` `qrx` `qry` `qrz`
+**Quantum** - `qubits(n)` `qh` `qx` `qy` `qz` `qs` `qt` `qrx` `qry` `qrz`
 `cnot` `cz` `qswap` `measure` `measure_all` `probabilities`
 
-**Time** — `clock(node)` `before` `liquid(v, halflife)` `advance` `time`
+**Time** - `clock(node)` `before` `liquid(v, halflife)` `advance` `time`
 `schedule(delay, fn)` `simulate([until])` `scheduled`
 
-**Agents** — `send(to, msg, ...)` `run_agents([max])` `pending` `agents`
+**Agents** - `send(to, msg, ...)` `run_agents([max])` `pending` `agents`
 Inside a handler: `self`, `sender`
 
-**Devices** — `devices` `device_stats` `topology` `pressure` `arena(bytes[,
+**Devices** - `devices` `device_stats` `topology` `pressure` `arena(bytes[,
 dir])` `weights(path, shape, dtype)`
 
-**Lifecycle** — `rollback` `versions` `callgraph` `callers` `dependents`
+**Lifecycle** - `rollback` `versions` `callgraph` `callers` `dependents`
 `recursive_cycles` `snapshot` `snapshot_report` `restore` `watch` `leaks`
 
-**Schemas** — `schema(name, fields)` `negotiate` `adapt` `migrate`
+**Schemas** - `schema(name, fields)` `negotiate` `adapt` `migrate`
 
-**Cost** — `energy`
+**Cost** - `energy`
 
-**Effects (capability-gated)** — `read` `write` `now`
+**Effects (capability-gated)** - `read` `write` `now`
 
 ## Types
 
@@ -160,18 +160,18 @@ Optional everywhere. `num` `str` `bool` `nil` `dyn` `dec` `tensor`, `list<T>`,
 
 ## Standard library
 
-`import "std/list" as list` — resolves to the library shipped with the runtime,
+`import "std/list" as list` - resolves to the library shipped with the runtime,
 from anywhere. All four modules are written in Smarsh.
 
-- **std/list** — `take` `drop` `find` `index_of` `any` `all` `count` `zip`
+- **std/list** - `take` `drop` `find` `index_of` `any` `all` `count` `zip`
   `enumerate` `flatten` `unique` `chunk` `windows` `sort_by` `min_by` `max_by`
   `group_by` `partition` `repeat` `first` `last` `is_empty`
-- **std/str** — `repeat` `pad_left` `pad_right` `lines` `words` `strip_prefix`
+- **std/str** - `repeat` `pad_left` `pad_right` `lines` `words` `strip_prefix`
   `strip_suffix` `count_of` `capitalise` `title` `truncate` `reverse`
   `is_palindrome` `is_blank` `is_empty`
-- **std/math** — `sum` `mean` `median` `variance` `stdev` `percentile` `lerp`
+- **std/math** - `sum` `mean` `median` `variance` `stdev` `percentile` `lerp`
   `gcd` `lcm` `factorial` `is_close` `compound`
-- **std/result** — `Ok` `Err` `Some` `None` records, plus `ok` `err` `some`
+- **std/result** - `Ok` `Err` `Some` `None` records, plus `ok` `err` `some`
   `none` `from_nil` `is_ok` `is_err` `is_some` `is_none` `unwrap_or` `expect`
   `map_ok` `map_err` `and_then` `or_else` `all_ok` `oks` `errors`
 
@@ -209,7 +209,7 @@ smarsh eval "<source>"
 ## Exact numbers
 
 `19.99d` is a decimal literal: the digits are read from the source and never
-pass through a float, which is why `dec` otherwise takes a string —
+pass through a float, which is why `dec` otherwise takes a string -
 `dec(0.1)` would have lost the value before `dec` saw it. `2d` is a whole
 decimal. An exponent cannot carry the suffix, so `1e3d` is refused: the value
 would have come through a float to get there.
@@ -255,7 +255,7 @@ Without that, the four records above would run identically right up until a
 payment was refused and nothing had a case for it.
 
 **A variant carrying nothing is a value, not a constructor.** There is only
-ever one of it, so it is written `Pending`, not `Pending()` — when built, and
+ever one of it, so it is written `Pending`, not `Pending()` - when built, and
 when matched. In a pattern a bare name normally binds anything, so this is a
 deliberate exception: a name that is already a nullary variant tests for that
 variant. Without the exception, an arm reading `Pending =>` would silently
@@ -269,7 +269,7 @@ literals. A `when` guard does not close its variant, because a guarded arm may
 decline to fire.
 
 Exhaustiveness is a static check. A program run without `check` still fails
-safely — a match with no arm for its subject raises `MatchError` rather than
+safely - a match with no arm for its subject raises `MatchError` rather than
 returning nil.
 
 `std/result` is built from two of them:

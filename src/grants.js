@@ -7,7 +7,7 @@ const nf = (name, arity, fn) => new NativeFunction(name, arity, fn);
 //
 // `needs fs` is the coarse form: a static claim, checked at the call, that
 // cannot be withdrawn once made. That is right for a program's own structure
-// and wrong for handing authority to something you do not fully trust — you
+// and wrong for handing authority to something you do not fully trust -- you
 // cannot lend a `needs` clause and you cannot get it back.
 //
 // This is the caretaker pattern from the object-capability literature. A grant

@@ -10,7 +10,7 @@ import { analyze } from './analysis.js';
 import { exercise } from './exercise.js';
 import { Rng } from './rng.js';
 
-// `smarsh test` — one command that runs three kinds of check.
+// `smarsh test` -- one command that runs three kinds of check.
 //
 //   1. every `test_*` function, as an ordinary unit test
 //   2. the type checker and the race checker over the file

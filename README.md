@@ -8,7 +8,7 @@ of what a program *says* it did.
 
 Smarsh produces evidence instead. A program holds only the authority it declared,
 data carries where it came from, and every run emits a hash-chained,
-cryptographically signed manifest of every power exercised — and every one
+cryptographically signed manifest of every power exercised - and every one
 **refused**.
 
 ```
@@ -43,14 +43,14 @@ run of billing.smarsh  (smarsh 0.3.0, outcome: completed)
     line 111  authority.delegated     fs
     line 119  authority.revoked       fs
 
-INTACT — every event hashes onto the one before it
+INTACT - every event hashes onto the one before it
          and the head is signed by 0c2dbccf4fea847b
 ```
 
 Four properties make that worth something to a reviewer:
 
 - **It records refusals, not just actions.** A log tells you what happened. This
-  tells you what the program *tried* and was stopped from doing — which is the
+  tells you what the program *tried* and was stopped from doing - which is the
   question an incident review actually asks.
 - **It cannot be edited after the run.** Each event hashes onto the one before
   it and the head is signed. Changing any line breaks the chain.
@@ -78,7 +78,7 @@ sequence against the packaged build, and then feeds it a tampered record to
 confirm it says no.
 
 Without `--key` the record is signed by a throwaway key, which proves it was not
-edited but says nothing about who produced it — and the tool says so rather than
+edited but says nothing about who produced it - and the tool says so rather than
 letting it be assumed.
 
 ## The question this exists to answer
@@ -88,7 +88,7 @@ letting it be assumed.
 
 If an AI model is in the decision path, that question gets harder and more
 urgent at the same time: the model's output cannot be verified, so the thing
-left worth proving is **authority and provenance** — what the surrounding system
+left worth proving is **authority and provenance** - what the surrounding system
 was permitted to do with the answer.
 
 Nothing mainstream answers it at the language level. Java shipped a capability
@@ -101,8 +101,8 @@ the process can reach, and nothing writes down what it reached.
 
 | | |
 |---|---|
-| **Capabilities** | A function holds only what it declared with `needs` — never what its caller held. Reading a signature tells you the worst it can do. |
-| **Information flow** | Values carry owner-scoped policies, both halves of Myers & Liskov's decentralized label model: who may read it, and whose word is behind it. Combining data joins the rules — and drops a vouch that does not cover both sides. |
+| **Capabilities** | A function holds only what it declared with `needs` - never what its caller held. Reading a signature tells you the worst it can do. |
+| **Information flow** | Values carry owner-scoped policies, both halves of Myers & Liskov's decentralized label model: who may read it, and whose word is behind it. Combining data joins the rules - and drops a vouch that does not cover both sides. |
 | **Declassification** | Removing a restriction requires the owner's authority and a written reason, and both land in the manifest. |
 | **Contracts** | `requires` / `ensures` / `old()` / invariants, in the language. `smarsh verify` proves them where it can; `smarsh prove` finds counterexamples where it cannot. |
 | **Exhaustiveness** | `choice` gives closed sets, so a `match` that forgets a case is a build failure, not a production incident. |
@@ -117,7 +117,7 @@ you already have (`ffi`) and returns its results labelled `untrusted`, because a
 foreign function's output is exactly as trustworthy as anything else from
 outside.
 
-The intended shape is a small policy layer — tens of lines, not thousands —
+The intended shape is a small policy layer - tens of lines, not thousands -
 around a system that stays where it is, in the language it is already written
 in. The manifest covers the part a reviewer cares about: what was authorised,
 what was refused, and where data went.
@@ -130,7 +130,7 @@ node bin/smarsh.mjs demo
 ```
 
 One command, no arguments, nothing to write first. It runs a real program with
-real capabilities and prints the signed record it left. The record is a file —
+real capabilities and prints the signed record it left. The record is a file -
 edit any line of it, run `smarsh audit` on it, and the chain breaks. That claim
 is [tested](tests/demo.test.mjs), not asserted: seven edits an interested party
 would actually want to make, including deleting the inconvenient event and
@@ -140,14 +140,14 @@ Zero dependencies, Node 18 or later. 881 passing tests over 94% of the lines in
 `src/`.
 
 > **Status: 0.3.0, pre-1.0, no production users, no third-party audit.** Read
-> [LIMITATIONS.md](LIMITATIONS.md) before believing anything above — it is a
+> [LIMITATIONS.md](LIMITATIONS.md) before believing anything above - it is a
 > complete list of what is weaker than it sounds, including a correction to a
 > claim this README used to make. The hand-rolled cryptography behind
 > `unaudited_crypto` has never been reviewed and is not constant time
 > ([SECURITY.md](SECURITY.md)); the signing above uses platform Ed25519, which
 > has been.
 
-**New here?** [docs/getting-started.md](docs/getting-started.md) — twenty
+**New here?** [docs/getting-started.md](docs/getting-started.md) - twenty
 minutes, assumes nothing. Or `docs/reference.md` for the whole language.
 
 **Generating Smarsh from a program?** [docs/for-llms.md](docs/for-llms.md) is the
@@ -156,7 +156,7 @@ emit it correctly rather than a person browsing. Every builtin it names, every
 method, every example and every claimed error is checked against the runtime by
 `tests/for-llms.test.mjs`, so it cannot drift. Pair it with `--json`.
 
-Other commands: `smarsh check` (types, races, taint, exhaustiveness — without
+Other commands: `smarsh check` (types, races, taint, exhaustiveness - without
 running), `smarsh verify`, `smarsh prove`, `smarsh test`, `smarsh build`,
 `smarsh fmt`, `smarsh repl`, `smarsh explain E0402`.
 
@@ -184,7 +184,7 @@ stack:
 
 Exact spans, a suggestion that accounts for transposed letters, an error code
 with a real explanation behind it, and a stack. The phrasing rules come from
-rustc's diagnostic guide — lowercase, backticked identifiers, `help:` only for
+rustc's diagnostic guide - lowercase, backticked identifiers, `help:` only for
 things you can act on, and one message per problem.
 
 And a lot of it arrives before the program runs at all:
@@ -218,7 +218,7 @@ let rate: num = 1.08
 Smarsh is **gradually typed**, following Siek and Taha: there is a type `dyn` for
 "not known statically", and the checker uses a *consistency* relation rather
 than equality, under which `dyn` is consistent with everything. That single
-choice is what keeps annotations optional instead of viral — a program with no
+choice is what keeps annotations optional instead of viral - a program with no
 annotations has every expression at `dyn`, is consistent everywhere, and reports
 nothing. Every example in this repository type-checks clean, and most of them
 have no annotations at all.
@@ -226,7 +226,7 @@ have no annotations at all.
 Where you do annotate, you are held to it. Inference is local and bidirectional
 rather than full Hindley-Milner: literals, operators, list and map literals,
 `let` initialisers and returns propagate upward, annotations flow down. That is
-a real limitation, chosen deliberately — the failure mode of local inference is
+a real limitation, chosen deliberately - the failure mode of local inference is
 missing a bug, and the failure mode of aggressive inference is inventing one. In
 a gradual system the second is much worse.
 
@@ -253,7 +253,7 @@ Records compare by value, so two points at the same coordinates are the same
 point. Patterns destructure them, guards refine an arm, and a value that matches
 nothing says so rather than returning nil.
 
-`record` is a **contextual** keyword — `record Name(` is a declaration, and the
+`record` is a **contextual** keyword - `record Name(` is a declaration, and the
 word is an ordinary identifier everywhere else. Java made the same call for the
 same reason, and this repository's own agent tests, which have a handler called
 `record`, are why it was noticed here.
@@ -269,7 +269,7 @@ choice Payment {
 }
 ```
 
-Each variant is an ordinary record — same construction, fields, equality,
+Each variant is an ordinary record - same construction, fields, equality,
 printing, `.with()`, invariants and patterns. What a `choice` adds is that the
 set is **closed**, and a closed set is what makes exhaustiveness decidable:
 
@@ -283,19 +283,19 @@ error[E0605]: this match on `Payment` does not handle `Refused`
 help: add an arm for it, or `_ => ...` if the rest genuinely need no case
 ```
 
-Four unrelated records would run identically — right up until a payment was
+Four unrelated records would run identically - right up until a payment was
 refused in production and nothing had a case for it. `std/result` is built from
 two of these, so `Result` is `Ok | Err` and `Option` is `Some | None`, and
 forgetting the failing case is a build failure rather than a comment nobody read.
 
 The checker stays quiet wherever it cannot be certain: a wildcard, a bare
 binding, arms spanning two choices, a variant name used by more than one choice,
-or a `when` guard — a guarded arm may decline to fire, so it does not close its
+or a `when` guard - a guarded arm may decline to fire, so it does not close its
 variant.
 
 A variant carrying nothing is a value rather than a constructor: `Pending`, not
 `Pending()`. In a pattern a bare name normally binds anything, so this is a
-deliberate exception — without it, an arm reading `Pending =>` would silently
+deliberate exception - without it, an arm reading `Pending =>` would silently
 swallow every other case that reached it.
 
 ## Money is exact, and floats are not allowed near it
@@ -305,7 +305,7 @@ let price = dec("12.50")
 print(price * 3)                       // 37.50, exactly
 
 dec("0.1") + dec("0.2") == dec("0.3")  // true
-0.1 + 0.2 == 0.3                       // false — `num` is a float and says so
+0.1 + 0.2 == 0.3                       // false - `num` is a float and says so
 ```
 
 `dec` is an integer coefficient and a scale, backed by BigInt: no upper bound,
@@ -321,7 +321,7 @@ help: write it exactly: `dec("0.1")`
 ```
 
 An integer literal past 2^53 is refused at parse time rather than silently
-rounded — `9007199254740993` is a syntax error that points you at `dec`.
+rounded - `9007199254740993` is a syntax error that points you at `dec`.
 
 ## `let` means immutable, all the way down
 
@@ -347,7 +347,7 @@ let value = maybe_taint(false)
 grounded { print(value) }
 ```
 
-This program *runs* clean — the tainted branch was not taken. `smarsh check`
+This program *runs* clean - the tainted branch was not taken. `smarsh check`
 reports it anyway:
 
 ```
@@ -373,7 +373,7 @@ examples/tour.smarsh: no problems found (2 suppressed by smarsh-allow)
 
 ## Unaudited cryptography is quarantined
 
-Two capabilities, not one. `crypto` covers what delegates to the platform —
+Two capabilities, not one. `crypto` covers what delegates to the platform -
 Ed25519, SHA-256, OS entropy. `unaudited_crypto` covers Paillier, Schnorr and
 Pedersen, which are implemented here in BigInt.
 
@@ -413,7 +413,7 @@ run of examples/regulated.smarsh  (smarsh 0.3.0, outcome: completed)
     line 110  authority.delegated     fs
     line 118  authority.revoked       fs
 
-INTACT — every event hashes onto the one before it
+INTACT - every event hashes onto the one before it
          and the head is signed by 2f7f8187eefb18c5
 ```
 
@@ -422,14 +422,14 @@ need to know it was not written afterwards by the party being reviewed. Delete
 the inconvenient line and `audit` says so:
 
 ```
-ALTERED — this record does not describe the run it claims to
+ALTERED - this record does not describe the run it claims to
   event 1 does not follow the one before it
   the signature covers the recorded head, but the events no longer
   produce that head: the record was signed and then edited
 ```
 
 Every effect passes through a single capability check, so the record is
-complete rather than best-effort — including **refusals**, which is the run a
+complete rather than best-effort - including **refusals**, which is the run a
 reviewer most wants to see. It also names authority that was granted and
 demonstrably never used, which is the line that gets a permission withdrawn.
 
@@ -437,7 +437,7 @@ None of this is instrumentation you add to your program. The runtime already
 had to know all of it in order to enforce the rules; the manifest is what stops
 it being discarded when the process exits. That is the structural difference:
 Java has no capability check to record, no label to observe, and no seed that
-makes the run reproducible — so there is nothing for a Java equivalent to write
+makes the run reproducible - so there is nothing for a Java equivalent to write
 down, however carefully it is written.
 
 See [examples/regulated.smarsh](examples/regulated.smarsh) for the whole thing.
@@ -460,11 +460,11 @@ smarsh verify examples/contracts.smarsh
 as a theorem: **for every input, unbounded, with no sampling.** Two conditions
 for `abs_` because there are two paths through it, and both are proved.
 
-It follows the shape Dafny uses — [weakest preconditions to verification
+It follows the shape Dafny uses - [weakest preconditions to verification
 conditions to a solver](https://www.cs.umd.edu/class/spring2025/cmsc433/code/VerificationConditions.pdf)
-— except Smarsh has no dependencies, so it cannot pipe to Z3. It carries its own
+- except Smarsh has no dependencies, so it cannot pipe to Z3. It carries its own
 decision procedure: exact BigInt rationals, Fourier-Motzkin elimination, and a
-small DPLL search over the boolean structure. Loops produce four obligations —
+small DPLL search over the boolean structure. Loops produce four obligations -
 the invariant is established, a pass preserves it, the variant stays at or above
 zero, and the variant strictly decreases.
 
@@ -472,21 +472,21 @@ zero, and the variant strictly decreases.
 proof by silence. Two properties make that trustworthy:
 
 *It will not claim a refutation it cannot justify.* Anything the solver cannot
-model — a non-linear product, a call — becomes an unconstrained variable. That
+model - a non-linear product, a call - becomes an unconstrained variable. That
 widens the models, which is sound for proving and unsound for refuting, so any
 refutation resting on one is downgraded to `undecided`. `smarsh prove` still finds
 those by testing; the two tools cover different halves and agree where they
 overlap, which the test suite checks.
 
 *It models the arithmetic that actually runs.* A float literal becomes the
-number the machine holds — `0.1` is `3602879701896397/36028797018963968`, not
+number the machine holds - `0.1` is `3602879701896397/36028797018963968`, not
 one tenth. A solver that read it as one tenth would cheerfully prove
 `0.1 + 0.2 == 0.3`, which the runtime then falsifies. Reasoning about `dec` is
 exact; reasoning about `num` does not model per-operation rounding, and says so.
 
 **A caveat on the obvious claim to make here.** It is tempting to say no other
 language verifies functional contracts, information flow, capability
-sufficiency and termination together. Smarsh does check all four — but not in one
+sufficiency and termination together. Smarsh does check all four - but not in one
 pass and not in one engine. `verify` does contracts and termination against the
 solver; `check` does information flow, types and races with entirely different
 algorithms. One toolchain, four analyses, no shared logic between them.
@@ -543,7 +543,7 @@ mutually distrusting parties actually has.
 let salary  = classify(82000, "hr",    ["hr", "payroll"])
 let audited = classify(salary, "audit", ["audit", "payroll"])
 
-readers_of(audited)                     // ["payroll"] — the intersection
+readers_of(audited)                     // ["payroll"] - the intersection
 release_to "payroll"   { use(salary) }  // fine
 release_to "marketing" { use(salary) }  // LabelError
 ```
@@ -551,7 +551,7 @@ release_to "marketing" { use(salary) }  // LabelError
 Combining data unions the policies and *intersects* the readers. Mixing data
 never makes it more readable.
 
-The part a blanket `trust()` cannot express — **authority is per principal**:
+The part a blanket `trust()` cannot express - **authority is per principal**:
 
 ```smarsh
 authority "hr" {
@@ -588,7 +588,7 @@ note: the label is {~payroll}
 ```
 
 Nothing had to remember to check. The vouch was dropped by the `+`, because a
-value alice never saw cannot be one she stands behind — and the label kept the
+value alice never saw cannot be one she stands behind - and the label kept the
 fact that it *had* backing, so the error can say where it went rather than only
 that it is missing.
 
@@ -597,7 +597,7 @@ Every rule is the mirror of the confidentiality half:
 |                        | who may read it | whose word is behind it |
 |------------------------|-----------------|-------------------------|
 | combining values       | keeps every owner, intersects the readers | keeps only the owners on **both** sides |
-| costs a principal's authority | **weakening** it — `declassify` | **strengthening** it — `endorse` |
+| costs a principal's authority | **weakening** it - `declassify` | **strengthening** it - `endorse` |
 | free                   | `classify` | `retract` |
 | an unlabelled value is | readable by everyone | backed by nobody |
 
@@ -618,9 +618,9 @@ revoke(pair["revoker"])
 report_worker(pair["grant"], "…")                   // CapabilityError: revoked
 ```
 
-Narrower still — `attenuate({ "uses": 2 })` or `{ "for": 5 }` ticks. Three rules
+Narrower still - `attenuate({ "uses": 2 })` or `{ "for": 5 }` ticks. Three rules
 make it safe to hand one out: a frame can only grant what it already holds,
-attenuation only ever narrows, and **revocation is transitive** — killing a
+attenuation only ever narrows, and **revocation is transitive** - killing a
 grant kills everything derived from it.
 
 ## Tooling
@@ -635,14 +635,14 @@ smarsh build file      # one self-contained .mjs, no dependencies
 
 `smarsh test` runs three things at once: every `test_*` function, the type and
 race checkers, and `prove` against every contracted function in the file. That
-last one is why the command earns its place — a contract *is* a specification,
+last one is why the command earns its place - a contract *is* a specification,
 so adding a `requires` clause immediately buys you generated tests with no
 separate step to remember.
 
 `smarsh fmt` has no options, on purpose. Its guarantee is checked by tests that
 matter: formatting is idempotent, comments survive, and **a formatted program
 produces byte-identical output to the original**. Building it found two bugs
-where the formatter silently changed the program — a multi-statement lambda body
+where the formatter silently changed the program - a multi-statement lambda body
 replaced with a literal `{ ... }`, and `redefine fn f` printed as `fn f`, which
 turns a redefinition into a duplicate declaration.
 
@@ -675,7 +675,7 @@ print(os.platform())
 ```
 
 The single largest blocker to adopting any language is the code you already
-have. `foreign()` calls into JavaScript — built-in modules, CommonJS files,
+have. `foreign()` calls into JavaScript - built-in modules, CommonJS files,
 installed packages.
 
 It needs the `ffi` capability, and that is the entire design. Everything else in
@@ -683,7 +683,7 @@ Smarsh is bounded; a foreign call escapes all of it, because once control is
 inside JavaScript the runtime cannot see what happens. So the boundary is
 declared rather than ambient, values are **converted rather than shared** (a
 host function cannot reach back into your list), and everything coming back is
-labelled `untrusted` — it cannot enter a `grounded` block until you launder it
+labelled `untrusted` - it cannot enter a `grounded` block until you launder it
 with a written reason. A function that did not declare `ffi` cannot open the
 boundary even when the top level holds it.
 
@@ -769,7 +769,7 @@ language errors with a line number:
 ShapeError: cannot multiply [2, 3] @ [2, 3]: inner sizes 3 and 2 differ (line 34)
 ```
 
-Tensors are immutable — writing into one is an error, not a silent aliasing bug.
+Tensors are immutable - writing into one is an error, not a silent aliasing bug.
 
 ### 4. Where a value came from is part of the value
 
@@ -788,7 +788,7 @@ let checked = trust(reply, "cross-checked against filing.pdf p14 by a human")
 grounded { print(checked) }   // fine, and the laundering is in the trace
 ```
 
-Labels propagate through every operation that reads the value — arithmetic,
+Labels propagate through every operation that reads the value - arithmetic,
 concatenation, method calls, function returns. `trust()` is the only way to
 remove one, it demands a written reason, and it records the laundering.
 
@@ -815,7 +815,7 @@ fn sneaky(text) {
 }
 ```
 
-A function holds exactly what it declared with `needs` — never what its caller
+A function holds exactly what it declared with `needs` - never what its caller
 held. That is real attenuation, not a policy file:
 
 ```smarsh
@@ -825,7 +825,7 @@ outer()                                  // level was granted both
 ```
 
 The top level holds only what `--grant` gave it. With no flag, a program cannot
-touch the filesystem or read the clock — which is also why a program without
+touch the filesystem or read the clock - which is also why a program without
 `--grant` always replays identically.
 
 ### 7. Contracts are checked, and generate their own tests
@@ -854,7 +854,7 @@ prove examples/contracts.smarsh (seed 0, 200 inputs per function)
 
 Both findings above are genuine: `scale` is wrong for negative `x`, and
 `safe_div`'s postcondition assumes exact arithmetic that floating point does not
-provide. It does not invent tests for uncontracted functions — a function that
+provide. It does not invent tests for uncontracted functions - a function that
 promises nothing cannot be checked against anything.
 
 ### And: memory measured in tokens
@@ -917,7 +917,7 @@ secret {
 }   // key's bytes are zeroed on the way out, including if the block fails
 ```
 
-A secret never renders its contents — printing one gives `<secret 32 bytes>`.
+A secret never renders its contents - printing one gives `<secret 32 bytes>`.
 
 ### 11. Quantum logic in the same file as everything else
 
@@ -930,7 +930,7 @@ let bits = measure_all(q)   // the two always agree
 ```
 
 A state-vector simulator: exact unitary evolution, real entanglement and
-interference, correct measurement statistics — and measurement draws from the
+interference, correct measurement statistics - and measurement draws from the
 same seeded RNG as the rest of the language, so a quantum program replays
 exactly. It is simulation, not hardware: *n* qubits cost 2^*n*, which is why the
 register stops at 22.
@@ -970,7 +970,7 @@ run_agents()
 ```
 
 Private state, message handlers, and `sender` bound on the way in so a reply
-needs no address book. Delivery is round-robin in spawn order — fair, and
+needs no address book. Delivery is round-robin in spawn order - fair, and
 deterministic enough that the same program delivers the same messages in the
 same order every run.
 
@@ -1007,7 +1007,7 @@ tighten. Only the boundary converts it into an ordinary error, for whoever set
 the budget to handle. That asymmetry is the whole feature: a runaway agent must
 not be able to talk its way out of being stopped.
 
-Budgets are measured in `steps` or `tokens` — the latter bounds what a program
+Budgets are measured in `steps` or `tokens` - the latter bounds what a program
 may push into context windows.
 
 ### 15. Problems found before the program runs
@@ -1024,8 +1024,8 @@ declared outside the fork; the paths are sharing one cell
 
 `fork n { }` runs one body as n paths. A write to anything declared outside it
 is a race whether or not today's scheduler happens to interleave. The check is
-biased toward silence — any name declared anywhere inside the body counts as
-local, so shadowing never produces a false alarm — because a checker people
+biased toward silence - any name declared anywhere inside the body counts as
+local, so shadowing never produces a false alarm - because a checker people
 switch off is worth less than one that only speaks when it is right. Races are
 also printed as warnings on every `run`.
 
@@ -1038,7 +1038,7 @@ also printed as warnings on every `run`.
 Smarsh covers a wide surface, and breadth invites the reasonable suspicion that
 some of it is thin. [docs/capabilities.md](docs/capabilities.md) is the
 accounting: every subsystem, what it actually does, and where the name promises
-more than the implementation delivers — a quantum *simulator* with no speedup, a
+more than the implementation delivers - a quantum *simulator* with no speedup, a
 lineage chain that is cryptographic rather than hardware-enforced, `energy()` as
 a disclosed cost model rather than a power reading, unaudited cryptography
 behind its own capability.
@@ -1050,7 +1050,7 @@ JavaScript closures once rather than being re-walked (`src/compile.js`): about
 **1.9x overall** against the old tree-walker, 2.4x on recursion and calls, 2.2x
 on tight loops. `for i in range(n)` no longer builds the list first.
 
-It is still an interpreter, and slower than Python — about **3.2–3.4× behind
+It is still an interpreter, and slower than Python - about **3.2-3.4× behind
 CPython** on `fib(27)`, and **~32× behind a JIT**. `npm run bench:compare`
 measures all three in one session and reports ratios, because absolute
 milliseconds are not portable: the same unchanged code measured 531 ms and, an
@@ -1065,7 +1065,7 @@ It was 6.7× behind CPython. Across eleven workload shapes the runtime is
 | recursion −40% | lists −33% | loop-plain −28% | maps −27% | strings −21% |
 
 Almost all of it was removing allocation rather than adding cleverness. A call
-in the common shape — a named function with no capabilities and no contract —
+in the common shape - a named function with no capabilities and no contract -
 allocates nothing: the frame is reused, arguments travel in JavaScript locals
 rather than an array, and the step counter is one compare. `xs.push` no longer
 builds a fresh bound function every call. Contracts compile like any other
@@ -1073,7 +1073,7 @@ expression instead of being walked. Carrying no labels no longer allocates a
 Set to discover there was nothing to carry.
 
 `npm run ab` is what any of that was measured with, and it exists because the
-first three attempts were wrong — see below.
+first three attempts were wrong - see below.
 
 Getting that number right took three attempts, and the wrong ones reached this
 file. Timings inside one long-lived process climbed run over run (644 → 1029 ms
@@ -1084,26 +1084,26 @@ HEAD and one from the working copy and interleaves them, so machine load hits
 both sides equally.
 
 Closing the remaining gap needs compile-time frame slots and a typed value
-representation — architecture, not tuning. The design above is why it matters
+representation - architecture, not tuning. The design above is why it matters
 less than it looks: policy code runs once per decision, not in a hot loop.
 
 `--engine tree` runs the original tree-walker, and CI proves the two are
 indistinguishable across every example, every standard-library module and 3,000
-generated programs — compared on output, failures, step counts and the entire
+generated programs - compared on output, failures, step counts and the entire
 audit trace, because `smarsh audit` signs a claim that a run replays from its
 seed.
 
 ## What is honest about this
 
-- `fork` evaluates paths in order, not on OS threads. The semantics — isolation
-  and independent randomness — are real; the parallelism is not. Real
+- `fork` evaluates paths in order, not on OS threads. The semantics - isolation
+  and independent randomness - are real; the parallelism is not. Real
   parallelism needs worker threads and a serializable value representation.
   This is also why `smarsh check`'s race detection matters: the defect is real
   even though today's scheduler happens not to expose it.
 - Agents run on one thread. Isolation and determinism are real; concurrency is
   cooperative, and nothing crosses a machine boundary yet.
 - Threads back tensor work only. `device "workers"` genuinely parallelises
-  matrix multiply across cores (~1.5× on 3 threads for a 400×400 multiply —
+  matrix multiply across cores (~1.5× on 3 threads for a 400×400 multiply -
   sub-linear, because copying into the shared buffer and memory bandwidth eat
   the rest). `fork` does not use them.
 - `energy()` weights are a disclosed model, not a measurement. Nothing here
@@ -1120,7 +1120,7 @@ seed.
   path a program could take. A static pass would strengthen it.
 - `prove` generates inputs from a fixed pool weighted toward numbers. It finds
   real counterexamples (see `scale` above) but is not exhaustive, and it says so
-  in its own output — including how many inputs fell outside a function's domain.
+  in its own output - including how many inputs fell outside a function's domain.
 - There is no module system yet. One file at a time.
 
 ## Layout

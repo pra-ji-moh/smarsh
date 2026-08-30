@@ -1,4 +1,4 @@
-// std/math — statistics and number helpers.
+// std/math -- statistics and number helpers.
 fn sum(xs: list<num>) -> num {
   var total = 0
   for x in xs {

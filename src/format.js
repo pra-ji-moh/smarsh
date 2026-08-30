@@ -1,6 +1,6 @@
 import { parse } from './parser.js';
 
-// `smarsh fmt` — one canonical layout.
+// `smarsh fmt` -- one canonical layout.
 //
 // Formatting is not a matter of taste worth anyone's time, so this offers no
 // options. Two spaces, no semicolons, braces on the same line, blank lines

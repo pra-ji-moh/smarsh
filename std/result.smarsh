@@ -1,4 +1,4 @@
-// std/result — outcomes that cannot be ignored.
+// std/result -- outcomes that cannot be ignored.
 //
 // The point is not the types, it is that `match` forces you to say what happens
 // when the answer is missing. A nil that flows three functions away before it

@@ -1,4 +1,4 @@
-// std/str — text handling beyond the methods every string already carries.
+// std/str -- text handling beyond the methods every string already carries.
 fn is_empty(s: str) -> bool {
   return s.len() == 0
 }

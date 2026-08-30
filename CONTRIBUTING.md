@@ -4,7 +4,7 @@
 
 **A feature's name must be true.**
 
-Smarsh ships things that sound impossible — homomorphic arithmetic, zero-knowledge
+Smarsh ships things that sound impossible - homomorphic arithmetic, zero-knowledge
 proofs, quantum simulation, un-overridable kill switches. They are in the tree
 because each one actually does what its name says, and where a name would
 overclaim, the name changed rather than the claim.
@@ -18,7 +18,7 @@ Two examples of that rule in action:
   on. Superposition, entanglement and interference are real; the speedup is not.
 
 If you are adding something and find yourself writing "effectively" or "in
-practice this is basically" — stop and rename the feature.
+practice this is basically" - stop and rename the feature.
 
 ## Getting set up
 
@@ -47,11 +47,11 @@ Match what is already there. Some specifics that are easy to miss:
 
 - Error messages say what happened and what to do, in a sentence a person would
   say out loud. `a grounded block read an ungrounded argument; check or launder
-  it with trust() outside the block first` — not `TaintError: label violation`.
+  it with trust() outside the block first` - not `TaintError: label violation`.
 - Comments explain *why*, not *what*. If a block needs a comment to say what it
   does, the code is the problem.
 - Capabilities gate effects, not convenience. Anything that reads real entropy,
-  the clock, the filesystem or the network needs one — that is what keeps a
+  the clock, the filesystem or the network needs one - that is what keeps a
   program reproducible by default.
 
 ## Adding a new value type
@@ -101,7 +101,7 @@ shape the optimiser saw.
 
 ## Reporting a security issue
 
-smarsh runs untrusted-ish code by design — capabilities, taint tracking and
+smarsh runs untrusted-ish code by design - capabilities, taint tracking and
 budgets are all load-bearing. If you find a way to escape any of them (reach the
 filesystem without `fs`, launder a taint label without `trust()`, or survive a
 `budget` block), that is a security bug. Open an issue with a reproducing

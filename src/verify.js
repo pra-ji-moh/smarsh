@@ -7,7 +7,7 @@ import { Diagnostic } from './diagnostics.js';
 //
 // `smarsh prove` throws generated inputs at a contract and reports what breaks.
 // That finds real bugs and it is what most languages offer. It cannot tell you
-// a contract *holds* — only that a few hundred inputs did not break it.
+// a contract *holds* -- only that a few hundred inputs did not break it.
 //
 // This does the other thing. Following Dijkstra's weakest-precondition calculus
 // and the shape Dafny uses, each function becomes a verification condition:
@@ -27,12 +27,12 @@ import { Diagnostic } from './diagnostics.js';
 //     can fail to prove a true thing, and cannot claim a false one.
 //   - Integer division and modulo are not modelled exactly.
 //   - Three answers, always distinguished: proved, refuted with a
-//     counterexample, or `cannot decide` — never a proof by silence.
+//     counterexample, or `cannot decide` -- never a proof by silence.
 
 // Two kinds of fresh symbol, and the difference decides whether a refutation
 // can be believed.
 //
-//   `?` — an approximation. Something the solver cannot model (a non-linear
+//   `?` -- an approximation. Something the solver cannot model (a non-linear
 //         product, a call, an unmodelled statement) became an unconstrained
 //         variable. That *widens* the models, which is sound for proving --
 //         no model even with the extra freedom means no model at all -- and
@@ -40,7 +40,7 @@ import { Diagnostic } from './diagnostics.js';
 //         any real execution. A condition touching one of these can be proved
 //         but never refuted.
 //
-//   `$` — a universally quantified program state: the arbitrary state at the
+//   `$` -- a universally quantified program state: the arbitrary state at the
 //         top of a loop. A counterexample here is a genuine refutation of the
 //         annotation, because an invariant is required to hold for every such
 //         state whether or not the loop can reach it.

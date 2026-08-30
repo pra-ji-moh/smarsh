@@ -71,6 +71,6 @@ cd /tmp && npm install smarsh@<version> && npx smarsh --version
 
 ## If a release is broken
 
-Do not unpublish — that breaks anyone who already installed it. Fix forward:
+Do not unpublish - that breaks anyone who already installed it. Fix forward:
 release a patch, and add a note to the changelog entry of the broken version
 saying what was wrong and which version to use instead.
