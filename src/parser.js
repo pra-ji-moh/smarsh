@@ -775,7 +775,12 @@ export class Parser {
     if (t.type === 'num') { this.advance(); return { type: 'Num', value: t.value, line }; }
     // `19.99d` -- the digits as written, handed to `dec` unchanged.
     if (t.type === 'dec') { this.advance(); return { type: 'DecLit', value: t.value, line }; }
-    if (t.type === 'str') { this.advance(); return { type: 'Str', value: t.value, line }; }
+    if (t.type === 'str') {
+      this.advance();
+      // `raw` is carried purely so the formatter can print it back as a raw
+      // string; nothing about evaluation depends on it.
+      return { type: 'Str', value: t.value, raw: t.raw === true, line };
+    }
 
     // "a ${b} c" -- the embedded pieces are parsed here, as full expressions.
     if (t.type === 'template') {

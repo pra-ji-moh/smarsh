@@ -156,6 +156,42 @@ export function tokenize(source) {
       continue;
     }
 
+    // raw strings: r"\d+" is the characters between the quotes, exactly
+    //
+    // Added when regular expressions arrived, because without them every
+    // pattern has to be written with doubled backslashes -- `"^\\d{3}-\\d{4}$"`
+    // -- and a pattern you cannot read is a pattern you cannot check. Python
+    // and Rust both solved this the same way and people already know the
+    // notation.
+    //
+    // No escapes and no interpolation inside one: that is the point. The only
+    // thing it cannot contain is its own quote character, which is the same
+    // limitation Python has and for the same reason.
+    if ((c === 'r' || c === 'R') && (source[i + 1] === '"' || source[i + 1] === "'")) {
+      const quote = source[i + 1];
+      const start = i;
+      const openLine = line;
+      i += 2;
+      const from = i;
+      while (i < n && source[i] !== quote) {
+        if (source[i] === '\n') line++;
+        i++;
+      }
+      if (i >= n) {
+        throw smarshError('SyntaxError', 'this raw string was never closed', openLine)
+          .help('a raw string cannot contain its own quote character; use the other quote');
+      }
+      const text = source.slice(from, i);
+      i++;                                   // closing quote
+      // The token carries `raw` so the formatter can put it back the way it was
+      // written. Without that, `smarsh fmt` rewrites `r"\d+"` as `"\\d+"` --
+      // same meaning, and it destroys the readability the notation exists for.
+      const token = { type: 'str', value: text, raw: true, line, start, end: i, nlBefore: pendingNewline };
+      pendingNewline = false;
+      tokens.push(token);
+      continue;
+    }
+
     // identifiers and keywords
     if (isIdentStart(c)) {
       const start = i;
@@ -182,7 +218,8 @@ export function tokenize(source) {
           const esc = source[i + 1];
           const map = { n: '\n', t: '\t', r: '\r', '0': '\0', '\\': '\\', '"': '"', "'": "'", $: '$' };
           if (esc in map) { out += map[esc]; i += 2; continue; }
-          throw smarshError('SyntaxError', `unknown escape \\${esc}`, line);
+          throw smarshError('SyntaxError', `unknown escape \\${esc}`, line)
+            .help(`for a regular expression or a path, a raw string takes it literally: r"...${esc}..."`);
         }
         if (source[i] === '$' && source[i + 1] === '{') {
           parts.push({ text: out });

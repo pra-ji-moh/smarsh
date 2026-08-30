@@ -100,7 +100,7 @@ function expr(node, parentPrec = 0) {
     case 'Num': return formatNumber(node.value);
     // The digits exactly as written -- reformatting money must not round it.
     case 'DecLit': return `${node.value}d`;
-    case 'Str': return quote(node.value);
+    case 'Str': return node.raw ? rawQuote(node.value) : quote(node.value);
     case 'Bool': return node.value ? 'true' : 'false';
     case 'Nil': return 'nil';
     case 'Ident': return node.name;
@@ -167,6 +167,18 @@ function expr(node, parentPrec = 0) {
 // it into an interpolation the author never wrote.
 function quote(text) {
   return JSON.stringify(text).replace(/\$\{/g, '\\${');
+}
+
+// A raw string, put back the way it was written.
+//
+// It can hold anything except its own quote, so the quote is chosen to avoid a
+// conflict. If the text somehow contains both, there is no raw form of it and
+// the ordinary escaped one is the only honest answer -- printing `r"..."` with
+// an unescapable quote inside would emit source that does not parse.
+function rawQuote(text) {
+  if (!text.includes('"')) return `r"${text}"`;
+  if (!text.includes("'")) return `r'${text}'`;
+  return quote(text);
 }
 
 // Print a number the way it was meant, not the way IEEE stores it.

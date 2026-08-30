@@ -207,6 +207,13 @@ not been done.
 
 ## 5. Security
 
+- **The regex engine has no backreferences, lookaround, or lazy quantifiers.**
+  That is the price of the linear-time guarantee, not an unfinished corner:
+  backreferences make matching NP-hard, and lookaround is where a careless
+  addition loses the bound. If you need them, this is the wrong engine.
+- **Case-insensitive matching folds ASCII only.** Full Unicode case folding is a
+  table this project will not carry, and a half-implemented version would be
+  worse than an honest limit.
 - **An HTTP request blocks the thread it is on.** The interpreter is
   synchronous, so `http_get` parks the calling thread in `Atomics.wait` while a
   worker performs the fetch. Nothing in Smarsh notices, but a Node application

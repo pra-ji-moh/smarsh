@@ -238,6 +238,13 @@ Maps: `.len .get .set .has .remove .keys .values`
 
 Exact numbers: `19.99d` literals, `dec is_dec dec_sum`, and `.div(amount, scale)`.
 
+Regex: `re_test re_match re_all re_replace re_split`. Write patterns as raw
+strings -- `r"^\d{3}$"` -- which take their characters literally.
+
+The engine matches in **linear time**, so there are no backreferences, no
+lookahead and no lazy quantifiers: those need backtracking, and backtracking is
+how `(a+)+b` takes hours on forty characters. Everything else is here.
+
 JSON: `json_parse to_json is_json`. A fractional number parses to an exact
 decimal, not a float, so `19.99` survives the round trip. Taint survives it too:
 `json_parse(untrusted(body))` is untrusted all the way down.

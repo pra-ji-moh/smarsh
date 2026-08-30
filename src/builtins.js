@@ -11,6 +11,7 @@ import {
   KeyPair, generateKeypair, signMessage, verifyMessage, LineageChain, Secret, randomSecret,
 } from './crypto.js';
 import { parseJson, writeJson, isJsonable } from './json.js';
+import { Regex } from './regex.js';
 import {
   NetClient, checkUrl, normaliseHeaders, normaliseMethod, toSmarshResponse,
   DEFAULT_TIMEOUT_MS,
@@ -320,6 +321,113 @@ export function installBuiltins(interp) {
   }, { transparent: true });
 
   def('labels', 1, (a) => (a[0] instanceof Tainted ? [...a[0].labels] : []), { transparent: true });
+
+  // --- regular expressions -----------------------------------------------------
+
+  // Linear time, always. See src/regex.js: this is Thompson's construction
+  // rather than a backtracker, because `(a+)+b` against forty characters takes
+  // JavaScript's RegExp longer than anyone will wait, and a runtime whose claim
+  // is bounded authority cannot hand a program an operation whose cost is
+  // unbounded in its input.
+  //
+  // Compiling a pattern is not free and the same pattern is usually used in a
+  // loop, so compiled programs are kept. The cache is bounded: a program
+  // building patterns from its input would otherwise grow it without limit,
+  // which is the same unbounded-cost problem one level up.
+  const RE_CACHE = new Map();
+  const MAX_CACHED = 256;
+
+  const compileRe = (pattern, line) => {
+    const text = unwrap(pattern);
+    if (typeof text !== 'string') {
+      throw smarshError('TypeError', `a pattern must be a string, got ${typeName(text)}`, line);
+    }
+    const hit = RE_CACHE.get(text);
+    if (hit) return hit;
+    let re;
+    try {
+      re = new Regex(text);
+    } catch (e) {
+      throw smarshError(e.kind ?? 'RegexError', e.message, line);
+    }
+    if (RE_CACHE.size >= MAX_CACHED) RE_CACHE.clear();
+    RE_CACHE.set(text, re);
+    return re;
+  };
+
+  const subjectOf = (v, line) => {
+    const text = unwrap(v);
+    if (typeof text !== 'string') {
+      throw smarshError('TypeError', `a subject must be a string, got ${typeName(text)}`, line);
+    }
+    return text;
+  };
+
+  // One match as a map, or nil. A map rather than a list because the useful
+  // answer has four parts and positional access to them reads badly.
+  const matchToMap = (m, subject) => new Map([
+    ['match', subject.slice(m[0][0], m[0][1])],
+    ['start', m[0][0]],
+    ['end', m[0][1]],
+    ['groups', m.slice(1).map((g) => (g === null ? null : subject.slice(g[0], g[1])))],
+  ]);
+
+  def('re_test', 2, (a, line) => {
+    const re = compileRe(a[0], line);
+    return re.test(subjectOf(a[1], line));
+  }, { transparent: true });
+
+  def('re_match', 2, (a, line) => {
+    const re = compileRe(a[0], line);
+    const subject = subjectOf(a[1], line);
+    const m = re.exec(subject);
+    return m === null ? null : retaint(matchToMap(m, subject), a[1]);
+  }, { transparent: true });
+
+  def('re_all', 2, (a, line) => {
+    const re = compileRe(a[0], line);
+    const subject = subjectOf(a[1], line);
+    return retaint(re.all(subject).map((m) => matchToMap(m, subject)), a[1]);
+  }, { transparent: true });
+
+  def('re_replace', 3, (a, line) => {
+    const re = compileRe(a[0], line);
+    const subject = subjectOf(a[1], line);
+    const replacement = unwrap(a[2]);
+    if (typeof replacement !== 'string') {
+      throw smarshError('TypeError', 'the replacement must be a string', line);
+    }
+    let out = '';
+    let at = 0;
+    for (const m of re.all(subject)) {
+      const [start, end] = m[0];
+      out += subject.slice(at, start);
+      // `$1`..`$9` are the groups; `$$` is a literal dollar. Nothing else is
+      // special, so a replacement containing arbitrary text is safe to use.
+      out += replacement.replace(/\$(\$|[1-9])/g, (_, d) => {
+        if (d === '$') return '$';
+        const g = m[Number(d)];
+        return g ? subject.slice(g[0], g[1]) : '';
+      });
+      at = end;
+    }
+    return retaint(out + subject.slice(at), a[1], a[2]);
+  }, { transparent: true });
+
+  def('re_split', 2, (a, line) => {
+    const re = compileRe(a[0], line);
+    const subject = subjectOf(a[1], line);
+    const parts = [];
+    let at = 0;
+    for (const m of re.all(subject)) {
+      const [start, end] = m[0];
+      if (end === start && start === at) continue;     // a zero-width match splits nothing
+      parts.push(subject.slice(at, start));
+      at = end;
+    }
+    parts.push(subject.slice(at));
+    return retaint(parts, a[1]);
+  }, { transparent: true });
 
   // --- the network ------------------------------------------------------------
 
