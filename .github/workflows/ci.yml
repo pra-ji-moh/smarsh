@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # So the suite can be re-run from the Actions tab without inventing a commit.
+  # The first run of this workflow needed exactly that and could not have it.
+  workflow_dispatch:
 
 jobs:
   test:
