@@ -43,6 +43,31 @@ const sha256 = (s) => createHash('sha256').update(s).digest('hex');
 //
 // Anchoring on a digest of the header makes every event depend on it, so any
 // change to it breaks event 0 and everything after.
+// The anchor: everything in the record except the chain itself.
+//
+// It used to be five named fields, and that was the bug. `authority` was added
+// later, outside the anchor, holding a second copy of a fact the anchor already
+// covered -- so a signed record could have `authority.granted` edited from
+// ["fs","net"] to [] and still verify as intact, while `smarsh audit` printed
+// the lie to a reviewer. The summary could lie with the signature holding,
+// which is the only failure that matters for a record whose purpose is to be
+// checked by someone who does not trust its producer.
+//
+// Naming what is EXCLUDED rather than what is included means the next field
+// someone adds is covered by default. That is the actual fix; erasing the
+// duplicate would only have fixed this instance.
+const NOT_ANCHORED = new Set(['genesis', 'events', 'head', 'signature']);
+
+export function anchorOf(manifest) {
+  // Sorted keys, so two runs that agree on content agree on the digest
+  // regardless of the order the object happened to be built in.
+  const body = {};
+  for (const key of Object.keys(manifest).sort()) {
+    if (!NOT_ANCHORED.has(key)) body[key] = manifest[key];
+  }
+  return sha256(JSON.stringify(body));
+}
+
 function chain(entries, genesis = ZERO) {
   let head = genesis;
   const out = [];
@@ -168,14 +193,12 @@ export function buildManifest(interp, {
     outcome,
   };
 
-  const genesis = sha256(JSON.stringify(identity));
-  const chained = chain(events, genesis);
-
-  const manifest = {
+  // The body first, then the anchor over all of it, then the chain. The old
+  // order hashed only `identity` and could not see the sections below it.
+  const body = {
     ...identity,
     // The value every event hashes back to. A reviewer does not need it, but
     // it makes the anchoring visible rather than implicit.
-    genesis,
     authority: {
       granted,
       exercised,
@@ -218,6 +241,18 @@ export function buildManifest(interp, {
       probabilistic_branches: (t.branches ?? []).length,
       forked_paths: t.forks,
     },
+  };
+
+  // Anchor over the whole body, then chain the events onto it. Every summary
+  // the body states is now inside what the signature covers.
+  const genesis = anchorOf(body);
+  const chained = chain(events, genesis);
+
+  const manifest = {
+    ...body,
+    // The value every event hashes back to. A reviewer does not need it, but
+    // it makes the anchoring visible rather than implicit.
+    genesis,
     events: chained.entries,
     head: chained.head,
   };
@@ -239,13 +274,13 @@ export function verifyManifest(manifest) {
     return { ok: false, problems: ['not a manifest this runtime can read'] };
   }
 
-  // Recompute the anchor from the header as it stands now. If any identifying
-  // field was edited, this differs from the genesis the events were built on,
-  // and event 0 fails to follow it.
-  const { manifest: v, runtime, program, replay, outcome } = manifest;
-  const expectedGenesis = sha256(JSON.stringify({ manifest: v, runtime, program, replay, outcome }));
+  // Recompute the anchor from the record as it stands now. Any edit to anything
+  // outside the chain -- the header, or any of the summary sections -- makes
+  // this differ from the genesis the events were built on, and event 0 then
+  // fails to follow it.
+  const expectedGenesis = anchorOf(manifest);
   if (manifest.genesis !== undefined && manifest.genesis !== expectedGenesis) {
-    problems.push('the record header has been altered');
+    problems.push('the record has been altered outside the event chain');
   }
 
   let head = manifest.genesis ?? ZERO;

@@ -11,6 +11,31 @@ Versioning follows [VERSIONING.md](VERSIONING.md).
 
 ## [Unreleased]
 
+### Security
+
+- **A signed record could be edited to understate what a run was allowed to do,
+  and still verify as intact.** The anchor covered five named header fields, and
+  the summary sections beneath it -- `authority`, `data`, `promises`, `work` --
+  had been added later, outside it. A record from a run holding `fs` and `net`
+  could have `authority.granted` set to `[]`, and both `smarsh audit` and the
+  standalone verifier reported INTACT while printing the false value to the
+  reviewer. The summary could lie with the signature holding, which is the only
+  failure that matters for a record meant to be checked by someone who does not
+  trust its producer.
+
+  The anchor now names what it *excludes* -- `genesis`, `events`, `head`,
+  `signature` -- so every other field is covered, and a section added later is
+  covered by default. That is the fix for the class; erasing the duplicated
+  field would only have fixed this instance.
+
+  Found by attacking the project's own claims rather than by a report. There is
+  a new `tests/adversarial.test.mjs` that tries to make the runtime say
+  something false, and it asserts this property directly: every top-level field
+  outside the chain must be tamper-evident, whatever it is.
+
+  Records produced before this change will not verify against it. Nothing has
+  been published, so nothing is stranded.
+
 ### Changed
 
 - **The language is now called Smarsh.** It was Pedag, and briefly Sarvm before

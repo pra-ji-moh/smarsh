@@ -34,12 +34,23 @@ if (!file) {
 const m = JSON.parse(readFileSync(file, 'utf8'));
 const problems = [];
 
-// 1. The header. Recompute the anchor from the fields as they stand now; if any
-//    of them was edited, this will not match what the events were built on.
-const { manifest, runtime, program, replay, outcome } = m;
-const genesis = sha256(JSON.stringify({ manifest, runtime, program, replay, outcome }));
+// 1. The anchor: everything in the record except the chain itself.
+//
+//    This deliberately names what is EXCLUDED rather than what is covered. It
+//    used to list five header fields, and the summary sections beneath them --
+//    what was granted, what was refused, what it cost -- were outside it. A
+//    signed record could have `authority.granted` edited from ["fs","net"] to
+//    [] and still verify, while the rendered summary showed the lie. Excluding
+//    by name means a field added later is covered by default.
+const { program, replay } = m;          // also used by the summary below
+const NOT_ANCHORED = new Set(['genesis', 'events', 'head', 'signature']);
+const body = {};
+for (const key of Object.keys(m).sort()) {
+  if (!NOT_ANCHORED.has(key)) body[key] = m[key];
+}
+const genesis = sha256(JSON.stringify(body));
 if (m.genesis !== undefined && genesis !== m.genesis) {
-  problems.push('the header has been altered (program, seed, capabilities or outcome)');
+  problems.push('the record has been altered outside the event chain');
 }
 
 // 2. The chain.
