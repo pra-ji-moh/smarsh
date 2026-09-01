@@ -60,11 +60,22 @@ jobs:
       - name: The published package works from a clean install
         shell: bash
         run: |
-          npm pack --pack-destination "$RUNNER_TEMP"
+          # Take the filename from npm rather than guessing it. It was
+          # `smarsh-*.tgz`, which stopped matching the moment the package was
+          # scoped: npm pack then writes `ramvami-smarsh-0.3.0.tgz`, the glob
+          # matched nothing, the install did nothing, and `npx smarsh` failed
+          # with command-not-found on all nine jobs. A local check with the
+          # filename typed out could not have caught it.
+          TARBALL=$(npm pack --pack-destination "$RUNNER_TEMP" | tail -1)
+          test -f "$RUNNER_TEMP/$TARBALL" || { echo "npm pack wrote no tarball"; exit 1; }
+          # Read the name here, while still in the workspace. Resolving it later
+          # would mean handing node a path built from $GITHUB_WORKSPACE, which is
+          # a backslash path on the Windows runners.
+          PKG=$(node -p "require('./package.json').name")
           mkdir -p "$RUNNER_TEMP/install-check"
           cd "$RUNNER_TEMP/install-check"
           npm init -y > /dev/null
-          npm install "$RUNNER_TEMP"/smarsh-*.tgz
+          npm install "$RUNNER_TEMP/$TARBALL"
           printf 'import "std/math" as math\nprint(math.mean([2, 4, 6]))\n' > hello.smarsh
           test "$(npx smarsh run hello.smarsh)" = "4"
 
@@ -73,8 +84,11 @@ jobs:
           # actually ships -- it did not: `tools/` was missing from the package
           # file list, exactly as `std/` once was. So the whole auditor workflow
           # runs here, against the installed package only.
+          # A scoped package lands in node_modules/@scope/name. Hardcoding the
+          # unscoped path was the second half of the same mistake as the glob.
+          test -d "node_modules/$PKG" || { echo "installed to an unexpected path: $PKG"; exit 1; }
           npx smarsh keygen -o audit.pem
-          npx smarsh run node_modules/smarsh/examples/demo.smarsh --grant fs --principal compliance --audit run.json --key audit.pem
+          npx smarsh run "node_modules/$PKG/examples/demo.smarsh" --grant fs --principal compliance --audit run.json --key audit.pem
           npx smarsh-verify run.json audit.pem.pub | grep -q INTACT
 
           # And it has to reject a tampered one, or it proves nothing.
