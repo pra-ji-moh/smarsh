@@ -82,22 +82,54 @@ These are limitations already written down, not discoveries:
 
 ## What is actually tested
 
-The claims above are not aspirational. Each has tests that try to break it,
-including regression tests for defects that were real:
+The claims above are not aspirational, and "we have tests" is not an answer to
+someone deciding whether to trust this. So each claim names the test that tries
+to break it. Go straight from the row to the code.
 
-- `tests/guarantees.test.mjs` - the module capability escape (with the original
-  exploit, asserting no file is written), deep immutability, exact arithmetic,
-  the crypto capability split.
-- `tests/agents.test.mjs` - budget stops that an inner `attempt` cannot swallow;
-  agent isolation.
-- `tests/ffi.test.mjs` - the boundary refusing an undeclared caller; foreign
-  results arriving `untrusted`.
-- `tests/crypto.test.mjs` - group parameters re-derived rather than trusted;
-  lineage detecting edits, reordering, truncation and re-signing.
-- `tests/recovery.test.mjs` - taint reaching a sink on paths a run does not take.
+`tests/security-doc.test.mjs` fails the build if any citation below stops
+resolving, because a claim carrying a stale citation is worse than one carrying
+none: it has the shape of evidence without being any.
 
-If you are reviewing Smarsh, those files are the fastest way to see what is
-claimed and how it is checked.
+| Claim | File | Test |
+|---|---|---|
+| Capability attenuation | `tests/adversarial.test.mjs` | `a callback cannot borrow authority from the builtin that calls it` |
+| Authority is declared, not inherited | `tests/capability.test.mjs` | `the requirement travels to the caller` |
+| Module isolation | `tests/guarantees.test.mjs` | `a module cannot perform effects at import time` |
+| Confidentiality: a classified value cannot leave its policy | `tests/adversarial.test.mjs` | `a classified value cannot be carried out of its policy` |
+| Integrity: a vouch dies on contact with unvouched data | `tests/integrity.test.mjs` | `a vouch does not survive being combined with a literal` |
+| Declassification needs the owner and a stated reason | `tests/adversarial.test.mjs` | `declassifying needs the owner, a reason, and cannot be faked` |
+| Provenance survives every route out of a value | `tests/adversarial.test.mjs` | `taint cannot be laundered by moving a value through anything` |
+| Provenance is found on paths the run does not take | `tests/recovery.test.mjs` | `a label reaching a grounded block is found even on an untaken path` |
+| Immutability goes all the way down | `tests/guarantees.test.mjs` | `the freeze goes all the way down` |
+| Agent isolation | `tests/agents.test.mjs` | `an agent cannot write anything outside its own state` |
+| The record cannot be edited anywhere outside its chain | `tests/adversarial.test.mjs` | `no field outside the chain can be edited without detection` |
+| The specific forgery that once verified is caught | `tests/adversarial.test.mjs` | `the specific lie that used to work is caught` |
+| A refusal cannot be erased from the summary | `tests/adversarial.test.mjs` | `a refusal cannot be removed from the summary` |
+| Events cannot be grafted between records under one key | `tests/adversarial.test.mjs` | `events cannot be swapped between records signed by the same key` |
+| Events cannot be reordered or dropped | `tests/adversarial.test.mjs` | `reordering or dropping an event breaks the chain` |
+| A program cannot forge an entry by printing one | `tests/adversarial.test.mjs` | `a program cannot forge an event by printing one` |
+| Refusals are recorded in full, never sampled | `tests/adversarial.test.mjs` | `every refusal is recorded, not sampled` |
+| A failed run still yields a verifiable record | `tests/adversarial.test.mjs` | `a failed run still produces a verifiable record with its refusals` |
+| Replay is exact | `tests/adversarial.test.mjs` | `the same program and seed produce the same record` |
+| Budgets cannot be escaped or outlived | `tests/adversarial.test.mjs` | `nothing a program can write takes the host down` |
+| Matching is linear, so patterns cannot hang the host | `tests/adversarial.test.mjs` | `a catastrophic pattern stays linear from inside the language` |
+| Hostile input is refused rather than overflowing the host | `tests/adversarial.test.mjs` | `deeply nested input is refused rather than overflowing the host` |
+| The FFI boundary refuses an undeclared caller | `tests/ffi.test.mjs` | `a function that did not declare ffi cannot open the boundary` |
+| Crossing the FFI boundary is recorded | `tests/audit.test.mjs` | `crossing the FFI boundary is recorded` |
+
+One of those rows exists because the attack worked. `the specific lie that used
+to work is caught` is a regression test: a signed record could have
+`authority.granted` edited from `["fs","net"]` to `[]` and still verify as
+intact, because the hash anchor covered five named header fields while the
+summary sections had been added underneath it later. The summary could lie with
+the signature holding, which is the only failure that matters for a record whose
+whole purpose is to be checked by someone who does not trust its producer. The
+anchor now names what it *excludes*, so a section added tomorrow is covered by
+default rather than by somebody remembering.
+
+If you are reviewing Smarsh, `tests/adversarial.test.mjs` is the fastest way in.
+Every test in it was written by picking a claim this file makes and trying to
+make the runtime say something false.
 
 ## Cryptographic inventory
 
