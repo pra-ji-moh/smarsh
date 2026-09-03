@@ -1,6 +1,10 @@
 # Smarsh
 
-**Software that can prove what it was allowed to do, and what it actually did.**
+**A runtime for running code you did not write, that proves what that code was
+allowed to do and what it actually tried to do.**
+
+The case it is built for: a model wrote the code. You can read it, or you can
+bound it. Reading does not scale, and the next revision invalidates the read.
 
 Every system produces logs. Logs are written by the code being audited, after
 the fact, and can be edited by anyone who can edit the code. They are a record
@@ -804,7 +808,16 @@ Types: `num` `str` `bool` `nil` `list` `map` `fn` `tensor` `context` `ledger`.
 
 ---
 
-## The seven things that make it Smarsh
+## What makes it Smarsh
+
+Five of these carry the thesis: capabilities that are held rather than assumed,
+provenance that rides along with the value, jurisdiction that travels with the
+data, a kill switch the code inside cannot argue with, and problems found before
+the program runs. Those are the reason to use this.
+
+The rest is inventory. Real, tested, and covered by
+[docs/capabilities.md](docs/capabilities.md), but not the pitch - and a few
+entries exist mainly to stop their own names being read as more than they are.
 
 ### 1. Branches that admit they are uncertain
 
