@@ -15,7 +15,13 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 // Each module becomes an IIFE returning its exports, so module-local names
 // cannot collide no matter how many files define a helper called `nf`.
 
-const IMPORT_RE = /import\s+([\s\S]*?)\s+from\s+(['"])([^'"]+)\2\s*;?/g;
+// Anchored to the start of a line, because it was not and that was a bug. The
+// clause spans newlines so that multi-line imports work, which meant an
+// `import` token anywhere in the file -- in prose about Smarsh's own module
+// system, say -- could pair with a `from "..."` appearing later inside a
+// comment, and the bundler would report that comment's text as an
+// unbundleable dependency. Every real import here sits at column zero.
+const IMPORT_RE = /^import\s+([\s\S]*?)\s+from\s+(['"])([^'"]+)\2\s*;?/gm;
 
 function parseModule(file) {
   const source = fs.readFileSync(file, 'utf8');

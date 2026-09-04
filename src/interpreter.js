@@ -9,7 +9,7 @@ import { RecordType, RecordValue, ChoiceType, recordsEqual } from './records.js'
 import { analyze } from './analysis.js';
 import { exercise } from './exercise.js';
 import {
-  SmarshFunction, NativeFunction, Tainted, ContextWindow, Ledger,
+  SmarshFunction, NativeFunction, Tainted, ContextWindow, Ledger, Groundless, GROUNDLESS,
   unwrap, retaint, stringify, typeName, withArticle, truthy, countTokens, freezeDeep, assertMutable,
 } from './values.js';
 import { installBuiltins } from './builtins.js';
@@ -2074,6 +2074,30 @@ export class Interpreter {
   }
 
   binary(op, lv, rv, line) {
+    // A refusal does not become a number by being used in arithmetic.
+    //
+    // Nothing computed from "there were no grounds for this" has grounds
+    // either, so the result stays groundless rather than throwing or coercing.
+    // Throwing would be worse than it sounds: a caller would wrap it in
+    // `attempt`, catch it, and carry on with a substituted value, which is
+    // laundering a refusal back into an answer. Propagating means the absence
+    // travels to wherever the answer was going to be used.
+    //
+    // Both engines arrive here. The compiled fast path only fires when both
+    // operands are numbers, and a refusal never is.
+    //
+    // Equality is the deliberate exception. `d == nil` has to be able to answer
+    // false, or the distinction this type exists to draw cannot be observed at
+    // all. Asking whether something is a refusal gets a straight answer;
+    // computing with one does not.
+    if (lv instanceof Groundless || rv instanceof Groundless) {
+      if (op === '==' || op === '!=') {
+        const both = lv instanceof Groundless && rv instanceof Groundless;
+        return op === '==' ? both : !both;
+      }
+      return GROUNDLESS;
+    }
+
     // A labelled operand makes the result labelled, with the policies of both
     // sides joined. Combining data does not shed anyone's rules about it.
     if (lv instanceof Labelled || rv instanceof Labelled) {

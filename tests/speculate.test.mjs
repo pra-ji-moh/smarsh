@@ -209,3 +209,76 @@ test('clearing the bar returns a number, not a marker', () => {
   ].join('\n'));
   assert.deepEqual(r.output, ['false', '1']);
 });
+
+// ---------------------------------------------------------------------------
+// propagation: a refusal does not become an answer
+// ---------------------------------------------------------------------------
+
+const refused = `speculate({ "used": 1, "available": 10, "stakes": 0.9, "formalizability": 1 })`;
+
+test('arithmetic on a refusal stays a refusal', () => {
+  const r = run([
+    `let d = ${refused}`,
+    'print(str(d + 1))',
+    'print(str(d * 100))',
+    'print(str((d + 1) * 2))',
+  ].join('\n'));
+  assert.deepEqual(r.output, ['groundless', 'groundless', 'groundless'],
+    'a refusal was computed into a number');
+});
+
+test('propagation does not depend on which side the refusal is', () => {
+  const r = run([
+    `let d = ${refused}`,
+    'print(str(1 + d))',
+    'print(str(100 / d))',
+  ].join('\n'));
+  assert.deepEqual(r.output, ['groundless', 'groundless']);
+});
+
+test('a refusal cannot pass a threshold check', () => {
+  // The failure this prevents: `if score > limit` silently taking the false
+  // branch on a refusal is fine, but taking the TRUE branch would treat "no
+  // grounds" as "cleared", which is the whole failure mode.
+  const r = run([
+    `let d = ${refused}`,
+    'print(str(d > 0))',
+    'if d > 0 { print("passed") } else { print("did not pass") }',
+  ].join('\n'));
+  assert.deepEqual(r.output, ['groundless', 'did not pass']);
+});
+
+test('equality stays concrete, or the distinction cannot be observed', () => {
+  const r = run([
+    `let d = ${refused}`,
+    'print(str(d == nil))',
+    'print(str(d != nil))',
+    'print(str(d == d))',
+  ].join('\n'));
+  assert.deepEqual(r.output, ['false', 'true', 'true']);
+});
+
+test('a refusal is not laundered by being caught', () => {
+  // Propagating rather than throwing matters here: if arithmetic on a refusal
+  // raised, a caller would wrap it, rescue it, and substitute a value, which
+  // turns "no grounds" back into an answer.
+  const r = run([
+    `let d = ${refused}`,
+    'attempt { let x = d + 1\n print(str(x)) } rescue e { print("substituted") }',
+  ].join('\n'));
+  assert.deepEqual(r.output, ['groundless'], 'the refusal threw and could be swallowed');
+});
+
+test('both engines agree about refusals', () => {
+  const src = [
+    `let d = ${refused}`,
+    'print(str(d))',
+    'print(str(d + 1))',
+    'print(str(d > 0))',
+    'print(str(d == nil))',
+  ].join('\n');
+  const fast = run(src);
+  const tree = run(src, { engine: 'tree' });
+  assert.deepEqual(fast.output, tree.output, 'the two engines disagree about a refusal');
+  assert.deepEqual(fast.output, ['groundless', 'groundless', 'groundless', 'false']);
+});
