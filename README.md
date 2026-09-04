@@ -224,7 +224,7 @@ is [tested](tests/demo.test.mjs), not asserted: seven edits an interested party
 would actually want to make, including deleting the inconvenient event and
 attaching the record to a different program.
 
-Zero dependencies, Node 18 or later. 944 passing tests over 94% of the lines in
+Zero dependencies, Node 18 or later. 965 passing tests over 95% of the lines in
 `src/`.
 
 > **Status: 0.3.0, pre-1.0, no production users, no third-party audit.** Read
@@ -1263,6 +1263,7 @@ what it checks before and while it runs
 authority and provenance
   src/labels.js         the decentralized label model, both halves
   src/taint.js          flat labels: untrusted, ungrounded, region
+  src/speculate.js      how much grounding a claim needs before it is guessed at
   src/grants.js         delegable capabilities, caretakers, revocation
   src/ffi.js            the foreign boundary and what it may open
   src/audit.js          the hash-chained, signable run manifest
@@ -1287,7 +1288,7 @@ editors/vscode/         the VS Code extension -- grammar, and a client that
 
 std/                    the standard library, written in Smarsh
 examples/               15 programs, every one of them run by CI
-tests/                  944 tests across 40 files
+tests/                  965 tests across 41 files
 tools/                  the differential oracle, the fuzzer, the A/B harness
 ```
 

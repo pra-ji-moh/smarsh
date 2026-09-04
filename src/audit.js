@@ -96,6 +96,9 @@ export function buildManifest(interp, {
 
   const events = [];
   const at = (line) => (line == null ? null : line);
+  // Scores are floats. Fixing the precision keeps the chain hashing the same
+  // on every platform instead of on whatever the last bit happened to do.
+  const score = (x) => Number(x.toFixed(6));
 
   for (const e of t.effects) {
     events.push({
@@ -149,6 +152,18 @@ export function buildManifest(interp, {
       cleared: l.cleared,
       reason: l.reason,
       line: at(l.line),
+    });
+  }
+  // The program saw a behaviour. A reviewer sees why it was that behaviour.
+  for (const s of t.speculations ?? []) {
+    events.push({
+      event: s.allowed ? 'speculation.cleared' : 'speculation.refused',
+      support: score(s.support),
+      threshold: score(s.threshold),
+      coverage: score(s.coverage),
+      rejection: score(s.rejection),
+      intensity: score(s.intensity),
+      line: at(s.line),
     });
   }
   for (const g of t.grantUses ?? []) {

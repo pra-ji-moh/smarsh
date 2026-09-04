@@ -211,6 +211,7 @@ export class Interpreter {
       branches: [], forks: 0, calls: 0, contracts: 0,
       laundered: [], redefinitions: [], declassifications: [], endorsements: [],
       requests: [],
+      speculations: [],   // every speculation gate, cleared or refused
       grantUses: [], revocations: [],
       // What the audit record is assembled from.
       effects: [],        // every capability exercised or refused

@@ -37,7 +37,14 @@ function parseModule(file) {
     if (!named.startsWith('{')) {
       throw new Error(`${path.basename(file)} default-imports '${specifier}'; the bundler expects named imports`);
     }
-    return `const ${named.replace(/\s+/g, ' ')} = __M[${JSON.stringify(dep)}];`;
+    // `import { a as b }` and `const { a as b }` are not the same syntax: the
+    // destructuring form renames with a colon, not `as`. Every relative import
+    // in this codebase was a plain named one until `speculate.js`, so the
+    // bundler emitted invalid JavaScript the first time one was renamed.
+    const destructured = named
+      .replace(/\s+/g, ' ')
+      .replace(/([\p{L}_$][\p{L}\p{N}_$]*)\s+as\s+([\p{L}_$][\p{L}\p{N}_$]*)/gu, '$1: $2');
+    return `const ${destructured} = __M[${JSON.stringify(dep)}];`;
   });
 
   const exported = new Set();

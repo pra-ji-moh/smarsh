@@ -24,6 +24,7 @@ import { snapshot, restore } from './snapshot.js';
 import { Schema, negotiate, adapt, migrate } from './schema.js';
 import { loadForeign } from './ffi.js';
 import { Decimal, expectDec } from './decimal.js';
+import { decide as decideSpeculation } from './speculate.js';
 import { Labelled, Label, Policy, Trust, requireAuthority } from './labels.js';
 import { Grant, Revoker, expectGrant } from './grants.js';
 import { SmarshFunction } from './values.js';
@@ -691,6 +692,86 @@ export function installBuiltins(interp) {
     const before = a[0] instanceof Tainted ? [...a[0].labels] : [];
     interp.trace.laundered.push({ line, reason, cleared: before });
     return unwrap(a[0]);
+  }, { transparent: true });
+
+  // Whether a claim has earned the right to be guessed at.
+  //
+  // Returns the behaviour and only the behaviour: nil when the support did not
+  // clear the bar, otherwise the intensity to speculate with. The support, the
+  // rejection history and the threshold go to the audit record instead, because
+  // a program able to read how close it came is a program able to retry until
+  // it gets over the line. See src/speculate.js.
+  def('speculate', 1, (a, line) => {
+    const spec = unwrap(a[0]);
+    if (!(spec instanceof Map)) {
+      throw smarshError('TypeError',
+        `speculate takes a map describing the query, got ${typeName(spec)}`, line);
+    }
+    const field = (k) => unwrap(spec.get(k));
+    const required = (k) => {
+      const v = field(k);
+      if (v === undefined || v === null) {
+        throw smarshError('ValueError', `speculate needs '${k}'`, line);
+      }
+      return num(v, `'${k}'`, line);
+    };
+    const optional = (k, fallback) => {
+      const v = field(k);
+      return v === undefined || v === null ? fallback : num(v, `'${k}'`, line);
+    };
+
+    const gamma = optional('gamma', 0.9);
+    if (!(gamma > 0) || gamma > 1) {
+      throw smarshError('ValueError', `a decay must be in (0, 1], got ${gamma}`, line);
+    }
+
+    // The history is an argument rather than something the runtime remembers,
+    // so that the same program with the same inputs decides the same way and
+    // the manifest is enough to reproduce it.
+    const history = [];
+    const raw = field('history');
+    if (raw !== undefined && raw !== null) {
+      if (!Array.isArray(raw)) {
+        throw smarshError('TypeError',
+          `a speculation history is a list, got ${typeName(raw)}`, line);
+      }
+      for (const item of raw) {
+        const entry = unwrap(item);
+        if (!(entry instanceof Map)) {
+          throw smarshError('TypeError',
+            'each history entry is a map with an age and whether it was rejected', line);
+        }
+        const age = num(unwrap(entry.get('age')), 'a history age', line);
+        if (age < 0) {
+          throw smarshError('ValueError', `a history age cannot be negative, got ${age}`, line);
+        }
+        history.push({ age, rejected: unwrap(entry.get('rejected')) === true });
+      }
+    }
+
+    // Both halves of the bar are required. Defaulting either one puts the
+    // threshold at zero and the gate clears everything, which is the one way
+    // this must never fail.
+    const stakes = required('stakes');
+    const formalizability = required('formalizability');
+    for (const [what, value] of [['stakes', stakes], ['formalizability', formalizability]]) {
+      if (value < 0 || value > 1) {
+        throw smarshError('ValueError', `${what} must be between 0 and 1, got ${value}`, line);
+      }
+    }
+
+    const outcome = decideSpeculation({
+      used: required('used'),
+      available: required('available'),
+      history,
+      gamma,
+      stakes,
+      formalizability,
+    });
+
+    interp.trace.speculations.push({ line, ...outcome });
+
+    return outcome.allowed ? outcome.intensity : null;
   }, { transparent: true });
 
   // --- memory and accounting -----------------------------------------------
