@@ -261,11 +261,46 @@ export class Ledger {
 }
 
 // ---------------------------------------------------------------------------
+// The absence of grounds
+// ---------------------------------------------------------------------------
+
+// `nil` means there is no value here. This means something different and
+// stronger: there were no grounds to produce one.
+//
+// Collapsing the two is the mistake the whole design exists to avoid. It is the
+// same conflation cross-entropy makes between "no evidence" and "evidence, and
+// it is genuinely a toss-up" -- one number standing for two states that call
+// for opposite responses. A caller that cannot tell them apart will treat a
+// refusal as a missing field and carry on.
+//
+// So it is its own type, it is not equal to nil, and it says so when printed.
+// It is falsy, because a refusal should not take a branch.
+export class Groundless {
+  constructor(reason = 'no grounds') {
+    this.reason = reason;
+    Object.freeze(this);
+  }
+
+  get smarshType() { return 'groundless'; }
+
+  toString() { return 'groundless'; }
+}
+
+// One instance, so identity comparison works and no allocation happens on a
+// path that refuses often.
+export const GROUNDLESS = new Groundless();
+
+export const isGroundless = (v) => v instanceof Groundless;
+
+// ---------------------------------------------------------------------------
 // Printing
 // ---------------------------------------------------------------------------
 
 export function stringify(v, depth = 0) {
   if (v === null || v === undefined) return 'nil';
+  // Named, so a refusal reads as a refusal in output and in a record rather
+  // than as an empty slot.
+  if (v instanceof Groundless) return 'groundless';
   if (v && typeof v.smarshMembers === 'function' && v.type && v.values) return String(v);
   if (typeof v === 'boolean') return v ? 'true' : 'false';
   if (typeof v === 'number') {
@@ -312,6 +347,9 @@ export function withArticle(v) {
 
 export const truthy = (v) => {
   const u = unwrap(v);
+  // A refusal does not take a branch. `if speculate(...) { }` must not run the
+  // body when there were no grounds to run it on.
+  if (u instanceof Groundless) return false;
   if (u === null || u === undefined || u === false) return false;
   if (u === 0 || u === '') return false;
   return true;

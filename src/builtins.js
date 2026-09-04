@@ -27,7 +27,7 @@ import { Decimal, expectDec } from './decimal.js';
 import { decide as decideSpeculation } from './speculate.js';
 import { Labelled, Label, Policy, Trust, requireAuthority } from './labels.js';
 import { Grant, Revoker, expectGrant } from './grants.js';
-import { SmarshFunction } from './values.js';
+import { SmarshFunction, GROUNDLESS, isGroundless } from './values.js';
 import {
   NativeFunction, Tainted, ContextWindow, Ledger,
   unwrap, retaint, stringify, typeName, withArticle, truthy, countTokens,
@@ -771,8 +771,12 @@ export function installBuiltins(interp) {
 
     interp.trace.speculations.push({ line, ...outcome });
 
-    return outcome.allowed ? outcome.intensity : null;
+    // Not nil. A caller must not be able to mistake "there were no grounds" for
+    // "there was no value", which is the distinction the gate exists to draw.
+    return outcome.allowed ? outcome.intensity : GROUNDLESS;
   }, { transparent: true });
+
+  def('is_groundless', 1, (a) => isGroundless(unwrap(a[0])), { transparent: true });
 
   // --- memory and accounting -----------------------------------------------
 

@@ -69,34 +69,33 @@ test('well grounded and low stakes clears the bar', () => {
 
 test('the same evidence is refused when more is at stake', () => {
   const r = run(`print(str(${gate('"used": 9, "available": 10, "stakes": 0.95, "formalizability": 0.9')}))`);
-  assert.deepEqual(r.output, ['nil'], 'high stakes did not raise the bar');
+  assert.deepEqual(r.output, ['groundless'], 'high stakes did not raise the bar');
 });
 
 test('a claim that resists being formalised needs more evidence', () => {
   const r = run(`print(str(${gate('"used": 9, "available": 10, "stakes": 0.1, "formalizability": 0.05')}))`);
-  assert.deepEqual(r.output, ['nil']);
+  assert.deepEqual(r.output, ['groundless']);
 });
 
 test('a region that has been wrong lately is refused on the same evidence', () => {
   const clean = run(`print(str(${gate('"used": 9, "available": 10, "stakes": 0.5, "formalizability": 0.9')}))`);
   const burned = run(`print(str(${gate('"used": 9, "available": 10, "stakes": 0.5, "formalizability": 0.9, "history": [{"age": 0, "rejected": true}, {"age": 1, "rejected": true}]')}))`);
   assert.equal(clean.output[0], '0.9');
-  assert.deepEqual(burned.output, ['nil'], 'rejection history did not count against it');
+  assert.deepEqual(burned.output, ['groundless'], 'rejection history did not count against it');
 });
 
 test('no grounding at all is refused, whatever the bar', () => {
   const r = run(`print(str(${gate('"used": 0, "available": 0, "stakes": 0.5, "formalizability": 0.9')}))`);
-  assert.deepEqual(r.output, ['nil'], 'the gate cleared a query with no evidence behind it');
+  assert.deepEqual(r.output, ['groundless'], 'the gate cleared a query with no evidence behind it');
 });
 
 test('the program is told the behaviour and nothing else', () => {
-  // A refusal is `nil`: no score, no margin, nothing to retry against.
+  // A refusal carries no score, no margin, nothing to retry against.
   const r = run([
     `let d = ${gate('"used": 1, "available": 10, "stakes": 0.9, "formalizability": 1')}`,
     'print(str(d))',
-    'print(str(d == nil))',
   ].join('\n'));
-  assert.deepEqual(r.output, ['nil', 'true']);
+  assert.deepEqual(r.output, ['groundless']);
 });
 
 // ---------------------------------------------------------------------------
@@ -174,4 +173,39 @@ test('a malformed history is refused rather than ignored', () => {
 
 test('speculate needs a map, not a bare number', () => {
   assert.equal(run('let d = speculate(5)').ok, false);
+});
+
+// ---------------------------------------------------------------------------
+// no grounds is not no value
+// ---------------------------------------------------------------------------
+
+test('a refusal is a different thing from a missing value', () => {
+  // The conflation this exists to avoid. A caller that cannot tell a refusal
+  // from an absent field treats the refusal as an absent field and carries on,
+  // which is the failure the whole gate was built to prevent.
+  const r = run([
+    `let d = ${gate('"used": 1, "available": 10, "stakes": 0.9, "formalizability": 1')}`,
+    'print(str(d == nil))',
+    'print(str(is_groundless(d)))',
+    'print(type(d))',
+  ].join('\n'));
+  assert.deepEqual(r.output, ['false', 'true', 'groundless'],
+    'a refusal is indistinguishable from nil');
+});
+
+test('a refusal does not take a branch', () => {
+  const r = run([
+    `let d = ${gate('"used": 1, "available": 10, "stakes": 0.9, "formalizability": 1')}`,
+    'if d { print("ran") } else { print("did not run") }',
+  ].join('\n'));
+  assert.deepEqual(r.output, ['did not run']);
+});
+
+test('clearing the bar returns a number, not a marker', () => {
+  const r = run([
+    `let d = ${gate('"used": 10, "available": 10, "stakes": 0.2, "formalizability": 1')}`,
+    'print(str(is_groundless(d)))',
+    'print(str(d + 0))',
+  ].join('\n'));
+  assert.deepEqual(r.output, ['false', '1']);
 });
