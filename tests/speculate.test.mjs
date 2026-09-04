@@ -282,3 +282,50 @@ test('both engines agree about refusals', () => {
   assert.deepEqual(fast.output, tree.output, 'the two engines disagree about a refusal');
   assert.deepEqual(fast.output, ['groundless', 'groundless', 'groundless', 'false']);
 });
+
+// ---------------------------------------------------------------------------
+// a checked context will not read a refusal
+// ---------------------------------------------------------------------------
+
+test('a grounded block refuses a groundless value', () => {
+  // `grounded` stopped `ungrounded` and `untrusted` and let an actual refusal
+  // through, because the check returned early for anything that was not a
+  // taint label. Stopping the weaker statement while admitting the stronger
+  // one is backwards.
+  const r = run([
+    `let d = ${refused}`,
+    'grounded { print(str(d)) }',
+  ].join('\n'));
+  assert.equal(r.ok, false, 'a checked context read a refusal');
+  assert.equal(r.error.kind, 'TaintError');
+  assert.match(r.error.message, /groundless/);
+});
+
+test('a refusal cannot enter a checked context through interpolation either', () => {
+  const r = run([
+    `let d = ${refused}`,
+    'grounded { print("the answer is ${d}") }',
+  ].join('\n'));
+  assert.equal(r.ok, false, 'interpolation carried a refusal into a checked context');
+  assert.equal(r.error.kind, 'TaintError');
+});
+
+test('a cleared value passes a checked context', () => {
+  const r = run([
+    `let d = ${gate('"used": 10, "available": 10, "stakes": 0.2, "formalizability": 1')}`,
+    'grounded { print(str(d)) }',
+  ].join('\n'));
+  assert.equal(r.ok, true, 'a cleared value was refused by a checked context');
+  assert.deepEqual(r.output, ['1']);
+});
+
+test('both engines refuse a refusal in a checked context', () => {
+  const src = [
+    `let d = ${refused}`,
+    'attempt { grounded { print(str(d)) } } rescue e { print(e["kind"]) }',
+  ].join('\n');
+  const fast = run(src);
+  const tree = run(src, { engine: 'tree' });
+  assert.deepEqual(fast.output, tree.output);
+  assert.deepEqual(fast.output, ['TaintError']);
+});

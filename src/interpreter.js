@@ -1552,6 +1552,22 @@ export class Interpreter {
       }
     }
 
+    // A checked context refuses a value that exists because something was
+    // refused for want of grounds.
+    //
+    // This sat open until now, and the shape of the hole is worth keeping: the
+    // check below returns early for anything that is not a taint label, so a
+    // value carrying `ungrounded` was stopped while an actual refusal walked
+    // straight through. `ungrounded` says a claim is unverified; groundless
+    // says there was no basis to produce one at all, which is strictly
+    // stronger. Stopping the weaker statement and admitting the stronger one
+    // is exactly backwards.
+    if (this.groundedDepth > 0 && value instanceof Groundless) {
+      throw smarshError('TaintError',
+        `a grounded block read a groundless ${what}; there were no grounds to produce it, `
+        + 'so there is nothing here to check', line);
+    }
+
     if (!(value instanceof Tainted)) return value;
 
     if (this.groundedDepth > 0) {
