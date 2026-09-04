@@ -28,6 +28,14 @@
 // state, because a decision that depends on ambient history is a decision that
 // does not replay -- and a run whose behaviour cannot be reproduced from its
 // manifest is not evidence of anything. Rejection history is an argument.
+//
+// C(q) is written above as a ratio of two numbers, but the builtin (see
+// speculate in src/builtins.js) accepts two different ways to supply them.
+// `used`/`available` are asserted directly by the caller -- nothing checks
+// they mean anything. `domain`/`derivable` are an actual possibility set and
+// the subset still consistent; `used` and `available` are then COUNTED from
+// their real sizes rather than trusted, which is the difference between a
+// claim about how grounded something is and a claim that has been checked.
 
 const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
 

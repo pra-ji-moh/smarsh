@@ -329,3 +329,63 @@ test('both engines refuse a refusal in a checked context', () => {
   assert.deepEqual(fast.output, tree.output);
   assert.deepEqual(fast.output, ['TaintError']);
 });
+
+// ---------------------------------------------------------------------------
+// domain/derivable: grounding computed from a real possibility set, not
+// asserted as a bare used/available number
+// ---------------------------------------------------------------------------
+
+const domainGate = (fields) => `speculate({ ${fields} })`;
+
+test('used/available computed correctly from domain/derivable sizes', () => {
+  // domain of 5, derivable of 2 -> used=3, available=5 -> coverage=0.6,
+  // matching S(n) = 1 - |D(n)|/|Dom(n)| already verified against brute-force
+  // ground truth in the Python prototype for this exact 5-entity case.
+  const r = run(`let d = ${domainGate('"domain": [0,1,2,3,4], "derivable": [3,4], "stakes": 0.5, "formalizability": 1')}`);
+  const events = r.manifest.events.filter((e) => e.event === 'speculation.cleared');
+  assert.equal(events.length, 1);
+  assert.equal(events[0].support, 0.6, 'coverage from domain/derivable did not match the verified S');
+});
+
+test('the same boundary case verified in the Python prototype: S=0.6 speculates, S=0.4 declines', () => {
+  const above = run(`print(str(${domainGate('"domain": [0,1,2,3,4], "derivable": [3,4], "stakes": 0.5, "formalizability": 1')}))`);
+  const below = run(`print(str(${domainGate('"domain": [0,1,2,3,4], "derivable": [1,2,3], "stakes": 0.5, "formalizability": 1')}))`);
+  assert.equal(above.output[0], '0.6');
+  assert.deepEqual(below.output, ['groundless']);
+});
+
+test('a derivable value outside the domain is refused as a fabricated claim', () => {
+  const r = run(domainGate('"domain": [0,1,2], "derivable": [0,99], "stakes": 0.5, "formalizability": 1'));
+  assert.equal(r.ok, false);
+  assert.equal(r.error.kind, 'ValueError');
+  assert.match(r.error.message, /not in 'domain'/);
+});
+
+test('an empty domain is refused rather than treated as certain', () => {
+  const r = run(domainGate('"domain": [], "derivable": [], "stakes": 0.5, "formalizability": 1'));
+  assert.equal(r.ok, false);
+  assert.equal(r.error.kind, 'ValueError');
+});
+
+test('used/available and domain/derivable together is ambiguous, not silently resolved', () => {
+  const r = run(domainGate('"used": 1, "available": 2, "domain": [0,1], "derivable": [0], "stakes": 0.5, "formalizability": 1'));
+  assert.equal(r.ok, false);
+  assert.equal(r.error.kind, 'ValueError');
+  assert.match(r.error.message, /not both/);
+});
+
+test('domain/derivable deduplicates, so a repeated value is not double-counted', () => {
+  // derivable=[1,1,2] is really {1,2}, size 2, same as derivable=[1,2].
+  const a = run(`print(str(${domainGate('"domain": [0,1,2,3,4], "derivable": [3,3,4], "stakes": 0.5, "formalizability": 1')}))`);
+  const b = run(`print(str(${domainGate('"domain": [0,1,2,3,4], "derivable": [3,4], "stakes": 0.5, "formalizability": 1')}))`);
+  assert.deepEqual(a.output, b.output);
+});
+
+test('domain/derivable and used/available agree when they describe the same grounding', () => {
+  // available=5, used=3 (2 remain possible) should be exactly the domain/derivable
+  // case above, since coverage() is domain-agnostic -- only the builtin's
+  // wiring changed, not the arithmetic underneath it.
+  const viaNumbers = run(`print(str(${gate('"used": 3, "available": 5, "stakes": 0.5, "formalizability": 1')}))`);
+  const viaSets = run(`print(str(${domainGate('"domain": [0,1,2,3,4], "derivable": [3,4], "stakes": 0.5, "formalizability": 1')}))`);
+  assert.deepEqual(viaNumbers.output, viaSets.output);
+});

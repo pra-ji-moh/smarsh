@@ -760,9 +760,58 @@ export function installBuiltins(interp) {
       }
     }
 
+    // Two ways to state how grounded the claim is, and only one of them is
+    // real evidence. `used`/`available` are numbers the caller asserts --
+    // nothing checks that they correspond to anything. `domain`/`derivable`
+    // are the actual possibility set and the subset still consistent, and
+    // `used`/`available` get COUNTED from their real sizes rather than taken
+    // on faith: available = |domain|, used = |domain| - |derivable|, which is
+    // exactly S(n) = 1 - |D(n)|/|Dom(n)| once run through coverage(). A
+    // caller cannot fabricate grounding under this form without fabricating
+    // the domain itself, which is a claim `derivable subset of domain` below
+    // catches when it doesn't hold.
+    //
+    // Exactly one form, or the caller is asked which one they meant rather
+    // than having one silently override the other.
+    const hasNumeric = field('used') !== undefined || field('available') !== undefined;
+    const hasSets = field('domain') !== undefined || field('derivable') !== undefined;
+    if (hasNumeric && hasSets) {
+      throw smarshError('ValueError',
+        "speculate takes either 'used'/'available' or 'domain'/'derivable', not both", line);
+    }
+
+    let used, available;
+    if (hasSets) {
+      const domainRaw = field('domain');
+      const derivableRaw = field('derivable');
+      if (!Array.isArray(domainRaw)) {
+        throw smarshError('TypeError', `'domain' is a list, got ${typeName(domainRaw)}`, line);
+      }
+      if (!Array.isArray(derivableRaw)) {
+        throw smarshError('TypeError', `'derivable' is a list, got ${typeName(derivableRaw)}`, line);
+      }
+      const domainSet = new Set(domainRaw.map(unwrap));
+      const derivableSet = new Set(derivableRaw.map(unwrap));
+      if (domainSet.size === 0) {
+        throw smarshError('ValueError', "'domain' cannot be empty; there is nothing to be grounded in", line);
+      }
+      for (const v of derivableSet) {
+        if (!domainSet.has(v)) {
+          throw smarshError('ValueError',
+            `'derivable' contains ${stringify(v, 1)}, which is not in 'domain' -- `
+            + 'a value cannot be more possible than the possibility set itself', line);
+        }
+      }
+      available = domainSet.size;
+      used = domainSet.size - derivableSet.size;
+    } else {
+      used = required('used');
+      available = required('available');
+    }
+
     const outcome = decideSpeculation({
-      used: required('used'),
-      available: required('available'),
+      used,
+      available,
       history,
       gamma,
       stakes,
